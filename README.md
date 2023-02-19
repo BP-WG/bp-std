@@ -1,4 +1,4 @@
-# Descriptor wallet supporting RGB and other bitcoin protocol applications
+# Bitcoin wallet library and command-line tool
 
 ![Build](https://github.com/BP-WG/bp-wallet/workflows/Build/badge.svg)
 ![Tests](https://github.com/BP-WG/bp-wallet/workflows/Tests/badge.svg)
