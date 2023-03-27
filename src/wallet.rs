@@ -21,10 +21,44 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// TODO:
-//      1. Complete terminal path
-//      2. Complete tapret descriptor
-//      3. Implement TOML for wallet descriptor
-//      4. Implement descriptor for wallet
-//      5. Implement Resolver for ElectrumClient
-//      6. Integration & cli
+use std::collections::BTreeMap;
+
+pub struct TapretKeyOnly {
+    key_path: String,
+    taprets: BTreeMap<TerminalPath, Vec<mpc::Commitment>>,
+}
+
+pub enum Descr {
+    TapretKeyOnly(TapretKeyOnly),
+}
+
+pub struct AccountXpub {
+    master_fp: Option<Fingerprint>,
+    derivation: Option<DerivationPath>,
+    xpub: Xpub,
+}
+
+pub struct Actor {
+    name: String,
+    description: Option<String>,
+}
+
+pub struct Signer {
+    actor: String,
+    name: String,
+    description: Option<String>,
+    account: AccountXpub,
+    terminal: TerminalPath,
+}
+
+pub struct Wallet {
+    name: String,
+    description: Option<String>,
+    created: Date<Utc>,
+    testnet: bool,
+    rgb: bool,
+    actors: BTreeMap<String, Actor>,
+    signers: BTreeMap<String, Signer>,
+    variables: BTreeMap<String, String>,
+    descriptor: Descr,
+}
