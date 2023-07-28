@@ -29,6 +29,7 @@ extern crate serde_crate as serde;
 mod index;
 mod path;
 mod xpub;
+mod base58;
 
 pub use index::{
     DerivationIndex, HardenedIndex, Idx, IndexError, IndexParseError, NormalIndex,

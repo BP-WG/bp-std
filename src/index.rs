@@ -390,6 +390,10 @@ pub enum DerivationIndex {
     Hardened(HardenedIndex),
 }
 
+impl From<u32> for DerivationIndex {
+    fn from(value: u32) -> Self { Self::from_index(value) }
+}
+
 impl DerivationIndex {
     pub const fn normal(child_number: u16) -> Self {
         Self::Normal(NormalIndex::normal(child_number))

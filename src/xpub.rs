@@ -20,9 +20,43 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::borrow::Borrow;
+use std::fmt::{self, Display, Formatter};
+use std::str::FromStr;
+
+use amplify::{Array, Wrapper};
 use secp256k1::PublicKey;
 
-use crate::{DerivationIndex, DerivationPath};
+use crate::{base58, DerivationIndex, DerivationPath};
+
+pub const XPUB_MAINNET_MAGIC: [u8; 4] = [0x04u8, 0x88, 0xB2, 0x1E];
+pub const XPUB_TESTNET_MAGIC: [u8; 4] = [0x04u8, 0x35, 0x87, 0xCF];
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error, From)]
+#[display(doc_comments)]
+pub enum XpubDecodeError {
+    /// wrong length of extended pubkey data ({0}).
+    WrongExtendedKeyLength(usize),
+
+    /// provided key is not a standard BIP-32 extended pubkey
+    UnknownKeyType([u8; 4]),
+
+    /// extended pubkey contains invalid Secp256k1 pubkey data
+    #[from(secp256k1::Error)]
+    InvalidPublicKey,
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error, From)]
+pub enum XpubParseError {
+    /// wrong Base58 encoding of extended pubkey data - {0}
+    #[display(doc_comments)]
+    #[from]
+    Base58(base58::Error),
+
+    #[display(inner)]
+    #[from]
+    Decode(XpubDecodeError),
+}
 
 /// BIP32 chain code used for hierarchical derivation
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
@@ -38,13 +72,39 @@ pub struct XpubCore {
     pub chain_code: ChainCode,
 }
 
-#[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default, Debug, From)]
-#[wrapper(RangeOps)]
-pub struct XpubFp([u8; 4]);
+#[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default, Debug, Display, From)]
+#[wrapper(RangeOps, Hex, FromStr)]
+#[display(LowerHex)]
+pub struct XpubFp(Array<u8, 4>);
 
-#[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default, Debug, From)]
-#[wrapper(RangeOps)]
-pub struct XpubId([u8; 20]);
+impl AsRef<[u8]> for XpubFp {
+    fn as_ref(&self) -> &[u8] { self.0.as_ref() }
+}
+
+impl From<[u8; 4]> for XpubFp {
+    fn from(value: [u8; 4]) -> Self { Self(value.into()) }
+}
+
+impl From<XpubFp> for [u8; 4] {
+    fn from(value: XpubFp) -> Self { value.0.into_inner() }
+}
+
+#[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default, Debug, Display, From)]
+#[wrapper(RangeOps, Hex, FromStr)]
+#[display(LowerHex)]
+pub struct XpubId(Array<u8, 20>);
+
+impl AsRef<[u8]> for XpubId {
+    fn as_ref(&self) -> &[u8] { self.0.as_ref() }
+}
+
+impl From<[u8; 20]> for XpubId {
+    fn from(value: [u8; 20]) -> Self { Self(value.into()) }
+}
+
+impl From<XpubId> for [u8; 20] {
+    fn from(value: XpubId) -> Self { value.0.into_inner() }
+}
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub struct XpubMeta {
@@ -60,7 +120,83 @@ pub struct Xpub {
     core: XpubCore,
 }
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+impl Xpub {
+    pub fn decode(data: impl Borrow<[u8]>) -> Result<Xpub, XpubDecodeError> {
+        let data = data.borrow();
+
+        if data.len() != 78 {
+            return Err(XpubDecodeError::WrongExtendedKeyLength(data.len()));
+        }
+
+        let testnet = match &data[0..4] {
+            magic if magic == XPUB_MAINNET_MAGIC => false,
+            magic if magic == XPUB_TESTNET_MAGIC => true,
+            unknown => {
+                let mut magic = [0u8; 4];
+                magic.copy_from_slice(unknown);
+                return Err(XpubDecodeError::UnknownKeyType(magic));
+            }
+        };
+        let depth = data[4];
+
+        let mut parent_fp = [0u8; 4];
+        parent_fp.copy_from_slice(&data[5..9]);
+
+        let mut child_number = [0u8; 4];
+        child_number.copy_from_slice(&data[9..13]);
+        let child_number = u32::from_be_bytes(child_number);
+
+        let mut chain_code = [0u8; 32];
+        chain_code.copy_from_slice(&data[13..45]);
+
+        let public_key = PublicKey::from_slice(&data[45..78])?;
+
+        Ok(Xpub {
+            testnet,
+            meta: XpubMeta {
+                depth,
+                parent_fp: parent_fp.into(),
+                child_number: child_number.into(),
+            },
+            core: XpubCore {
+                public_key,
+                chain_code: chain_code.into(),
+            },
+        })
+    }
+
+    pub fn encode(&self) -> [u8; 78] {
+        let mut ret = [0; 78];
+        ret[0..4].copy_from_slice(&match self.testnet {
+            false => XPUB_MAINNET_MAGIC,
+            true => XPUB_TESTNET_MAGIC,
+        });
+        ret[4] = self.meta.depth;
+        ret[5..9].copy_from_slice(self.meta.parent_fp.as_ref());
+        ret[9..13].copy_from_slice(&self.meta.child_number.index().to_be_bytes());
+        ret[13..45].copy_from_slice(self.core.chain_code.as_ref());
+        ret[45..78].copy_from_slice(&self.core.public_key.serialize());
+        ret
+    }
+}
+
+impl Display for Xpub {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        base58::encode_check_to_fmt(f, &self.encode())
+    }
+}
+
+impl FromStr for Xpub {
+    type Err = XpubParseError;
+
+    fn from_str(inp: &str) -> Result<Xpub, XpubParseError> {
+        let data = base58::decode_check(inp)?;
+        Ok(Xpub::decode(data)?)
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
+#[display("[{master_fp}{derivation}]{xpub}", alt = "[{master_fp}{derivation:#}]{xpub}")]
 pub struct XpubDescriptor {
     master_fp: XpubFp,
     derivation: DerivationPath,
