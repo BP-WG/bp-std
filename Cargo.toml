@@ -17,7 +17,7 @@ name = "bp"
 
 [dependencies]
 amplify = "4.0.0"
-clap = { version = "4.1.6", optional = true }
+secp256k1 = "0.27.0"
 serde_crate = { package = "serde", version = "1", features = ["derive"], optional = true }
 
 [features]

@@ -28,9 +28,11 @@ extern crate serde_crate as serde;
 
 mod index;
 mod path;
+mod xpub;
 
 pub use index::{
     DerivationIndex, HardenedIndex, Idx, IndexError, IndexParseError, NormalIndex,
     HARDENED_INDEX_BOUNDARY,
 };
 pub use path::{DerivationParseError, DerivationPath};
+pub use xpub::{Xpub, XpubDescriptor, XpubFp, XpubId, XpubMeta};
