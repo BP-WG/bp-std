@@ -32,6 +32,7 @@ mod path;
 mod key;
 mod xpub;
 mod descriptors;
+mod address;
 mod derive;
 
 pub use derive::{Derive, DeriveCompr, DeriveXOnly};

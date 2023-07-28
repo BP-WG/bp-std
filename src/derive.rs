@@ -20,6 +20,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use bc::ScriptPubkey;
 use secp256k1::XOnlyPublicKey;
 
 use crate::{ComprPubkey, NormalIndex};
@@ -35,4 +36,10 @@ pub trait Derive {
 }
 
 pub trait DeriveCompr: Derive<Derived = ComprPubkey> {}
+impl<T: Derive<Derived = ComprPubkey>> DeriveCompr for T {}
+
 pub trait DeriveXOnly: Derive<Derived = XOnlyPublicKey> {}
+impl<T: Derive<Derived = XOnlyPublicKey>> DeriveXOnly for T {}
+
+pub trait DeriveSpk: Derive<Derived = ScriptPubkey> {}
+impl<T: Derive<Derived = ScriptPubkey>> DeriveSpk for T {}
