@@ -1,5 +1,4 @@
-// Modern, lightweight, standard-compliant read-only wallet library
-// based on descriptors
+// Modern, minimalistic & standard-compliant cold wallet library.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -21,10 +20,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// TODO:
-//      1. Complete terminal path
-//      2. Complete tapret descriptor
-//      3. Implement TOML for wallet descriptor
-//      4. Implement descriptor for wallet
-//      5. Implement Resolver for ElectrumClient
-//      6. Integration & cli
+#[macro_use]
+extern crate amplify;
+#[cfg(feature = "serde")]
+#[macro_use]
+extern crate serde_crate as serde;
+
+mod index;
+
+pub use index::{
+    HardenedIndex, Idx, IndexError, IndexParseError, NormalIndex, HARDENED_INDEX_BOUNDARY,
+};
