@@ -29,5 +29,6 @@ extern crate serde_crate as serde;
 mod index;
 
 pub use index::{
-    HardenedIndex, Idx, IndexError, IndexParseError, NormalIndex, HARDENED_INDEX_BOUNDARY,
+    DerivationIndex, HardenedIndex, Idx, IndexError, IndexParseError, NormalIndex,
+    HARDENED_INDEX_BOUNDARY,
 };
