@@ -20,26 +20,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[macro_use]
-extern crate amplify;
-#[cfg(feature = "serde")]
-#[macro_use]
-extern crate serde_crate as serde;
+use secp256k1::PublicKey;
 
-mod base58;
-mod index;
-mod path;
-mod key;
-mod xpub;
-mod descriptors;
-mod derive;
+#[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
+#[wrap(Deref, LowerHex)]
+pub struct ComprPubkey(pub PublicKey);
 
-pub use derive::{Derive, DeriveCompr, DeriveXOnly};
-pub use descriptors::TrKey;
-pub use index::{
-    DerivationIndex, HardenedIndex, Idx, IndexError, IndexParseError, NormalIndex,
-    HARDENED_INDEX_BOUNDARY,
-};
-pub use key::{ComprPubkey, LegacyPubkey, UncomprPubkey};
-pub use path::{DerivationParseError, DerivationPath};
-pub use xpub::{Xpub, XpubDescriptor, XpubFp, XpubId, XpubMeta};
+#[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
+#[wrap(Deref, LowerHex)]
+pub struct UncomprPubkey(pub PublicKey);
+
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
+pub struct LegacyPubkey {
+    pub compressed: bool,
+    pub pubkey: PublicKey,
+}

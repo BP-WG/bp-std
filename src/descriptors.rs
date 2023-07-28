@@ -20,26 +20,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[macro_use]
-extern crate amplify;
-#[cfg(feature = "serde")]
-#[macro_use]
-extern crate serde_crate as serde;
+use crate::DeriveXOnly;
 
-mod base58;
-mod index;
-mod path;
-mod key;
-mod xpub;
-mod descriptors;
-mod derive;
+pub struct TrKey<K: DeriveXOnly>(K);
 
-pub use derive::{Derive, DeriveCompr, DeriveXOnly};
-pub use descriptors::TrKey;
-pub use index::{
-    DerivationIndex, HardenedIndex, Idx, IndexError, IndexParseError, NormalIndex,
-    HARDENED_INDEX_BOUNDARY,
-};
-pub use key::{ComprPubkey, LegacyPubkey, UncomprPubkey};
-pub use path::{DerivationParseError, DerivationPath};
-pub use xpub::{Xpub, XpubDescriptor, XpubFp, XpubId, XpubMeta};
+/*
+pub struct TrScript<K: DeriveXOnly> {
+    internal_key: K,
+    tap_tree: TapTree<Policy<K>>,
+}
+*/
