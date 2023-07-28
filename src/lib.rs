@@ -27,8 +27,10 @@ extern crate amplify;
 extern crate serde_crate as serde;
 
 mod index;
+mod path;
 
 pub use index::{
     DerivationIndex, HardenedIndex, Idx, IndexError, IndexParseError, NormalIndex,
     HARDENED_INDEX_BOUNDARY,
 };
+pub use path::{DerivationParseError, DerivationPath};
