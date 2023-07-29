@@ -23,9 +23,10 @@
 //! Address-related types for detailed payload analysis and memory-efficient
 //! processing.
 
-use std::fmt::{self, Display, Formatter};
+use std::fmt::{self, Debug, Display, Formatter};
 use std::str::FromStr;
 
+use amplify::hex::ToHex;
 use amplify::{Array, Wrapper};
 use bc::{ScriptPubkey, WitnessVer};
 use bech32::u5;
@@ -264,10 +265,14 @@ impl FromStr for Address {
     }
 }
 
-#[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, From)]
-#[wrapper(BorrowSlice, RangeOps, FromStr, Hex)]
+#[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Display, From)]
+#[wrapper(BorrowSlice, Index, RangeOps, FromStr, Hex)]
 #[display(LowerHex)]
-pub struct PubkeyHash(Array<u8, 20>);
+pub struct PubkeyHash(
+    #[from]
+    #[from([u8; 20])]
+    Array<u8, 20>,
+);
 
 impl AsRef<[u8; 20]> for PubkeyHash {
     fn as_ref(&self) -> &[u8; 20] { self.0.as_inner() }
@@ -277,18 +282,24 @@ impl AsRef<[u8]> for PubkeyHash {
     fn as_ref(&self) -> &[u8] { self.0.as_ref() }
 }
 
-impl From<[u8; 20]> for PubkeyHash {
-    fn from(value: [u8; 20]) -> Self { Self(value.into()) }
-}
-
 impl From<PubkeyHash> for [u8; 20] {
     fn from(value: PubkeyHash) -> Self { value.0.into_inner() }
 }
 
-#[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, From)]
-#[wrapper(BorrowSlice, RangeOps, FromStr, Hex)]
+impl Debug for PubkeyHash {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("PubkeyHash").field(&self.to_hex()).finish()
+    }
+}
+
+#[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Display, From)]
+#[wrapper(BorrowSlice, Index, RangeOps, FromStr, Hex)]
 #[display(LowerHex)]
-pub struct ScriptHash(Array<u8, 20>);
+pub struct ScriptHash(
+    #[from]
+    #[from([u8; 20])]
+    Array<u8, 20>,
+);
 
 impl AsRef<[u8; 20]> for ScriptHash {
     fn as_ref(&self) -> &[u8; 20] { self.0.as_inner() }
@@ -298,18 +309,24 @@ impl AsRef<[u8]> for ScriptHash {
     fn as_ref(&self) -> &[u8] { self.0.as_ref() }
 }
 
-impl From<[u8; 20]> for ScriptHash {
-    fn from(value: [u8; 20]) -> Self { Self(value.into()) }
-}
-
 impl From<ScriptHash> for [u8; 20] {
     fn from(value: ScriptHash) -> Self { value.0.into_inner() }
 }
 
-#[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, From)]
-#[wrapper(BorrowSlice, RangeOps, FromStr, Hex)]
+impl Debug for ScriptHash {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("ScriptHash").field(&self.to_hex()).finish()
+    }
+}
+
+#[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Display, From)]
+#[wrapper(BorrowSlice, Index, RangeOps, FromStr, Hex)]
 #[display(LowerHex)]
-pub struct WPubkeyHash(Array<u8, 20>);
+pub struct WPubkeyHash(
+    #[from]
+    #[from([u8; 20])]
+    Array<u8, 20>,
+);
 
 impl AsRef<[u8; 20]> for WPubkeyHash {
     fn as_ref(&self) -> &[u8; 20] { self.0.as_inner() }
@@ -319,18 +336,24 @@ impl AsRef<[u8]> for WPubkeyHash {
     fn as_ref(&self) -> &[u8] { self.0.as_ref() }
 }
 
-impl From<[u8; 20]> for WPubkeyHash {
-    fn from(value: [u8; 20]) -> Self { Self(value.into()) }
-}
-
 impl From<WPubkeyHash> for [u8; 20] {
     fn from(value: WPubkeyHash) -> Self { value.0.into_inner() }
 }
 
-#[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, From)]
-#[wrapper(BorrowSlice, RangeOps, FromStr, Hex)]
+impl Debug for WPubkeyHash {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("WPubkeyHash").field(&self.to_hex()).finish()
+    }
+}
+
+#[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Display, From)]
+#[wrapper(BorrowSlice, Index, RangeOps, FromStr, Hex)]
 #[display(LowerHex)]
-pub struct WScriptHash(Array<u8, 32>);
+pub struct WScriptHash(
+    #[from]
+    #[from([u8; 32])]
+    Array<u8, 32>,
+);
 
 impl AsRef<[u8; 32]> for WScriptHash {
     fn as_ref(&self) -> &[u8; 32] { self.0.as_inner() }
@@ -340,12 +363,14 @@ impl AsRef<[u8]> for WScriptHash {
     fn as_ref(&self) -> &[u8] { self.0.as_ref() }
 }
 
-impl From<[u8; 32]> for WScriptHash {
-    fn from(value: [u8; 32]) -> Self { Self(value.into()) }
-}
-
 impl From<WScriptHash> for [u8; 32] {
     fn from(value: WScriptHash) -> Self { value.0.into_inner() }
+}
+
+impl Debug for WScriptHash {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("WScriptHash").field(&self.to_hex()).finish()
+    }
 }
 
 /// Internal address content. Consists of serialized hashes or x-only key value.
