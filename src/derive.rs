@@ -20,10 +20,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use bc::ScriptPubkey;
-use secp256k1::XOnlyPublicKey;
+use bc::{InternalPk, ScriptPubkey};
 
-use crate::{ComprPubkey, NormalIndex};
+use crate::{Address, AddressNetwork, ComprPubkey, Idx, NormalIndex};
 
 pub trait Derive {
     type Derived;
@@ -33,13 +32,59 @@ pub trait Derive {
         change: impl Into<NormalIndex>,
         index: impl Into<NormalIndex>,
     ) -> Self::Derived;
+
+    fn derive_batch(
+        &self,
+        change: impl Into<NormalIndex>,
+        from: impl Into<NormalIndex>,
+        max_count: u8,
+    ) -> Vec<Self::Derived> {
+        let change = change.into();
+        let mut index = from.into();
+        let mut count = 0u8;
+        let mut batch = Vec::with_capacity(max_count as usize);
+        loop {
+            batch.push(self.derive(change, index));
+            count += 1;
+            if index.checked_inc_assign().is_none() || count >= max_count {
+                return batch;
+            }
+        }
+    }
 }
 
 pub trait DeriveCompr: Derive<Derived = ComprPubkey> {}
 impl<T: Derive<Derived = ComprPubkey>> DeriveCompr for T {}
 
-pub trait DeriveXOnly: Derive<Derived = XOnlyPublicKey> {}
-impl<T: Derive<Derived = XOnlyPublicKey>> DeriveXOnly for T {}
+pub trait DeriveXOnly: Derive<Derived = InternalPk> {}
+impl<T: Derive<Derived = InternalPk>> DeriveXOnly for T {}
 
-pub trait DeriveSpk: Derive<Derived = ScriptPubkey> {}
+pub trait DeriveSpk: Derive<Derived = ScriptPubkey> {
+    fn derive_address(
+        &self,
+        network: AddressNetwork,
+        change: impl Into<NormalIndex>,
+        index: impl Into<NormalIndex>,
+    ) -> Address {
+        let spk = self.derive(change, index);
+        Address::with(&spk, network)
+            .expect("invalid derive implementation constructing broken scriptPubkey")
+    }
+
+    fn derive_address_batch(
+        &self,
+        network: AddressNetwork,
+        change: impl Into<NormalIndex>,
+        from: impl Into<NormalIndex>,
+        max_count: u8,
+    ) -> Vec<Address> {
+        self.derive_batch(change, from, max_count)
+            .into_iter()
+            .map(|spk| {
+                Address::with(&spk, network)
+                    .expect("invalid derive implementation constructing broken scriptPubkey")
+            })
+            .collect()
+    }
+}
 impl<T: Derive<Derived = ScriptPubkey>> DeriveSpk for T {}

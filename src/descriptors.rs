@@ -20,9 +20,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::DeriveXOnly;
+use bc::ScriptPubkey;
+
+use crate::{Derive, DeriveXOnly, NormalIndex};
 
 pub struct TrKey<K: DeriveXOnly>(K);
+
+impl<K: DeriveXOnly> Derive for TrKey<K> {
+    type Derived = ScriptPubkey;
+
+    fn derive(
+        &self,
+        change: impl Into<NormalIndex>,
+        index: impl Into<NormalIndex>,
+    ) -> Self::Derived {
+        let internal_key = self.0.derive(change, index);
+        ScriptPubkey::p2tr_key_only(internal_key)
+    }
+}
 
 /*
 pub struct TrScript<K: DeriveXOnly> {
