@@ -35,12 +35,16 @@ mod descriptors;
 mod address;
 mod derive;
 
+pub use address::{
+    Address, AddressNetwork, AddressParseError, AddressPayload, AddressType, PubkeyHash,
+    ScriptHash, WPubkeyHash, WScriptHash,
+};
 pub use derive::{Derive, DeriveCompr, DeriveXOnly};
 pub use descriptors::TrKey;
 pub use index::{
     DerivationIndex, HardenedIndex, Idx, IndexError, IndexParseError, NormalIndex,
     HARDENED_INDEX_BOUNDARY,
 };
-pub use key::{ComprPubkey, LegacyPubkey, UncomprPubkey};
+pub use key::{ComprPubkey, LegacyPubkey, TaprootPubkey, UncomprPubkey};
 pub use path::{DerivationParseError, DerivationPath};
 pub use xpub::{Xpub, XpubDescriptor, XpubFp, XpubId, XpubMeta};

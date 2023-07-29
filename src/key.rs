@@ -20,7 +20,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use secp256k1::PublicKey;
+use secp256k1::{PublicKey, XOnlyPublicKey};
+
+#[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
+#[wrap(Deref, LowerHex)]
+pub struct TaprootPubkey(pub XOnlyPublicKey);
+
+impl TaprootPubkey {
+    pub fn from_slice(data: impl AsRef<[u8]>) -> Result<Self, secp256k1::Error> {
+        XOnlyPublicKey::from_slice(data.as_ref()).map(Self)
+    }
+
+    pub fn to_byte_array(&self) -> [u8; 32] { self.0.serialize() }
+}
+
+impl From<TaprootPubkey> for [u8; 32] {
+    fn from(pk: TaprootPubkey) -> [u8; 32] { pk.to_byte_array() }
+}
 
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
 #[wrap(Deref, LowerHex)]

@@ -26,11 +26,72 @@
 use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 
-use amplify::Wrapper;
+use amplify::{Array, Wrapper};
 use bc::{ScriptPubkey, WitnessVer};
+use bech32::u5;
+
+use crate::{base58, TaprootPubkey};
+
+/// Mainnet (bitcoin) pubkey address prefix.
+pub const PUBKEY_ADDRESS_PREFIX_MAIN: u8 = 0; // 0x00
+/// Mainnet (bitcoin) script address prefix.
+pub const SCRIPT_ADDRESS_PREFIX_MAIN: u8 = 5; // 0x05
+/// Test (tesnet, signet, regtest) pubkey address prefix.
+pub const PUBKEY_ADDRESS_PREFIX_TEST: u8 = 111; // 0x6f
+/// Test (tesnet, signet, regtest) script address prefix.
+pub const SCRIPT_ADDRESS_PREFIX_TEST: u8 = 196; // 0xc4
+
+/// Errors creating address from scriptPubkey.
+#[derive(Clone, Eq, PartialEq, Debug, Display, Error)]
+#[display(doc_comments)]
+pub enum AddressError {
+    /// scriptPubkey contains invalid BIP340 output pubkey.
+    InvalidTaprootKey,
+    /// scriptPubkey can't be represented with any known address standard.
+    UnsupportedScriptPubkey,
+}
+
+/// Errors parsing address strings.
+#[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
+#[display(doc_comments)]
+pub enum AddressParseError {
+    /// wrong Base58 encoding of extended pubkey data - {0}
+    #[from]
+    Base58(base58::Error),
+
+    /// wrong Bech32 encoding of extended pubkey data - {0}
+    #[from]
+    Bech32(bech32::Error),
+
+    /// legacy address has an invalid version code {0:#02x}.
+    InvalidAddressVersion(u8),
+
+    /// segwit address has an invalid witness version {0:#02x}.
+    InvalidWitnessVersion(u8),
+
+    /// unsupported future taproot version in address `{1}` detected by a length of {0}.
+    FutureTaprootVersion(usize, String),
+
+    /// address has an unsupported future witness version {0}.
+    FutureWitnessVersion(WitnessVer),
+
+    /// address has an invalid Bech32 variant {0:?}.
+    InvalidBech32Variant(bech32::Variant),
+
+    /// unrecognized address format in '{0}'.
+    UnrecognizableFormat(String),
+
+    /// wrong BIP340 public key
+    #[from(secp256k1::Error)]
+    WrongPublicKeyData,
+
+    /// unrecognized address format string; must be one of `P2PKH`, `P2SH`,
+    /// `P2WPKH`, `P2WSH`, `P2TR`
+    UnrecognizedAddressType,
+}
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
-pub struct AddressCompat {
+pub struct Address {
     /// Address payload (see [`AddressPayload`]).
     pub payload: AddressPayload,
 
@@ -38,13 +99,17 @@ pub struct AddressCompat {
     pub network: AddressNetwork,
 }
 
-impl AddressCompat {
+impl Address {
+    pub fn new(payload: AddressPayload, network: AddressNetwork) -> Self {
+        Address { payload, network }
+    }
+
     /// Constructs compatible address for a given `scriptPubkey`.
     /// Returns `None` if the uncompressed key is provided or `scriptPubkey`
     /// can't be represented as an address.
-    pub fn with(script: &ScriptPubkey, network: AddressNetwork) -> Option<Self> {
+    pub fn with(script: &ScriptPubkey, network: AddressNetwork) -> Result<Self, AddressError> {
         let payload = AddressPayload::from_script(script)?;
-        Some(AddressCompat { payload, network })
+        Ok(Address { payload, network })
     }
 
     /// Returns script corresponding to the given address.
@@ -54,54 +119,263 @@ impl AddressCompat {
     pub fn is_testnet(self) -> bool { self.network != AddressNetwork::Mainnet }
 }
 
-impl Display for AddressCompat {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { Display::fmt(&Address::from(*self), f) }
-}
+impl Display for Address {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let (version, variant, prog) = match self.payload {
+            AddressPayload::Pkh(PubkeyHash(hash)) | AddressPayload::Sh(ScriptHash(hash)) => {
+                let mut prefixed = [0; 21];
+                prefixed[0] = match (self.payload, self.network) {
+                    (AddressPayload::Pkh(_), AddressNetwork::Mainnet) => PUBKEY_ADDRESS_PREFIX_MAIN,
+                    (AddressPayload::Sh(_), AddressNetwork::Mainnet) => SCRIPT_ADDRESS_PREFIX_MAIN,
+                    (AddressPayload::Pkh(_), _) => PUBKEY_ADDRESS_PREFIX_TEST,
+                    (AddressPayload::Sh(_), _) => SCRIPT_ADDRESS_PREFIX_TEST,
+                    _ => unreachable!(),
+                };
+                prefixed[1..].copy_from_slice(hash.as_ref());
+                return base58::encode_check_to_fmt(f, &prefixed[..]);
+            }
+            AddressPayload::Wpkh(hash) => {
+                (WitnessVer::V0, bech32::Variant::Bech32, Box::new(hash) as Box<dyn AsRef<[u8]>>)
+            }
+            AddressPayload::Wsh(hash) => {
+                (WitnessVer::V0, bech32::Variant::Bech32, Box::new(hash) as Box<dyn AsRef<[u8]>>)
+            }
+            AddressPayload::Tr(pk) => (
+                WitnessVer::V1,
+                bech32::Variant::Bech32m,
+                Box::new(pk.to_byte_array()) as Box<dyn AsRef<[u8]>>,
+            ),
+        };
 
-impl FromStr for AddressCompat {
-    type Err = address::Error;
+        struct UpperWriter<W: fmt::Write>(W);
+        impl<W: fmt::Write> fmt::Write for UpperWriter<W> {
+            fn write_str(&mut self, s: &str) -> fmt::Result {
+                for c in s.chars() {
+                    self.0.write_char(c.to_ascii_uppercase())?;
+                }
+                Ok(())
+            }
+        }
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Address::from_str(s).and_then(AddressCompat::try_from)
+        let mut upper_writer;
+        let writer = if f.alternate() {
+            upper_writer = UpperWriter(f);
+            &mut upper_writer as &mut dyn fmt::Write
+        } else {
+            f as &mut dyn fmt::Write
+        };
+        let mut bech32_writer =
+            bech32::Bech32Writer::new(self.network.bech32_hrp(), variant, writer)?;
+        let ver_u5 = u5::try_from_u8(version as u8).expect("witness version < 32");
+        bech32::WriteBase32::write_u5(&mut bech32_writer, ver_u5)?;
+        bech32::ToBase32::write_base32(&prog.as_ref(), &mut bech32_writer)
     }
 }
 
+impl FromStr for Address {
+    type Err = AddressParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parse_base58 = || -> Result<Self, Self::Err> {
+            if s.len() > 50 {
+                return Err(AddressParseError::Base58(base58::Error::InvalidLength(
+                    s.len() * 11 / 15,
+                )));
+            }
+            let data = base58::decode_check(s)?;
+            if data.len() != 21 {
+                return Err(AddressParseError::Base58(base58::Error::InvalidLength(data.len())));
+            }
+
+            let network = match data[0] {
+                PUBKEY_ADDRESS_PREFIX_MAIN | SCRIPT_ADDRESS_PREFIX_MAIN => AddressNetwork::Mainnet,
+                PUBKEY_ADDRESS_PREFIX_TEST | SCRIPT_ADDRESS_PREFIX_TEST => AddressNetwork::Testnet,
+                x => return Err(AddressParseError::InvalidAddressVersion(x)),
+            };
+
+            let mut hash = [0u8; 20];
+            hash.copy_from_slice(&data[1..]);
+            let payload = match data[0] {
+                PUBKEY_ADDRESS_PREFIX_MAIN | PUBKEY_ADDRESS_PREFIX_TEST => {
+                    AddressPayload::Pkh(PubkeyHash::from(hash))
+                }
+                SCRIPT_ADDRESS_PREFIX_MAIN | SCRIPT_ADDRESS_PREFIX_TEST => {
+                    AddressPayload::Sh(ScriptHash::from(hash))
+                }
+                _ => unreachable!(),
+            };
+
+            Ok(Address::new(payload, network))
+        };
+
+        let parse_bech32 = |hri: String,
+                            payload: Vec<bech32::u5>,
+                            variant: bech32::Variant|
+         -> Result<Self, Self::Err> {
+            let network = match hri.as_str() {
+                "bc1" | "BC1" => AddressNetwork::Mainnet,
+                "tc1" | "TC1" => AddressNetwork::Testnet,
+                "bcrt1" | "BCRT1" => AddressNetwork::Regtest,
+                _ => return parse_base58(),
+            };
+            let (v, p5) = payload.split_at(1);
+            let wv = v[0].to_u8();
+            let version = WitnessVer::from_version_no(wv)
+                .map_err(|_| AddressParseError::InvalidWitnessVersion(wv))?;
+            let program: Vec<u8> = bech32::FromBase32::from_base32(p5)?;
+            let payload = match (version, variant) {
+                (WitnessVer::V0, bech32::Variant::Bech32) if program.len() == 20 => {
+                    let mut hash = [0u8; 20];
+                    hash.copy_from_slice(&program);
+                    AddressPayload::Wpkh(hash.into())
+                }
+                (WitnessVer::V0, bech32::Variant::Bech32) if program.len() == 32 => {
+                    let mut hash = [0u8; 32];
+                    hash.copy_from_slice(&program);
+                    AddressPayload::Wsh(hash.into())
+                }
+                (WitnessVer::V1, bech32::Variant::Bech32m) if program.len() == 32 => {
+                    let pk = TaprootPubkey::from_slice(&program)?;
+                    AddressPayload::Tr(pk)
+                }
+
+                (WitnessVer::V1, bech32::Variant::Bech32m) => {
+                    return Err(AddressParseError::FutureTaprootVersion(
+                        program.len(),
+                        s.to_owned(),
+                    ))
+                }
+
+                (WitnessVer::V0 | WitnessVer::V1, wrong) => {
+                    return Err(AddressParseError::InvalidBech32Variant(wrong))
+                }
+
+                (future, _) => return Err(AddressParseError::FutureWitnessVersion(future)),
+            };
+            Ok(Address::new(payload, network))
+        };
+
+        match bech32::decode(s) {
+            Ok((hri, payload, variant)) => parse_bech32(hri, payload, variant),
+            Err(_) => {
+                parse_base58().map_err(|_| AddressParseError::UnrecognizableFormat(s.to_owned()))
+            }
+        }
+    }
+}
+
+#[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, From)]
+#[wrapper(BorrowSlice, RangeOps, FromStr, Hex)]
+#[display(LowerHex)]
+pub struct PubkeyHash(Array<u8, 20>);
+
+impl AsRef<[u8; 20]> for PubkeyHash {
+    fn as_ref(&self) -> &[u8; 20] { self.0.as_inner() }
+}
+
+impl AsRef<[u8]> for PubkeyHash {
+    fn as_ref(&self) -> &[u8] { self.0.as_ref() }
+}
+
+impl From<[u8; 20]> for PubkeyHash {
+    fn from(value: [u8; 20]) -> Self { Self(value.into()) }
+}
+
+impl From<PubkeyHash> for [u8; 20] {
+    fn from(value: PubkeyHash) -> Self { value.0.into_inner() }
+}
+
+#[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, From)]
+#[wrapper(BorrowSlice, RangeOps, FromStr, Hex)]
+#[display(LowerHex)]
+pub struct ScriptHash(Array<u8, 20>);
+
+impl AsRef<[u8; 20]> for ScriptHash {
+    fn as_ref(&self) -> &[u8; 20] { self.0.as_inner() }
+}
+
+impl AsRef<[u8]> for ScriptHash {
+    fn as_ref(&self) -> &[u8] { self.0.as_ref() }
+}
+
+impl From<[u8; 20]> for ScriptHash {
+    fn from(value: [u8; 20]) -> Self { Self(value.into()) }
+}
+
+impl From<ScriptHash> for [u8; 20] {
+    fn from(value: ScriptHash) -> Self { value.0.into_inner() }
+}
+
+#[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, From)]
+#[wrapper(BorrowSlice, RangeOps, FromStr, Hex)]
+#[display(LowerHex)]
+pub struct WPubkeyHash(Array<u8, 20>);
+
+impl AsRef<[u8; 20]> for WPubkeyHash {
+    fn as_ref(&self) -> &[u8; 20] { self.0.as_inner() }
+}
+
+impl AsRef<[u8]> for WPubkeyHash {
+    fn as_ref(&self) -> &[u8] { self.0.as_ref() }
+}
+
+impl From<[u8; 20]> for WPubkeyHash {
+    fn from(value: [u8; 20]) -> Self { Self(value.into()) }
+}
+
+impl From<WPubkeyHash> for [u8; 20] {
+    fn from(value: WPubkeyHash) -> Self { value.0.into_inner() }
+}
+
+#[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, From)]
+#[wrapper(BorrowSlice, RangeOps, FromStr, Hex)]
+#[display(LowerHex)]
+pub struct WScriptHash(Array<u8, 32>);
+
+impl AsRef<[u8; 32]> for WScriptHash {
+    fn as_ref(&self) -> &[u8; 32] { self.0.as_inner() }
+}
+
+impl AsRef<[u8]> for WScriptHash {
+    fn as_ref(&self) -> &[u8] { self.0.as_ref() }
+}
+
+impl From<[u8; 32]> for WScriptHash {
+    fn from(value: [u8; 32]) -> Self { Self(value.into()) }
+}
+
+impl From<WScriptHash> for [u8; 32] {
+    fn from(value: WScriptHash) -> Self { value.0.into_inner() }
+}
+
 /// Internal address content. Consists of serialized hashes or x-only key value.
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, From)]
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
 pub enum AddressPayload {
     /// P2PKH payload.
     #[from]
-    #[display("raw_pkh({0})")]
-    PubkeyHash(PubkeyHash),
+    Pkh(PubkeyHash),
 
     /// P2SH and SegWit nested (legacy) P2WPKH/WSH-in-P2SH payloads.
     #[from]
-    #[display("raw_sh({0})")]
-    ScriptHash(ScriptHash),
+    Sh(ScriptHash),
 
     /// P2WPKH payload.
     #[from]
-    #[display("raw_wpkh({0})")]
-    WPubkeyHash(WPubkeyHash),
+    Wpkh(WPubkeyHash),
 
     /// P2WSH payload.
     #[from]
-    #[display("raw_wsh({0})")]
-    WScriptHash(WScriptHash),
+    Wsh(WScriptHash),
 
     /// P2TR payload.
     #[from]
-    #[display("raw_tr({output_key})")]
-    Taproot {
-        /// Taproot output key (tweaked key)
-        output_key: TweakedPublicKey,
-    },
+    Tr(TaprootPubkey),
 }
 
 impl AddressPayload {
-    /// Constructs [`AddressCompat`] from the payload.
-    pub fn into_address(self, network: AddressNetwork) -> AddressCompat {
-        AddressCompat {
+    /// Constructs [`Address`] from the payload.
+    pub fn into_address(self, network: AddressNetwork) -> Address {
+        Address {
             payload: self,
             network,
         }
@@ -109,99 +383,52 @@ impl AddressPayload {
 
     /// Constructs payload from a given `scriptPubkey`. Fails on future
     /// (post-taproot) witness types with `None`.
-    pub fn from_script(script: &ScriptPubkey) -> Option<Self> {
-        Address::from_script(script.as_inner(), bitcoin::Network::Bitcoin)
-            .ok()
-            .and_then(Self::from_address)
+    pub fn from_script(script: &ScriptPubkey) -> Result<Self, AddressError> {
+        Ok(if script.is_p2pkh() {
+            let mut bytes = [0u8; 20];
+            bytes.copy_from_slice(&script[3..23]);
+            AddressPayload::Pkh(PubkeyHash::from(bytes))
+        } else if script.is_p2sh() {
+            let mut bytes = [0u8; 20];
+            bytes.copy_from_slice(&script[2..]);
+            AddressPayload::Sh(ScriptHash::from(bytes))
+        } else if script.is_p2wpkh() {
+            let mut bytes = [0u8; 20];
+            bytes.copy_from_slice(&script[2..]);
+            AddressPayload::Wpkh(WPubkeyHash::from(bytes))
+        } else if script.is_p2wsh() {
+            let mut bytes = [0u8; 32];
+            bytes.copy_from_slice(&script[2..]);
+            AddressPayload::Wsh(WScriptHash::from(bytes))
+        } else if script.is_p2tr() {
+            AddressPayload::Tr(
+                TaprootPubkey::from_slice(&script[2..])
+                    .map_err(|_| AddressError::InvalidTaprootKey)?,
+            )
+        } else {
+            return Err(AddressError::UnsupportedScriptPubkey);
+        })
     }
 
     /// Returns script corresponding to the given address.
     pub fn script_pubkey(self) -> ScriptPubkey {
         match self {
-            AddressPayload::PubkeyHash(hash) => ScriptPubkey::p2pkh(&hash),
-            AddressPayload::ScriptHash(hash) => ScriptPubkey::p2sh(&hash),
-            AddressPayload::WPubkeyHash(hash) => ScriptPubkey::p2wpkh(&hash),
-            AddressPayload::WScriptHash(hash) => ScriptPubkey::p2wsh(&hash),
-            AddressPayload::Taproot { output_key } => ScriptPubkey::p2tr_tweaked(output_key),
+            AddressPayload::Pkh(hash) => ScriptPubkey::p2pkh(hash),
+            AddressPayload::Sh(hash) => ScriptPubkey::p2sh(hash),
+            AddressPayload::Wpkh(hash) => ScriptPubkey::p2wpkh(hash),
+            AddressPayload::Wsh(hash) => ScriptPubkey::p2wsh(hash),
+            AddressPayload::Tr(output_key) => ScriptPubkey::p2tr_tweaked(output_key.into()),
         }
     }
 }
 
 impl From<AddressPayload> for ScriptPubkey {
-    fn from(ap: AddressPayload) -> Self {
-        ap.into_address(bitcoin::Network::Bitcoin).script_pubkey().into()
-    }
+    fn from(ap: AddressPayload) -> Self { ap.script_pubkey() }
 }
 
-/// Errors parsing address strings.
-#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, Error, From)]
-#[display(doc_comments)]
-pub enum AddressParseError {
-    /// unknown address payload prefix `{0}`; expected `pkh`, `sh`, `wpkh`,
-    /// `wsh` and `pkxo` only
-    UnknownPrefix(String),
-
-    /// unrecognized address payload string format
-    UnrecognizedStringFormat,
-
-    /// address payload must be prefixed by pyaload format prefix, indicating
-    /// specific form of hash or a public key used inside the address
-    PrefixAbsent,
-
-    /// wrong address payload data
-    #[from(hex::Error)]
-    WrongPayloadHashData,
-
-    /// wrong BIP340 public key (xcoord-only)
-    #[from(secp256k1::Error)]
-    WrongPublicKeyData,
-
-    /// unrecognized address network string; only `mainnet`, `testnet` and
-    /// `regtest` are possible at address level
-    UnrecognizedAddressNetwork,
-
-    /// unrecognized address format string; must be one of `P2PKH`, `P2SH`,
-    /// `P2WPKH`, `P2WSH`, `P2TR`
-    UnrecognizedAddressFormat,
-
-    /// wrong witness version
-    WrongWitnessVersion,
-}
-
-impl FromStr for AddressPayload {
-    type Err = AddressParseError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let s = s.to_lowercase();
-        let mut split = s.trim_end_matches(')').split('(');
-        Ok(match (split.next(), split.next(), split.next()) {
-            (_, _, Some(_)) => return Err(AddressParseError::UnrecognizedStringFormat),
-            (Some("pkh"), Some(hash), None) => {
-                AddressPayload::PubkeyHash(PubkeyHash::from_str(hash)?)
-            }
-            (Some("sh"), Some(hash), None) => {
-                AddressPayload::ScriptHash(ScriptHash::from_str(hash)?)
-            }
-            (Some("wpkh"), Some(hash), None) => {
-                AddressPayload::WPubkeyHash(WPubkeyHash::from_str(hash)?)
-            }
-            (Some("wsh"), Some(hash), None) => {
-                AddressPayload::WScriptHash(WScriptHash::from_str(hash)?)
-            }
-            (Some("pkxo"), Some(hash), None) => AddressPayload::Taproot {
-                output_key: TweakedPublicKey::dangerous_assume_tweaked(XOnlyPublicKey::from_str(
-                    hash,
-                )?),
-            },
-            (Some(prefix), ..) => return Err(AddressParseError::UnknownPrefix(prefix.to_owned())),
-            (None, ..) => return Err(AddressParseError::PrefixAbsent),
-        })
-    }
-}
-
-/// Address format
+/// Address type
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
-pub enum AddressFormat {
+pub enum AddressType {
     /// Pay-to-public key hash
     #[display("P2PKH")]
     P2pkh,
@@ -221,77 +448,60 @@ pub enum AddressFormat {
     /// Pay-to-taproot
     #[display("P2TR")]
     P2tr,
-
-    /// Future witness address
-    #[display("P2W{0}")]
-    Future(WitnessVer),
 }
 
-impl AddressFormat {
+impl AddressType {
     /// Returns witness version used by the address format.
     /// Returns `None` for pre-SegWit address formats.
     pub fn witness_version(self) -> Option<WitnessVer> {
         match self {
-            AddressFormat::P2pkh => None,
-            AddressFormat::P2sh => None,
-            AddressFormat::P2wpkh | AddressFormat::P2wsh => Some(WitnessVer::V0),
-            AddressFormat::P2tr => Some(WitnessVer::V1),
-            AddressFormat::Future(ver) => Some(ver),
+            AddressType::P2pkh => None,
+            AddressType::P2sh => None,
+            AddressType::P2wpkh | AddressType::P2wsh => Some(WitnessVer::V0),
+            AddressType::P2tr => Some(WitnessVer::V1),
         }
     }
 }
 
-impl FromStr for AddressFormat {
+impl FromStr for AddressType {
     type Err = AddressParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         #[allow(clippy::match_str_case_mismatch)]
         Ok(match s.to_uppercase().as_str() {
-            "P2PKH" => AddressFormat::P2pkh,
-            "P2SH" => AddressFormat::P2sh,
-            "P2WPKH" => AddressFormat::P2wpkh,
-            "P2WSH" => AddressFormat::P2wsh,
-            "P2TR" => AddressFormat::P2tr,
-            s if s.starts_with("P2W") => AddressFormat::Future(
-                WitnessVer::from_str(&s[3..])
-                    .map_err(|_| AddressParseError::WrongWitnessVersion)?,
-            ),
-            _ => return Err(AddressParseError::UnrecognizedAddressFormat),
+            "P2PKH" => AddressType::P2pkh,
+            "P2SH" => AddressType::P2sh,
+            "P2WPKH" => AddressType::P2wpkh,
+            "P2WSH" => AddressType::P2wsh,
+            "P2TR" => AddressType::P2tr,
+            _ => return Err(AddressParseError::UnrecognizedAddressType),
         })
     }
 }
 
 /// Bitcoin network used by the address
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
 pub enum AddressNetwork {
     /// Bitcoin mainnet
-    #[display("mainnet")]
     Mainnet,
 
     /// Bitcoin testnet and signet
-    #[display("testnet")]
     Testnet,
 
     /// Bitcoin regtest networks
-    #[display("regtest")]
     Regtest,
-}
-
-impl FromStr for AddressNetwork {
-    type Err = AddressParseError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(match s.to_lowercase().as_str() {
-            "mainnet" => AddressNetwork::Mainnet,
-            "testnet" => AddressNetwork::Testnet,
-            "regtest" => AddressNetwork::Regtest,
-            _ => return Err(AddressParseError::UnrecognizedAddressNetwork),
-        })
-    }
 }
 
 impl AddressNetwork {
     /// Detects whether the network is a kind of test network (testnet, signet,
     /// regtest).
     pub fn is_testnet(self) -> bool { self != Self::Mainnet }
+
+    pub fn bech32_hrp(self) -> &'static str {
+        match self {
+            AddressNetwork::Mainnet => "bc",
+            AddressNetwork::Testnet => "tc",
+            AddressNetwork::Regtest => "bcrt",
+        }
+    }
 }
