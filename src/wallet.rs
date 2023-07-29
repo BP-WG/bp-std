@@ -20,33 +20,36 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[macro_use]
-extern crate amplify;
-#[cfg(feature = "serde")]
-#[macro_use]
-extern crate serde_crate as serde;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::num::NonZeroU32;
 
-mod base58;
-mod index;
-mod path;
-mod key;
-mod xpub;
-mod descriptors;
-mod address;
-mod derive;
-mod wallet;
+use bc::{Outpoint, Txid};
 
-pub use address::{
-    Address, AddressNetwork, AddressParseError, AddressPayload, AddressType, PubkeyHash,
-    ScriptHash, WPubkeyHash, WScriptHash,
-};
-pub use bc::{secp256k1, *};
-pub use derive::{Derive, DeriveCompr, DeriveXOnly};
-pub use descriptors::TrKey;
-pub use index::{
-    DerivationIndex, HardenedIndex, Idx, IndexError, IndexParseError, NormalIndex,
-    HARDENED_INDEX_BOUNDARY,
-};
-pub use key::{ComprPubkey, LegacyPubkey, TaprootPubkey, UncomprPubkey};
-pub use path::{DerivationParseError, DerivationPath};
-pub use xpub::{Xpub, XpubDescriptor, XpubFp, XpubId, XpubMeta};
+use crate::derive::DeriveSpk;
+use crate::NormalIndex;
+
+pub struct WalletDescr<D: DeriveSpk> {
+    script_pubkey: D,
+    keychains: BTreeSet<NormalIndex>,
+}
+
+pub struct WalletData {
+    pub name: String,
+    pub tx_annotations: BTreeMap<Txid, String>,
+    pub txout_annotations: BTreeMap<Outpoint, String>,
+}
+
+pub struct WalletCache {
+    last_used: NormalIndex,
+    headers: HashMap<NonZeroU32, BlockInfo>,
+    tx: HashMap<Txid, TxInfo>,
+    utxo: HashMap<Outpoint, UtxoInfo>,
+    spent: HashMap<Outpoint, TxoInfo>,
+    addr: HashMap<(NormalIndex, NormalIndex), AddrInfo>,
+}
+
+pub struct Wallet<D: DeriveSpk> {
+    descr: WalletDescr<D>,
+    data: WalletData,
+    cache: WalletCache,
+}
