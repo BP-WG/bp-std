@@ -34,6 +34,7 @@ mod xpub;
 mod descriptors;
 mod address;
 mod derive;
+mod onchain;
 mod wallet;
 
 pub use address::{
@@ -48,5 +49,9 @@ pub use index::{
     HARDENED_INDEX_BOUNDARY,
 };
 pub use key::{ComprPubkey, LegacyPubkey, TaprootPubkey, UncomprPubkey};
+pub use onchain::{
+    AddrInfo, BlockInfo, MiningInfo, Sats, TxInInfo, TxInfo, TxOutInfo, TxStatus, UtxoInfo,
+};
 pub use path::{DerivationParseError, DerivationPath};
+pub use wallet::{Wallet, WalletCache, WalletData, WalletDescr};
 pub use xpub::{Xpub, XpubDescriptor, XpubFp, XpubId, XpubMeta};

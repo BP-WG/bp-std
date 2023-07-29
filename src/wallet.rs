@@ -26,7 +26,7 @@ use std::num::NonZeroU32;
 use bc::{Outpoint, Txid};
 
 use crate::derive::DeriveSpk;
-use crate::NormalIndex;
+use crate::{AddrInfo, Address, BlockInfo, NormalIndex, TxInfo, UtxoInfo};
 
 pub struct WalletDescr<D: DeriveSpk> {
     script_pubkey: D,
@@ -37,6 +37,8 @@ pub struct WalletData {
     pub name: String,
     pub tx_annotations: BTreeMap<Txid, String>,
     pub txout_annotations: BTreeMap<Outpoint, String>,
+    pub txin_annotations: BTreeMap<Outpoint, String>,
+    pub addr_annotations: BTreeMap<Address, String>,
 }
 
 pub struct WalletCache {
@@ -44,12 +46,12 @@ pub struct WalletCache {
     headers: HashMap<NonZeroU32, BlockInfo>,
     tx: HashMap<Txid, TxInfo>,
     utxo: HashMap<Outpoint, UtxoInfo>,
-    spent: HashMap<Outpoint, TxoInfo>,
     addr: HashMap<(NormalIndex, NormalIndex), AddrInfo>,
 }
 
-pub struct Wallet<D: DeriveSpk> {
+pub struct Wallet<D: DeriveSpk, L2 = ()> {
     descr: WalletDescr<D>,
     data: WalletData,
     cache: WalletCache,
+    layer2: L2,
 }

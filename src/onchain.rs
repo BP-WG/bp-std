@@ -22,25 +22,73 @@
 
 use std::num::NonZeroU32;
 
-use bc::Txid;
+use bc::{BlockHash, BlockHeader, LockTime, Outpoint, SeqNo, SigScript, Txid, Witness};
 
-use crate::NormalIndex;
+use crate::{Address, NormalIndex};
 
-pub enum Status {
-    Mined {
-        height: NonZeroU32,
-        time: Option<DateTime<Utc>>,
-    },
+pub struct Sats(u64);
+
+pub type BlockHeight = NonZeroU32;
+
+pub struct BlockInfo {
+    pub header: BlockHeader,
+    pub difficulty: u8,
+    pub tx_count: u32,
+    pub size: u32,
+    pub weight: u32,
+    pub mediantime: u32,
+}
+
+pub struct MiningInfo {
+    pub height: BlockHeight,
+    pub time: u64,
+    pub block_hash: BlockHash,
+}
+
+pub enum TxStatus {
+    Mined(MiningInfo),
     Mempool,
     Channel,
     Unknown,
 }
 
-pub struct Sats(u64);
-
-pub struct Utxo {
+pub struct TxInfo {
     pub txid: Txid,
-    pub status: Status,
+    pub status: TxStatus,
+    pub inputs: Vec<TxInInfo>,
+    pub outputs: Vec<TxOutInfo>,
+    pub fee: Sats,
+    pub size: u32,
+    pub weight: u32,
+    pub version: i32,
+    pub locktime: LockTime,
+}
+
+pub struct TxInInfo {
+    pub outpoint: Outpoint,
+    pub sequence: SeqNo,
+    pub coinbase: bool,
+    pub script_sig: SigScript,
+    pub witness: Witness,
+    pub value: Option<Sats>,
+}
+
+pub struct TxOutInfo {
+    pub outpoint: Outpoint,
     pub value: Sats,
+    pub derivation: Option<(NormalIndex, NormalIndex)>,
+}
+
+pub struct UtxoInfo {
+    pub outpoint: Outpoint,
+    pub value: Sats,
+    pub address: Address,
     pub derivation: (NormalIndex, NormalIndex),
+}
+
+pub struct AddrInfo {
+    pub derivation: (NormalIndex, NormalIndex),
+    pub used: u32,
+    pub volume: Sats,
+    pub balance: Sats,
 }
