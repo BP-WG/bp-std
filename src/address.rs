@@ -82,7 +82,7 @@ pub enum AddressParseError {
     UnrecognizableFormat(String),
 
     /// wrong BIP340 public key
-    #[from(secp256k1::Error)]
+    #[from(bc::secp256k1::Error)]
     WrongPublicKeyData,
 
     /// unrecognized address format string; must be one of `P2PKH`, `P2SH`,

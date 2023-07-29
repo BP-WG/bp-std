@@ -39,6 +39,7 @@ pub use address::{
     Address, AddressNetwork, AddressParseError, AddressPayload, AddressType, PubkeyHash,
     ScriptHash, WPubkeyHash, WScriptHash,
 };
+pub use bc::{secp256k1, *};
 pub use derive::{Derive, DeriveCompr, DeriveXOnly};
 pub use descriptors::TrKey;
 pub use index::{

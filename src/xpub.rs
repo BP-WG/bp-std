@@ -25,7 +25,7 @@ use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 
 use amplify::{Array, Wrapper};
-use secp256k1::PublicKey;
+use bc::secp256k1::PublicKey;
 
 use crate::{base58, DerivationIndex, DerivationPath};
 
@@ -42,7 +42,7 @@ pub enum XpubDecodeError {
     UnknownKeyType([u8; 4]),
 
     /// extended pubkey contains invalid Secp256k1 pubkey data
-    #[from(secp256k1::Error)]
+    #[from(bc::secp256k1::Error)]
     InvalidPublicKey,
 }
 

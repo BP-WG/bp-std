@@ -1,8 +1,8 @@
 [package]
-name = "bp-wallet"
+name = "bp-convert"
 version = "0.11.0"
-description = "Modern, minimalistic & standard-compliant cold wallet library"
-keywords = ["bitcoin", "wallet", "descriptor-wallet", "psbt", "taproot"]
+description = "Convertor between bp-wallet and rust-bitcoin data types"
+keywords = ["bitcoin", "wallet"]
 categories = ["cryptography::cryptocurrencies"]
 readme = "README.md"
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
@@ -13,19 +13,13 @@ edition = "2021"
 license = "Apache-2.0"
 
 [lib]
-name = "bp"
+name = "bconv"
 
 [dependencies]
 amplify = "4.0.0"
-bitcoin_hashes = "0.12.0"
-bech32 = "0.9.1"
-bp-primitives = "0.10.6"
-serde_crate = { package = "serde", version = "1", features = ["derive"], optional = true }
-
-[features]
-default = []
-all = ["serde"]
-serde = ["serde_crate"]
+secp256k1 = "0.27.0"
+bitcoin = "0.30.1"
+bp-wallet = { path = ".." }
 
 [patch.crates-io]
 bp-primitives = { git = "https://github.com/BP-WG/bp-core", branch = "primitives" }
