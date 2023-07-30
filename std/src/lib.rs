@@ -53,4 +53,4 @@ pub use index::{
 pub use key::{ComprPubkey, LegacyPubkey, TaprootPubkey, UncomprPubkey};
 pub use path::{DerivationParseError, DerivationPath};
 pub use wallet::{Wallet, WalletCache, WalletData, WalletDescr};
-pub use xpub::{Xpub, XpubDescriptor, XpubFp, XpubId, XpubMeta};
+pub use xpub::{Xpub, XpubDescriptor, XpubFp, XpubId, XpubMeta, XpubOrigin};

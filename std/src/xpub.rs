@@ -24,10 +24,10 @@ use std::borrow::Borrow;
 use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 
-use amplify::{Array, Wrapper};
+use amplify::{hex, Array, Wrapper};
 use bc::secp256k1::PublicKey;
 
-use crate::{base58, DerivationIndex, DerivationPath};
+use crate::{base58, DerivationIndex, DerivationParseError, DerivationPath, HardenedIndex, Idx};
 
 pub const XPUB_MAINNET_MAGIC: [u8; 4] = [0x04u8, 0x88, 0xB2, 0x1E];
 pub const XPUB_TESTNET_MAGIC: [u8; 4] = [0x04u8, 0x35, 0x87, 0xCF];
@@ -46,7 +46,7 @@ pub enum XpubDecodeError {
     InvalidPublicKey,
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error, From)]
+#[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 pub enum XpubParseError {
     /// wrong Base58 encoding of extended pubkey data - {0}
     #[display(doc_comments)]
@@ -56,6 +56,26 @@ pub enum XpubParseError {
     #[display(inner)]
     #[from]
     Decode(XpubDecodeError),
+
+    #[display(inner)]
+    #[from]
+    DerivationPath(DerivationParseError),
+
+    /// invalid master key fingerprint - {0}
+    #[from]
+    InvalidMasterFp(hex::Error),
+
+    /// no xpub key origin information.
+    NoOrigin,
+
+    /// xpub network and origin mismatch.
+    NetworkMismatch,
+
+    /// xpub depth and origin mismatch.
+    DepthMismatch,
+
+    /// xpub parent not matches the provided origin information.
+    ParentMismatch,
 }
 
 /// BIP32 chain code used for hierarchical derivation
@@ -196,9 +216,60 @@ impl FromStr for Xpub {
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
-#[display("[{master_fp}{derivation}]{xpub}", alt = "[{master_fp}{derivation:#}]{xpub}")]
-pub struct XpubDescriptor {
+#[display("{master_fp}{derivation}", alt = "{master_fp}{derivation:#}")]
+pub struct XpubOrigin {
     master_fp: XpubFp,
     derivation: DerivationPath,
+}
+
+impl FromStr for XpubOrigin {
+    type Err = XpubParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (master_fp, path) = match s.split_once('/') {
+            None => (XpubFp::default(), ""),
+            Some(("00000000", p)) | Some(("m", p)) => (XpubFp::default(), p),
+            Some((fp, p)) => (XpubFp::from_str(fp)?, p),
+        };
+        Ok(XpubOrigin {
+            master_fp,
+            derivation: DerivationPath::from_str(path)?,
+        })
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
+#[display("[{origin}]{xpub}", alt = "[{origin:#}]{xpub}")]
+pub struct XpubDescriptor {
+    origin: XpubOrigin,
     xpub: Xpub,
+}
+
+impl FromStr for XpubDescriptor {
+    type Err = XpubParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if !s.starts_with('[') {
+            return Err(XpubParseError::NoOrigin);
+        }
+        let (origin, xpub) =
+            s.trim_start_matches('[').split_once(']').ok_or(XpubParseError::NoOrigin)?;
+        let d = XpubDescriptor {
+            origin: XpubOrigin::from_str(origin)?,
+            xpub: Xpub::from_str(xpub)?,
+        };
+        if d.origin.derivation.len() != d.xpub.meta.depth as usize {
+            return Err(XpubParseError::DepthMismatch);
+        }
+        if !d.origin.derivation.is_empty() {
+            let network = if d.xpub.testnet { HardenedIndex::ONE } else { HardenedIndex::ZERO };
+            if d.origin.derivation.last() != Some(&network.into()) {
+                return Err(XpubParseError::DepthMismatch);
+            }
+            if d.origin.derivation.last() != Some(&d.xpub.meta.child_number) {
+                return Err(XpubParseError::DepthMismatch);
+            }
+        }
+        Ok(d)
+    }
 }
