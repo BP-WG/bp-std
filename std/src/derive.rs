@@ -20,6 +20,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use bc::secp256k1::PublicKey;
 use bc::{InternalPk, ScriptPubkey};
 
 use crate::{Address, AddressNetwork, ComprPubkey, Idx, NormalIndex};
@@ -88,3 +89,9 @@ pub trait DeriveSpk: Derive<Derived = ScriptPubkey> {
     }
 }
 impl<T: Derive<Derived = ScriptPubkey>> DeriveSpk for T {}
+
+pub trait DeriveSet {
+    type Base: Derive<Derived = PublicKey>;
+    type Compr: DeriveCompr<Derived = ComprPubkey>;
+    type XOnly: DeriveXOnly<Derived = InternalPk>;
+}

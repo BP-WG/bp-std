@@ -22,9 +22,16 @@
 
 use bc::ScriptPubkey;
 
-use crate::{Derive, DeriveXOnly, NormalIndex};
+use crate::{Derive, DeriveSet, DeriveSpk, DeriveXOnly, NormalIndex};
 
 pub struct TrKey<K: DeriveXOnly>(K);
+
+/*
+pub struct TrScript<K: DeriveXOnly> {
+    internal_key: K,
+    tap_tree: TapTree<Policy<K>>,
+}
+*/
 
 impl<K: DeriveXOnly> Derive for TrKey<K> {
     type Derived = ScriptPubkey;
@@ -39,9 +46,20 @@ impl<K: DeriveXOnly> Derive for TrKey<K> {
     }
 }
 
-/*
-pub struct TrScript<K: DeriveXOnly> {
-    internal_key: K,
-    tap_tree: TapTree<Policy<K>>,
+pub enum DescriptorStd<S: DeriveSet> {
+    TrKey(TrKey<S::XOnly>),
 }
-*/
+
+impl<S: DeriveSet> Derive for DescriptorStd<S> {
+    type Derived = ScriptPubkey;
+
+    fn derive(
+        &self,
+        change: impl Into<NormalIndex>,
+        index: impl Into<NormalIndex>,
+    ) -> Self::Derived {
+        match self {
+            DescriptorStd::TrKey(d) => d.derive(change, index),
+        }
+    }
+}

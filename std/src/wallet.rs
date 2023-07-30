@@ -25,7 +25,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::num::NonZeroU32;
 use std::ops::Deref;
 
-use bc::{Outpoint, ScriptPubkey, Txid};
+use bc::{Chain, Outpoint, ScriptPubkey, Txid};
 
 use crate::chain::BlockHeight;
 use crate::derive::DeriveSpk;
@@ -37,6 +37,8 @@ where D: DeriveSpk
 {
     script_pubkey: D,
     keychains: BTreeSet<NormalIndex>,
+    #[getter(as_copy)]
+    chain: Chain,
 }
 
 impl<D: DeriveSpk> Deref for WalletDescr<D> {
@@ -63,7 +65,7 @@ pub struct WalletCache {
     max_known: HashMap<NormalIndex, NormalIndex>,
 }
 
-pub struct Wallet<D: DeriveSpk, L2 = ()> {
+pub struct Wallet<D: DeriveSpk, L2: Default = ()> {
     descr: WalletDescr<D>,
     data: WalletData,
     cache: WalletCache,
