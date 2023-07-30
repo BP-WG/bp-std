@@ -24,6 +24,7 @@ use bc::ScriptPubkey;
 
 use crate::{Derive, DeriveSet, DeriveXOnly, NormalIndex, XpubDescriptor};
 
+#[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
 pub struct TrKey<K: DeriveXOnly = XpubDescriptor>(K);
 
 /*
@@ -44,7 +45,9 @@ impl<K: DeriveXOnly> Derive<ScriptPubkey> for TrKey<K> {
     }
 }
 
+#[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
 pub enum DescriptorStd<S: DeriveSet = XpubDescriptor> {
+    #[from]
     TrKey(TrKey<S::XOnly>),
 }
 
