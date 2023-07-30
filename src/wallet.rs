@@ -20,17 +20,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::cmp::max;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::num::NonZeroU32;
+use std::ops::Deref;
 
-use bc::{Outpoint, Txid};
+use bc::{Outpoint, ScriptPubkey, Txid};
 
+use crate::chain::BlockHeight;
 use crate::derive::DeriveSpk;
-use crate::{AddrInfo, Address, BlockInfo, NormalIndex, TxInfo, UtxoInfo};
+use crate::{AddrInfo, Address, BlockInfo, Idx, NormalIndex, TxInfo, UtxoInfo};
 
-pub struct WalletDescr<D: DeriveSpk> {
+#[derive(Getters, Clone, Eq, PartialEq, Debug)]
+pub struct WalletDescr<D>
+where D: DeriveSpk
+{
     script_pubkey: D,
     keychains: BTreeSet<NormalIndex>,
+}
+
+impl<D: DeriveSpk> Deref for WalletDescr<D> {
+    type Target = D;
+
+    fn deref(&self) -> &Self::Target { &self.script_pubkey }
 }
 
 pub struct WalletData {
@@ -39,14 +51,16 @@ pub struct WalletData {
     pub txout_annotations: BTreeMap<Outpoint, String>,
     pub txin_annotations: BTreeMap<Outpoint, String>,
     pub addr_annotations: BTreeMap<Address, String>,
+    pub last_used: NormalIndex,
 }
 
 pub struct WalletCache {
-    last_used: NormalIndex,
+    tip: u32,
     headers: HashMap<NonZeroU32, BlockInfo>,
     tx: HashMap<Txid, TxInfo>,
     utxo: HashMap<Outpoint, UtxoInfo>,
     addr: HashMap<(NormalIndex, NormalIndex), AddrInfo>,
+    max_known: HashMap<NormalIndex, NormalIndex>,
 }
 
 pub struct Wallet<D: DeriveSpk, L2 = ()> {
@@ -54,4 +68,86 @@ pub struct Wallet<D: DeriveSpk, L2 = ()> {
     data: WalletData,
     cache: WalletCache,
     layer2: L2,
+}
+
+pub trait Blockchain {
+    type Error;
+
+    fn get_blocks(
+        &self,
+        heights: impl IntoIterator<Item = BlockHeight>,
+    ) -> (Vec<BlockInfo>, Vec<Self::Error>);
+
+    fn get_txes(&self, txids: impl IntoIterator<Item = Txid>) -> (Vec<TxInfo>, Vec<Self::Error>);
+
+    fn get_utxo<'s>(
+        &self,
+        scripts: impl IntoIterator<Item = &'s ScriptPubkey>,
+    ) -> (Vec<UtxoInfo>, Vec<Self::Error>);
+}
+
+impl WalletCache {
+    fn new() -> Self {
+        WalletCache {
+            tip: 0,
+            headers: none!(),
+            tx: none!(),
+            utxo: none!(),
+            addr: none!(),
+            max_known: none!(),
+        }
+    }
+
+    pub fn with<B: Blockchain, D: DeriveSpk>(
+        descriptor: &WalletDescr<D>,
+        blockchain: &B,
+    ) -> Result<Self, (Self, Vec<B::Error>)> {
+        const BATCH_SIZE: u8 = 20;
+        let mut cache = WalletCache::new();
+        let mut errors = vec![];
+
+        let mut txids = set! {};
+        for keychain in &descriptor.keychains {
+            let mut index = NormalIndex::ZERO;
+            loop {
+                let scripts = descriptor.derive_batch(keychain, index, BATCH_SIZE);
+                let (r, e) = blockchain.get_utxo(&scripts);
+                errors.extend(e);
+                txids.extend(r.iter().map(|utxo| utxo.outpoint.txid));
+                let max_known = cache.max_known.entry(*keychain).or_default();
+                *max_known = max(
+                    r.iter().map(|utxo| utxo.derivation.1).max().unwrap_or_default(),
+                    *max_known,
+                );
+                if r.is_empty() {
+                    break;
+                }
+                cache.utxo.extend(r.into_iter().map(|utxo| (utxo.outpoint, utxo)));
+                if !index.saturating_add_assign(BATCH_SIZE) {
+                    break;
+                }
+            }
+        }
+
+        let (r, e) = blockchain.get_txes(txids);
+        errors.extend(e);
+        cache.tx.extend(r.into_iter().map(|tx| (tx.txid, tx)));
+
+        // TODO: Update headers & tip
+        // TODO: Construct addr information
+
+        if errors.is_empty() {
+            Ok(cache)
+        } else {
+            Err((cache, errors))
+        }
+    }
+
+    pub fn update<B: Blockchain, D: DeriveSpk>(
+        &mut self,
+        descriptor: &D,
+        blockchain: &B,
+    ) -> Result<(), Vec<B::Error>> {
+        todo!()
+    }
 }
