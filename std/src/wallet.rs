@@ -49,7 +49,7 @@ pub struct AddrIter<'descr, D: DeriveSpk> {
 impl<'descr, D: DeriveSpk> Iterator for AddrIter<'descr, D> {
     type Item = Address;
     fn next(&mut self) -> Option<Self::Item> {
-        self.index.wrapping_inc();
+        self.index.wrapping_inc_assign();
         Some(self.script_pubkey.derive_address(self.network, self.keychain, self.index))
     }
 }
