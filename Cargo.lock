@@ -109,6 +109,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bp-invoice"
+version = "0.11.0"
+dependencies = [
+ "amplify",
+ "bp-std",
+ "serde",
+]
+
+[[package]]
 name = "bp-primitives"
 version = "0.10.6"
 source = "git+https://github.com/BP-WG/bp-core?branch=primitives#73483b4d553dd7150e09cfaff00072e8e097e959"
@@ -121,7 +130,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "bp-wallet"
+name = "bp-std"
 version = "0.11.0"
 dependencies = [
  "amplify",
@@ -129,6 +138,16 @@ dependencies = [
  "bitcoin_hashes",
  "bp-primitives",
  "serde",
+]
+
+[[package]]
+name = "bp-wallet"
+version = "0.11.0"
+dependencies = [
+ "amplify",
+ "bp-invoice",
+ "bp-std",
+ "psbt",
 ]
 
 [[package]]
@@ -278,6 +297,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "18fb31db3f9bddb2ea821cde30a9f70117e3f119938b5ee630b7403aa6e2ead9"
 dependencies = [
  "unicode-ident",
+]
+
+[[package]]
+name = "psbt"
+version = "0.11.0"
+dependencies = [
+ "amplify",
+ "bp-std",
+ "serde",
 ]
 
 [[package]]

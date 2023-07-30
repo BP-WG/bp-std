@@ -1,0 +1,23 @@
+[package]
+name = "psbt"
+version = { workspace = true }
+description = "Modern, minimalistic & standard-compliant PSBT library"
+keywords = { workspace = true }
+categories = { workspace = true }
+readme = "../README.md"
+authors = { workspace = true }
+homepage = { workspace = true }
+repository = { workspace = true }
+rust-version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+
+[dependencies]
+amplify = { workspace = true }
+bp-std = { path = "../std" }
+serde_crate = { workspace = true, optional = true }
+
+[features]
+default = []
+all = ["serde"]
+serde = ["serde_crate", "bp-std/serde"]

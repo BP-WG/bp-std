@@ -1,10 +1,10 @@
-[package]
-name = "bp-wallet"
+[workspace]
+members = ["std", "invoice", "psbt", "."]
+
+[workspace.package]
 version = "0.11.0"
-description = "Modern, minimalistic & standard-compliant cold wallet library"
 keywords = ["bitcoin", "wallet", "descriptor-wallet", "psbt", "taproot"]
 categories = ["cryptography::cryptocurrencies"]
-readme = "README.md"
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
 homepage = "https://lnp-bp.org"
 repository = "https://github.com/BP-WG/bp-wallet"
@@ -12,20 +12,40 @@ rust-version = "1.60" # Due to rust-amplify
 edition = "2021"
 license = "Apache-2.0"
 
-[lib]
-name = "bp"
-
-[dependencies]
+[workspace.dependencies]
 amplify = "4.0.0"
 bitcoin_hashes = "0.12.0"
 bech32 = "0.9.1"
 bp-primitives = "0.10.6"
-serde_crate = { package = "serde", version = "1", features = ["derive"], optional = true }
+serde_crate = { package = "serde", version = "1", features = ["derive"] }
+
+[package]
+name = "bp-wallet"
+version = { workspace = true }
+description = "Modern, minimalistic & standard-compliant cold wallet library"
+keywords = { workspace = true }
+categories = { workspace = true }
+readme = "README.md"
+authors = { workspace = true }
+homepage = { workspace = true }
+repository = { workspace = true }
+rust-version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+
+[lib]
+name = "bp"
+
+[dependencies]
+amplify = { workspace = true }
+bp-std = { path = "std" }
+bp-invoice = { path = "invoice" }
+psbt = { path = "psbt" }
 
 [features]
 default = []
 all = ["serde"]
-serde = ["serde_crate", "bp-primitives/serde"]
+serde = ["amplify/serde", "bp-std/serde", "bp-invoice/serde", "psbt/serde"]
 
 [patch.crates-io]
 bp-primitives = { git = "https://github.com/BP-WG/bp-core", branch = "primitives" }

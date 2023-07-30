@@ -1,4 +1,4 @@
-// Convertor between bp-wallet and rust-bitcoin data types.
+// Modern, minimalistic & standard-compliant cold wallet library.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -19,21 +19,3 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-use amplify::RawArray;
-use bitcoin::hashes::Hash;
-
-pub trait Convertible {
-    type Target: Sized;
-    fn convert(&self) -> Self::Target;
-}
-
-impl Convertible for bp::Txid {
-    type Target = bitcoin::Txid;
-    fn convert(&self) -> Self::Target { Self::Target::from_byte_array(self.to_raw_array()) }
-}
-
-impl Convertible for bitcoin::Txid {
-    type Target = bp::Txid;
-    fn convert(&self) -> Self::Target { Self::Target::from_raw_array(self.to_byte_array()) }
-}
