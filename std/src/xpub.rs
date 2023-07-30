@@ -350,13 +350,25 @@ impl FromStr for XpubDescriptor {
         }
         if !d.origin.derivation.is_empty() {
             let network = if d.xpub.testnet { HardenedIndex::ONE } else { HardenedIndex::ZERO };
-            if d.origin.derivation.last() != Some(&network.into()) {
-                return Err(XpubParseError::DepthMismatch);
+            if d.origin.derivation.get(1) != Some(&network.into()) {
+                return Err(XpubParseError::NetworkMismatch);
             }
             if d.origin.derivation.last() != Some(&d.xpub.meta.child_number) {
-                return Err(XpubParseError::DepthMismatch);
+                return Err(XpubParseError::ParentMismatch);
             }
         }
         Ok(d)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn display_from_str() {
+        let s = "[643a7adc/86h/1h/0h]tpubDCNiWHaiSkgnQjuhsg9kjwaUzaxQjUcmhagvYzqQ3TYJTgFGJstVaqnu4yhtFktBhCVFmBNLQ5sN53qKzZbMksm3XEyGJsEhQPfVZdWmTE2";
+        let xpub = XpubDescriptor::from_str(s).unwrap();
+        assert_eq!(s, xpub.to_string());
     }
 }

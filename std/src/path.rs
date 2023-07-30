@@ -65,11 +65,11 @@ where IndexParseError: From<<I as FromStr>::Err>
 {
     type Err = DerivationParseError;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if !s.starts_with('/') {
-            return Err(DerivationParseError::InvalidFormat(s.to_owned()));
+    fn from_str(mut s: &str) -> Result<Self, Self::Err> {
+        if s.starts_with('/') {
+            s = &s[1..];
         }
-        let inner = s[1..]
+        let inner = s
             .split('/')
             .map(I::from_str)
             .collect::<Result<Vec<_>, I::Err>>()

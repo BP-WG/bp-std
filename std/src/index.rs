@@ -363,13 +363,13 @@ impl Idx for HardenedIndex {
     const MAX: Self = Self(u32::MAX);
 
     #[inline]
-    fn from_child_number(index: impl Into<u16>) -> Self { Self(index.into() as u32) }
+    fn from_child_number(child_no: impl Into<u16>) -> Self { Self(child_no.into() as u32) }
 
     #[inline]
-    fn try_from_child_number(index: impl Into<u32>) -> Result<Self, IndexError> {
-        let index = index.into();
+    fn try_from_child_number(child_no: impl Into<u32>) -> Result<Self, IndexError> {
+        let index = child_no.into();
         if index < HARDENED_INDEX_BOUNDARY {
-            Ok(Self(index - HARDENED_INDEX_BOUNDARY))
+            Ok(Self(index))
         } else {
             Err(IndexError {
                 what: "child number",
@@ -386,10 +386,13 @@ impl Idx for HardenedIndex {
     fn child_number(&self) -> u32 { self.0 }
 
     #[inline]
-    fn try_from_index(value: u32) -> Result<Self, IndexError> {
-        Self::try_from_child_number(value - HARDENED_INDEX_BOUNDARY).map_err(|_| IndexError {
+    fn try_from_index(child_no: u32) -> Result<Self, IndexError> {
+        if child_no < HARDENED_INDEX_BOUNDARY {
+            return Ok(Self(child_no));
+        }
+        Self::try_from_child_number(child_no - HARDENED_INDEX_BOUNDARY).map_err(|_| IndexError {
             what: "index",
-            invalid: value,
+            invalid: child_no,
             start: HARDENED_INDEX_BOUNDARY,
             end: u32::MAX,
         })
@@ -448,7 +451,7 @@ impl DerivationIndex {
     pub fn from_index(value: u32) -> Self {
         match value {
             0..=0x0FFFFFFF => NormalIndex(value).into(),
-            _ => HardenedIndex(value).into(),
+            _ => HardenedIndex(value - HARDENED_INDEX_BOUNDARY).into(),
         }
     }
 
