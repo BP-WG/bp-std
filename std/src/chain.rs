@@ -20,11 +20,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::cmp::max;
 use std::num::NonZeroU32;
 
-use bc::{BlockHash, BlockHeader, LockTime, Outpoint, Sats, SeqNo, SigScript, Txid, Witness};
+use bc::{
+    BlockHash, BlockHeader, LockTime, Outpoint, Sats, ScriptPubkey, SeqNo, SigScript, Txid, Witness,
+};
 
-use crate::{Address, NormalIndex};
+use crate::{Address, DeriveSpk, Idx, NormalIndex, WalletCache, WalletDescr};
 
 pub type BlockHeight = NonZeroU32;
 
@@ -97,4 +100,75 @@ pub struct AddrInfo {
     pub used: u32,
     pub volume: Sats,
     pub balance: Sats,
+}
+
+pub trait Blockchain {
+    type Error;
+
+    fn get_blocks(
+        &self,
+        heights: impl IntoIterator<Item = BlockHeight>,
+    ) -> (Vec<BlockInfo>, Vec<Self::Error>);
+
+    fn get_txes(&self, txids: impl IntoIterator<Item = Txid>) -> (Vec<TxInfo>, Vec<Self::Error>);
+
+    fn get_utxo<'s>(
+        &self,
+        scripts: impl IntoIterator<Item = &'s ScriptPubkey>,
+    ) -> (Vec<UtxoInfo>, Vec<Self::Error>);
+}
+
+impl WalletCache {
+    pub fn with<B: Blockchain, D: DeriveSpk>(
+        descriptor: &WalletDescr<D>,
+        blockchain: &B,
+    ) -> Result<Self, (Self, Vec<B::Error>)> {
+        const BATCH_SIZE: u8 = 20;
+        let mut cache = WalletCache::new();
+        let mut errors = vec![];
+
+        let mut txids = set! {};
+        for keychain in &descriptor.keychains {
+            let mut index = NormalIndex::ZERO;
+            loop {
+                let scripts = descriptor.derive_batch(keychain, index, BATCH_SIZE);
+                let (r, e) = blockchain.get_utxo(&scripts);
+                errors.extend(e);
+                txids.extend(r.iter().map(|utxo| utxo.outpoint.txid));
+                let max_known = cache.max_known.entry(*keychain).or_default();
+                *max_known = max(
+                    r.iter().map(|utxo| utxo.derivation.1).max().unwrap_or_default(),
+                    *max_known,
+                );
+                if r.is_empty() {
+                    break;
+                }
+                cache.utxo.extend(r.into_iter().map(|utxo| (utxo.outpoint, utxo)));
+                if !index.saturating_add_assign(BATCH_SIZE) {
+                    break;
+                }
+            }
+        }
+
+        let (r, e) = blockchain.get_txes(txids);
+        errors.extend(e);
+        cache.tx.extend(r.into_iter().map(|tx| (tx.txid, tx)));
+
+        // TODO: Update headers & tip
+        // TODO: Construct addr information
+
+        if errors.is_empty() {
+            Ok(cache)
+        } else {
+            Err((cache, errors))
+        }
+    }
+
+    pub fn update<B: Blockchain, D: DeriveSpk>(
+        &mut self,
+        descriptor: &D,
+        blockchain: &B,
+    ) -> Result<(), Vec<B::Error>> {
+        todo!()
+    }
 }

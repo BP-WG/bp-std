@@ -20,14 +20,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::cmp::max;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::num::NonZeroU32;
 use std::ops::Deref;
 
-use bc::{Chain, Outpoint, ScriptPubkey, Txid};
+use bc::{Chain, Outpoint, Txid};
 
-use crate::chain::BlockHeight;
 use crate::derive::DeriveSpk;
 use crate::{AddrInfo, Address, BlockInfo, Idx, NormalIndex, TxInfo, UtxoInfo};
 
@@ -35,10 +33,20 @@ use crate::{AddrInfo, Address, BlockInfo, Idx, NormalIndex, TxInfo, UtxoInfo};
 pub struct WalletDescr<D>
 where D: DeriveSpk
 {
-    script_pubkey: D,
-    keychains: BTreeSet<NormalIndex>,
+    pub(crate) script_pubkey: D,
+    pub(crate) keychains: BTreeSet<NormalIndex>,
     #[getter(as_copy)]
-    chain: Chain,
+    pub(crate) chain: Chain,
+}
+
+impl<D: DeriveSpk> WalletDescr<D> {
+    pub fn new_standard(descr: D, network: Chain) -> Self {
+        WalletDescr {
+            script_pubkey: descr,
+            keychains: bset! { NormalIndex::ZERO, NormalIndex::ONE },
+            chain: network,
+        }
+    }
 }
 
 impl<D: DeriveSpk> Deref for WalletDescr<D> {
@@ -47,7 +55,7 @@ impl<D: DeriveSpk> Deref for WalletDescr<D> {
     fn deref(&self) -> &Self::Target { &self.script_pubkey }
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug, Default)]
 pub struct WalletData {
     pub name: String,
     pub tx_annotations: BTreeMap<Txid, String>,
@@ -59,12 +67,12 @@ pub struct WalletData {
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct WalletCache {
-    tip: u32,
-    headers: HashMap<NonZeroU32, BlockInfo>,
-    tx: HashMap<Txid, TxInfo>,
-    utxo: HashMap<Outpoint, UtxoInfo>,
-    addr: HashMap<(NormalIndex, NormalIndex), AddrInfo>,
-    max_known: HashMap<NormalIndex, NormalIndex>,
+    pub(crate) tip: u32,
+    pub(crate) headers: HashMap<NonZeroU32, BlockInfo>,
+    pub(crate) tx: HashMap<Txid, TxInfo>,
+    pub(crate) utxo: HashMap<Outpoint, UtxoInfo>,
+    pub(crate) addr: HashMap<(NormalIndex, NormalIndex), AddrInfo>,
+    pub(crate) max_known: HashMap<NormalIndex, NormalIndex>,
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -75,24 +83,19 @@ pub struct Wallet<D: DeriveSpk, L2: Default = ()> {
     layer2: L2,
 }
 
-pub trait Blockchain {
-    type Error;
-
-    fn get_blocks(
-        &self,
-        heights: impl IntoIterator<Item = BlockHeight>,
-    ) -> (Vec<BlockInfo>, Vec<Self::Error>);
-
-    fn get_txes(&self, txids: impl IntoIterator<Item = Txid>) -> (Vec<TxInfo>, Vec<Self::Error>);
-
-    fn get_utxo<'s>(
-        &self,
-        scripts: impl IntoIterator<Item = &'s ScriptPubkey>,
-    ) -> (Vec<UtxoInfo>, Vec<Self::Error>);
+impl<D: DeriveSpk, L2: Default> Wallet<D, L2> {
+    pub fn new(descr: D, network: Chain) -> Self {
+        Wallet {
+            descr: WalletDescr::new_standard(descr, network),
+            data: empty!(),
+            cache: WalletCache::new(),
+            layer2: default!(),
+        }
+    }
 }
 
 impl WalletCache {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         WalletCache {
             tip: 0,
             headers: none!(),
@@ -101,58 +104,5 @@ impl WalletCache {
             addr: none!(),
             max_known: none!(),
         }
-    }
-
-    pub fn with<B: Blockchain, D: DeriveSpk>(
-        descriptor: &WalletDescr<D>,
-        blockchain: &B,
-    ) -> Result<Self, (Self, Vec<B::Error>)> {
-        const BATCH_SIZE: u8 = 20;
-        let mut cache = WalletCache::new();
-        let mut errors = vec![];
-
-        let mut txids = set! {};
-        for keychain in &descriptor.keychains {
-            let mut index = NormalIndex::ZERO;
-            loop {
-                let scripts = descriptor.derive_batch(keychain, index, BATCH_SIZE);
-                let (r, e) = blockchain.get_utxo(&scripts);
-                errors.extend(e);
-                txids.extend(r.iter().map(|utxo| utxo.outpoint.txid));
-                let max_known = cache.max_known.entry(*keychain).or_default();
-                *max_known = max(
-                    r.iter().map(|utxo| utxo.derivation.1).max().unwrap_or_default(),
-                    *max_known,
-                );
-                if r.is_empty() {
-                    break;
-                }
-                cache.utxo.extend(r.into_iter().map(|utxo| (utxo.outpoint, utxo)));
-                if !index.saturating_add_assign(BATCH_SIZE) {
-                    break;
-                }
-            }
-        }
-
-        let (r, e) = blockchain.get_txes(txids);
-        errors.extend(e);
-        cache.tx.extend(r.into_iter().map(|tx| (tx.txid, tx)));
-
-        // TODO: Update headers & tip
-        // TODO: Construct addr information
-
-        if errors.is_empty() {
-            Ok(cache)
-        } else {
-            Err((cache, errors))
-        }
-    }
-
-    pub fn update<B: Blockchain, D: DeriveSpk>(
-        &mut self,
-        descriptor: &D,
-        blockchain: &B,
-    ) -> Result<(), Vec<B::Error>> {
-        todo!()
     }
 }
