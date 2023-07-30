@@ -22,11 +22,9 @@
 
 use std::num::NonZeroU32;
 
-use bc::{BlockHash, BlockHeader, LockTime, Outpoint, SeqNo, SigScript, Txid, Witness};
+use bc::{BlockHash, BlockHeader, LockTime, Outpoint, Sats, SeqNo, SigScript, Txid, Witness};
 
 use crate::{Address, NormalIndex};
-
-pub struct Sats(u64);
 
 pub type BlockHeight = NonZeroU32;
 

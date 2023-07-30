@@ -34,7 +34,7 @@ mod xpub;
 mod descriptors;
 mod address;
 mod derive;
-mod onchain;
+mod chain;
 mod wallet;
 
 pub use address::{
@@ -42,6 +42,7 @@ pub use address::{
     ScriptHash, WPubkeyHash, WScriptHash,
 };
 pub use bc::{secp256k1, *};
+pub use chain::{AddrInfo, BlockInfo, MiningInfo, TxInInfo, TxInfo, TxOutInfo, TxStatus, UtxoInfo};
 pub use derive::{Derive, DeriveCompr, DeriveXOnly};
 pub use descriptors::TrKey;
 pub use index::{
@@ -49,9 +50,6 @@ pub use index::{
     HARDENED_INDEX_BOUNDARY,
 };
 pub use key::{ComprPubkey, LegacyPubkey, TaprootPubkey, UncomprPubkey};
-pub use onchain::{
-    AddrInfo, BlockInfo, MiningInfo, Sats, TxInInfo, TxInfo, TxOutInfo, TxStatus, UtxoInfo,
-};
 pub use path::{DerivationParseError, DerivationPath};
 pub use wallet::{Wallet, WalletCache, WalletData, WalletDescr};
 pub use xpub::{Xpub, XpubDescriptor, XpubFp, XpubId, XpubMeta};
