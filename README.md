@@ -1,4 +1,4 @@
-# Bitcoin wallet library and command-line tool
+# Bitcoin wallet libraries
 
 ![Build](https://github.com/BP-WG/bp-wallet/workflows/Build/badge.svg)
 ![Tests](https://github.com/BP-WG/bp-wallet/workflows/Tests/badge.svg)
@@ -9,7 +9,7 @@
 [![Docs](https://docs.rs/bp-wallet/badge.svg)](https://docs.rs/bp-wallet)
 [![Apache-2 licensed](https://img.shields.io/crates/l/bp-wallet)](./LICENSE)
 
-Modern, minimalistic & standard-compliant cold wallet library: an alternative
+Modern, minimalistic & standard-compliant cold wallet libraries: an alternative
 to `rust-bitcoin` and BDK libraries from [LNP/BP Standards Association][Assoc].
 
 The main goals of the library are:
