@@ -120,7 +120,7 @@ dependencies = [
 [[package]]
 name = "bp-primitives"
 version = "0.10.6"
-source = "git+https://github.com/BP-WG/bp-core?branch=primitives#e13eb2897f6a53d5815c6542b2c5c5c9a1d5d424"
+source = "git+https://github.com/BP-WG/bp-core?branch=primitives#61f6ecfd136cb657f7a178b1cd0562a8ef11dad3"
 dependencies = [
  "amplify",
  "commit_verify",

@@ -167,7 +167,7 @@ impl Display for Address {
         };
         let mut bech32_writer =
             bech32::Bech32Writer::new(self.network.bech32_hrp(), variant, writer)?;
-        let ver_u5 = u5::try_from_u8(version as u8).expect("witness version < 32");
+        let ver_u5 = u5::try_from_u8(version.version_no()).expect("witness version <= 16");
         bech32::WriteBase32::write_u5(&mut bech32_writer, ver_u5)?;
         bech32::ToBase32::write_base32(&prog.as_ref(), &mut bech32_writer)
     }
