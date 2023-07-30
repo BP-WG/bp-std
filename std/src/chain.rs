@@ -28,6 +28,7 @@ use crate::{Address, NormalIndex};
 
 pub type BlockHeight = NonZeroU32;
 
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct BlockInfo {
     pub header: BlockHeader,
     pub difficulty: u8,
@@ -37,12 +38,14 @@ pub struct BlockInfo {
     pub mediantime: u32,
 }
 
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct MiningInfo {
     pub height: BlockHeight,
     pub time: u64,
     pub block_hash: BlockHash,
 }
 
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub enum TxStatus {
     Mined(MiningInfo),
     Mempool,
@@ -50,6 +53,7 @@ pub enum TxStatus {
     Unknown,
 }
 
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct TxInfo {
     pub txid: Txid,
     pub status: TxStatus,
@@ -62,6 +66,7 @@ pub struct TxInfo {
     pub locktime: LockTime,
 }
 
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct TxInInfo {
     pub outpoint: Outpoint,
     pub sequence: SeqNo,
@@ -71,12 +76,14 @@ pub struct TxInInfo {
     pub value: Option<Sats>,
 }
 
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct TxOutInfo {
     pub outpoint: Outpoint,
     pub value: Sats,
     pub derivation: Option<(NormalIndex, NormalIndex)>,
 }
 
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct UtxoInfo {
     pub outpoint: Outpoint,
     pub value: Sats,
@@ -84,6 +91,7 @@ pub struct UtxoInfo {
     pub derivation: (NormalIndex, NormalIndex),
 }
 
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct AddrInfo {
     pub derivation: (NormalIndex, NormalIndex),
     pub used: u32,

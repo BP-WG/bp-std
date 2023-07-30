@@ -47,6 +47,7 @@ impl<D: DeriveSpk> Deref for WalletDescr<D> {
     fn deref(&self) -> &Self::Target { &self.script_pubkey }
 }
 
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct WalletData {
     pub name: String,
     pub tx_annotations: BTreeMap<Txid, String>,
@@ -56,6 +57,7 @@ pub struct WalletData {
     pub last_used: NormalIndex,
 }
 
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct WalletCache {
     tip: u32,
     headers: HashMap<NonZeroU32, BlockInfo>,
@@ -65,6 +67,7 @@ pub struct WalletCache {
     max_known: HashMap<NormalIndex, NormalIndex>,
 }
 
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Wallet<D: DeriveSpk, L2: Default = ()> {
     descr: WalletDescr<D>,
     data: WalletData,
