@@ -109,6 +109,12 @@ pub struct Wallet<D: DeriveSpk, L2: Default = ()> {
     layer2: L2,
 }
 
+impl<D: DeriveSpk, L2: Default> Deref for Wallet<D, L2> {
+    type Target = WalletDescr<D>;
+
+    fn deref(&self) -> &Self::Target { &self.descr }
+}
+
 impl<D: DeriveSpk, L2: Default> Wallet<D, L2> {
     pub fn new(descr: D, network: Chain) -> Self {
         Wallet {
