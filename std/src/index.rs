@@ -101,6 +101,8 @@ where Self: Sized + Eq + Ord + Copy
     /// of [`HARDENED_INDEX_BOUNDARY`]`..=u32::MAX`
     fn index(&self) -> u32;
 
+    fn to_be_bytes(&self) -> [u8; 4] { self.index().to_be_bytes() }
+
     /// Increases the index on one step; fails if the index value is already
     /// maximum value - or if multiple indexes are present at the path segment
     fn checked_inc(&self) -> Option<Self> { self.checked_add(1u8) }

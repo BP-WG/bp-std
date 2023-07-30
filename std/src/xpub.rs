@@ -24,10 +24,15 @@ use std::borrow::Borrow;
 use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 
-use amplify::{hex, Array, Wrapper};
-use bc::secp256k1::PublicKey;
+use amplify::{hex, Array, Bytes32, RawArray, Wrapper};
+use bc::secp256k1;
+use bc::secp256k1::{PublicKey, XOnlyPublicKey, SECP256K1};
+use hashes::{hash160, sha512, Hash, HashEngine, Hmac, HmacEngine};
 
-use crate::{base58, DerivationIndex, DerivationParseError, DerivationPath, HardenedIndex, Idx};
+use crate::{
+    base58, ComprPubkey, DerivationIndex, DerivationParseError, DerivationPath, HardenedIndex, Idx,
+    NormalIndex,
+};
 
 pub const XPUB_MAINNET_MAGIC: [u8; 4] = [0x04u8, 0x88, 0xB2, 0x1E];
 pub const XPUB_TESTNET_MAGIC: [u8; 4] = [0x04u8, 0x35, 0x87, 0xCF];
@@ -80,8 +85,20 @@ pub enum XpubParseError {
 
 /// BIP32 chain code used for hierarchical derivation
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
-#[wrapper(RangeOps)]
-pub struct ChainCode([u8; 32]);
+#[wrapper(Deref, RangeOps)]
+pub struct ChainCode(Bytes32);
+
+impl AsRef<[u8]> for ChainCode {
+    fn as_ref(&self) -> &[u8] { self.0.as_ref() }
+}
+
+impl From<[u8; 32]> for ChainCode {
+    fn from(value: [u8; 32]) -> Self { Self(value.into()) }
+}
+
+impl From<ChainCode> for [u8; 32] {
+    fn from(value: ChainCode) -> Self { value.0.into_inner() }
+}
 
 /// Deterministic part of the extended public key.
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
@@ -198,6 +215,76 @@ impl Xpub {
         ret[45..78].copy_from_slice(&self.core.public_key.serialize());
         ret
     }
+
+    /// Returns the HASH160 of the chaincode
+    pub fn identifier(&self) -> XpubId {
+        let hash = hash160::Hash::hash(&self.core.public_key.serialize());
+        XpubId::from_raw_array(*hash.as_byte_array())
+    }
+
+    pub fn fingerprint(&self) -> XpubFp {
+        let mut bytes = [0u8; 4];
+        bytes.copy_from_slice(&self.identifier()[..4]);
+        XpubFp::from_raw_array(bytes)
+    }
+
+    /// Constructs ECDSA public key matching internal public key representation.
+    pub fn to_compr_pub(&self) -> ComprPubkey { ComprPubkey(self.core.public_key) }
+
+    /// Constructs BIP340 public key matching internal public key representation.
+    pub fn to_xonly_pub(&self) -> XOnlyPublicKey { XOnlyPublicKey::from(self.core.public_key) }
+
+    /// Attempts to derive an extended public key from a path.
+    ///
+    /// The `path` argument can be any type implementing `AsRef<ChildNumber>`, such as
+    /// `DerivationPath`, for instance.
+    pub fn derive_pub(&self, path: impl AsRef<[NormalIndex]>) -> Self {
+        let mut pk = *self;
+        for cnum in path.as_ref() {
+            pk = pk.ckd_pub(*cnum)
+        }
+        pk
+    }
+
+    /// Compute the scalar tweak added to this key to get a child key
+    pub fn ckd_pub_tweak(&self, child_no: NormalIndex) -> (secp256k1::Scalar, ChainCode) {
+        let mut hmac_engine: HmacEngine<sha512::Hash> =
+            HmacEngine::new(self.core.chain_code.as_ref());
+        hmac_engine.input(&self.core.public_key.serialize());
+        hmac_engine.input(&child_no.to_be_bytes());
+
+        let hmac_result: Hmac<sha512::Hash> = Hmac::from_engine(hmac_engine);
+
+        let private_key = secp256k1::SecretKey::from_slice(&hmac_result[..32])
+            .expect("negligible probability")
+            .into();
+        let mut bytes = [0u8; 32];
+        bytes.copy_from_slice(&hmac_result[32..]);
+        let chain_code = ChainCode::from_raw_array(bytes);
+        (private_key, chain_code)
+    }
+
+    /// Public->Public child key derivation
+    pub fn ckd_pub(&self, child_no: NormalIndex) -> Xpub {
+        let (scalar, chain_code) = self.ckd_pub_tweak(child_no);
+        let tweaked =
+            self.core.public_key.add_exp_tweak(SECP256K1, &scalar).expect("negligible probability");
+
+        let meta = XpubMeta {
+            depth: self.meta.depth + 1,
+            parent_fp: self.fingerprint(),
+            child_number: child_no.into(),
+        };
+        let core = XpubCore {
+            public_key: tweaked,
+            chain_code,
+        };
+        Xpub {
+            testnet: self.testnet,
+            meta,
+            core,
+        }
+    }
 }
 
 impl Display for Xpub {
@@ -238,7 +325,7 @@ impl FromStr for XpubOrigin {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
+#[derive(Getters, Clone, Eq, PartialEq, Hash, Debug, Display)]
 #[display("[{origin}]{xpub}", alt = "[{origin:#}]{xpub}")]
 pub struct XpubDescriptor {
     origin: XpubOrigin,

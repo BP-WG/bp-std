@@ -28,7 +28,7 @@ use std::str::FromStr;
 
 use amplify::hex::ToHex;
 use amplify::{Array, Wrapper};
-use bc::{ScriptPubkey, WitnessVer};
+use bc::{Chain, ScriptPubkey, WitnessVer};
 use bech32::u5;
 
 use crate::{base58, TaprootPubkey};
@@ -527,6 +527,17 @@ impl AddressNetwork {
             AddressNetwork::Mainnet => "bc",
             AddressNetwork::Testnet => "tc",
             AddressNetwork::Regtest => "bcrt",
+        }
+    }
+}
+
+impl From<Chain> for AddressNetwork {
+    fn from(chain: Chain) -> Self {
+        match chain {
+            Chain::Bitcoin => AddressNetwork::Mainnet,
+            Chain::Testnet3 => AddressNetwork::Testnet,
+            Chain::Regtest => AddressNetwork::Regtest,
+            Chain::Signet => AddressNetwork::Testnet,
         }
     }
 }

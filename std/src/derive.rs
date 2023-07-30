@@ -20,7 +20,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use bc::secp256k1::PublicKey;
 use bc::{InternalPk, ScriptPubkey};
 
 use crate::{Address, AddressNetwork, ComprPubkey, Idx, NormalIndex, XpubDescriptor};
@@ -84,32 +83,24 @@ pub trait DeriveSpk: Derive<ScriptPubkey> {
 }
 impl<T: Derive<ScriptPubkey>> DeriveSpk for T {}
 
-impl Derive<PublicKey> for XpubDescriptor {
-    fn derive(&self, change: impl Into<NormalIndex>, index: impl Into<NormalIndex>) -> PublicKey {
-        todo!()
-    }
-}
-
 impl Derive<ComprPubkey> for XpubDescriptor {
     fn derive(&self, change: impl Into<NormalIndex>, index: impl Into<NormalIndex>) -> ComprPubkey {
-        todo!()
+        self.xpub().derive_pub([change.into(), index.into()]).to_compr_pub()
     }
 }
 
 impl Derive<InternalPk> for XpubDescriptor {
     fn derive(&self, change: impl Into<NormalIndex>, index: impl Into<NormalIndex>) -> InternalPk {
-        todo!()
+        self.xpub().derive_pub([change.into(), index.into()]).to_xonly_pub().into()
     }
 }
 
 pub trait DeriveSet {
-    type Base: Derive<PublicKey>;
     type Compr: DeriveCompr;
     type XOnly: DeriveXOnly;
 }
 
 impl DeriveSet for XpubDescriptor {
-    type Base = XpubDescriptor;
     type Compr = XpubDescriptor;
     type XOnly = XpubDescriptor;
 }
