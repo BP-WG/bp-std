@@ -23,23 +23,17 @@
 use bc::secp256k1::PublicKey;
 use bc::{InternalPk, ScriptPubkey};
 
-use crate::{Address, AddressNetwork, ComprPubkey, Idx, NormalIndex};
+use crate::{Address, AddressNetwork, ComprPubkey, Idx, NormalIndex, XpubDescriptor};
 
-pub trait Derive {
-    type Derived;
-
-    fn derive(
-        &self,
-        change: impl Into<NormalIndex>,
-        index: impl Into<NormalIndex>,
-    ) -> Self::Derived;
+pub trait Derive<D> {
+    fn derive(&self, change: impl Into<NormalIndex>, index: impl Into<NormalIndex>) -> D;
 
     fn derive_batch(
         &self,
         change: impl Into<NormalIndex>,
         from: impl Into<NormalIndex>,
         max_count: u8,
-    ) -> Vec<Self::Derived> {
+    ) -> Vec<D> {
         let change = change.into();
         let mut index = from.into();
         let mut count = 0u8;
@@ -54,13 +48,13 @@ pub trait Derive {
     }
 }
 
-pub trait DeriveCompr: Derive<Derived = ComprPubkey> {}
-impl<T: Derive<Derived = ComprPubkey>> DeriveCompr for T {}
+pub trait DeriveCompr: Derive<ComprPubkey> {}
+impl<T: Derive<ComprPubkey>> DeriveCompr for T {}
 
-pub trait DeriveXOnly: Derive<Derived = InternalPk> {}
-impl<T: Derive<Derived = InternalPk>> DeriveXOnly for T {}
+pub trait DeriveXOnly: Derive<InternalPk> {}
+impl<T: Derive<InternalPk>> DeriveXOnly for T {}
 
-pub trait DeriveSpk: Derive<Derived = ScriptPubkey> {
+pub trait DeriveSpk: Derive<ScriptPubkey> {
     fn derive_address(
         &self,
         network: AddressNetwork,
@@ -88,10 +82,34 @@ pub trait DeriveSpk: Derive<Derived = ScriptPubkey> {
             .collect()
     }
 }
-impl<T: Derive<Derived = ScriptPubkey>> DeriveSpk for T {}
+impl<T: Derive<ScriptPubkey>> DeriveSpk for T {}
+
+impl Derive<PublicKey> for XpubDescriptor {
+    fn derive(&self, change: impl Into<NormalIndex>, index: impl Into<NormalIndex>) -> PublicKey {
+        todo!()
+    }
+}
+
+impl Derive<ComprPubkey> for XpubDescriptor {
+    fn derive(&self, change: impl Into<NormalIndex>, index: impl Into<NormalIndex>) -> ComprPubkey {
+        todo!()
+    }
+}
+
+impl Derive<InternalPk> for XpubDescriptor {
+    fn derive(&self, change: impl Into<NormalIndex>, index: impl Into<NormalIndex>) -> InternalPk {
+        todo!()
+    }
+}
 
 pub trait DeriveSet {
-    type Base: Derive<Derived = PublicKey>;
-    type Compr: DeriveCompr<Derived = ComprPubkey>;
-    type XOnly: DeriveXOnly<Derived = InternalPk>;
+    type Base: Derive<PublicKey>;
+    type Compr: DeriveCompr;
+    type XOnly: DeriveXOnly;
+}
+
+impl DeriveSet for XpubDescriptor {
+    type Base = XpubDescriptor;
+    type Compr = XpubDescriptor;
+    type XOnly = XpubDescriptor;
 }
