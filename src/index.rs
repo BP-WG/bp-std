@@ -142,7 +142,7 @@ where Self: Sized + Eq + Ord + Copy
     /// Adds value the index; fails if the index value overflow happens - or if
     /// multiple indexes are present at the path segment
     fn checked_add(&self, add: impl Into<u32>) -> Option<Self> {
-        let mut res = self.clone();
+        let mut res = *self;
         res.checked_add_assign(add)?;
         Some(res)
     }
@@ -150,22 +150,62 @@ where Self: Sized + Eq + Ord + Copy
     /// Subtracts value the index; fails if the index value overflow happens -
     /// or if multiple indexes are present at the path segment
     fn checked_sub(&self, sub: impl Into<u32>) -> Option<Self> {
-        let mut res = self.clone();
+        let mut res = *self;
         res.checked_sub_assign(sub)?;
         Some(res)
     }
 
+    /// Saturating index addition. Computes `self + add`, saturating at the
+    /// `Self::MAX` bounds instead of overflowing.
+    fn saturating_add(&self, add: impl Into<u32>) -> Self {
+        let mut res = *self;
+        let _ = res.saturating_add_assign(add);
+        res
+    }
+
+    /// Saturating index subtraction. Computes `self - add`, saturating at
+    /// the `Self::MIN` bounds instead of overflowing.
+    fn saturating_sub(&self, sub: impl Into<u32>) -> Self {
+        let mut res = *self;
+        let _ = res.saturating_sub_assign(sub);
+        res
+    }
+
     /// Mutates the self by adding value the index; fails if the index value
-    /// overflow happens - or if multiple indexes are present at the path
-    /// segment
+    /// overflow happens.
     #[must_use]
     fn checked_add_assign(&mut self, add: impl Into<u32>) -> Option<Self>;
 
     /// Mutates the self by subtracting value the index; fails if the index
-    /// value overflow happens - or if multiple indexes are present at the
-    /// path segment
+    /// value overflow happens.
     #[must_use]
     fn checked_sub_assign(&mut self, sub: impl Into<u32>) -> Option<Self>;
+
+    /// Mutates the self by adding value the index saturating it at the
+    /// `Self::MAX` value in case of overflow. Returns boolean value
+    /// indicating if no overflow had happened.
+    #[must_use]
+    fn saturating_add_assign(&mut self, add: impl Into<u32>) -> bool {
+        if self.checked_add_assign(add).is_none() {
+            *self = Self::MAX;
+            false
+        } else {
+            true
+        }
+    }
+
+    /// Mutates the self by subtracting value from the index saturating
+    /// it at the `Self::MIN` value in case of overflow. Returns boolean value
+    /// indicating if no overflow had happened.
+    #[must_use]
+    fn saturating_sub_assign(&mut self, sub: impl Into<u32>) -> bool {
+        if self.checked_sub_assign(sub).is_none() {
+            *self = Self::MIN;
+            false
+        } else {
+            true
+        }
+    }
 
     /// Detects whether path segment uses hardened index(es)
     fn is_hardened(&self) -> bool;
