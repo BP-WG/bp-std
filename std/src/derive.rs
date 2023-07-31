@@ -24,7 +24,7 @@ use std::cmp::Ordering;
 
 use bc::{InternalPk, ScriptPubkey};
 
-use crate::{Address, AddressNetwork, ComprPubkey, Idx, NormalIndex, WalletDescr, XpubDescriptor};
+use crate::{Address, AddressNetwork, ComprPubkey, Idx, NormalIndex, XpubDescriptor};
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
 #[display("/{keychain}/{index}")]
@@ -74,17 +74,6 @@ impl<'descr, D: DeriveSpk> Iterator for AddrIter<'descr, D> {
         let derived = DerivedAddr::new(addr, self.keychain, self.index);
         self.index.wrapping_inc_assign();
         Some(derived)
-    }
-}
-
-impl<D: DeriveSpk> WalletDescr<D> {
-    pub fn addresses(&self) -> AddrIter<D> {
-        AddrIter {
-            script_pubkey: &self.script_pubkey,
-            network: self.chain.into(),
-            keychain: *self.keychains.first().expect("keychain must contain at least one index"),
-            index: NormalIndex::ZERO,
-        }
     }
 }
 

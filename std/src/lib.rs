@@ -35,18 +35,12 @@ mod xpub;
 mod descriptors;
 mod address;
 mod derive;
-mod chain;
-mod wallet;
 
 pub use address::{
     Address, AddressNetwork, AddressParseError, AddressPayload, AddressType, PubkeyHash,
     ScriptHash, WPubkeyHash, WScriptHash,
 };
 pub use bc::{secp256k1, *};
-pub use chain::{
-    AddrInfo, BlockHeight, BlockInfo, Blockchain, MayError, MiningInfo, TxInInfo, TxInfo,
-    TxOutInfo, TxStatus, UtxoInfo,
-};
 pub use derive::{
     AddrIter, Derive, DeriveCompr, DeriveSet, DeriveSpk, DeriveXOnly, DerivedAddr, Terminal,
 };
@@ -57,5 +51,4 @@ pub use index::{
 };
 pub use key::{ComprPubkey, LegacyPubkey, TaprootPubkey, UncomprPubkey};
 pub use path::{DerivationParseError, DerivationPath};
-pub use wallet::{Wallet, WalletCache, WalletData, WalletDescr};
 pub use xpub::{Xpub, XpubDescriptor, XpubFp, XpubId, XpubMeta, XpubOrigin};
