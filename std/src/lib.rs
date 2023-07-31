@@ -41,9 +41,7 @@ pub use address::{
     ScriptHash, WPubkeyHash, WScriptHash,
 };
 pub use bc::{secp256k1, *};
-pub use derive::{
-    AddrIter, Derive, DeriveCompr, DeriveSet, DeriveSpk, DeriveXOnly, DerivedAddr, Terminal,
-};
+pub use derive::{Derive, DeriveCompr, DeriveSet, DeriveSpk, DeriveXOnly, DerivedAddr, Terminal};
 pub use descriptors::{DescriptorStd, TrKey};
 pub use index::{
     DerivationIndex, HardenedIndex, Idx, IndexError, IndexParseError, NormalIndex,
