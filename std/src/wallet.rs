@@ -20,14 +20,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::num::NonZeroU32;
 use std::ops::Deref;
 
 use bc::{Chain, Outpoint, Txid};
 
 use crate::derive::DeriveSpk;
-use crate::{AddrInfo, Address, BlockInfo, Idx, NormalIndex, TxInfo, UtxoInfo};
+use crate::{AddrInfo, Address, BlockInfo, Idx, NormalIndex, Terminal, TxInfo, UtxoInfo};
 
 #[derive(Getters, Clone, Eq, PartialEq, Debug)]
 pub struct WalletDescr<D>
@@ -70,8 +70,8 @@ pub struct WalletCache {
     pub(crate) tip: u32,
     pub(crate) headers: HashMap<NonZeroU32, BlockInfo>,
     pub(crate) tx: HashMap<Txid, TxInfo>,
-    pub(crate) utxo: HashMap<Outpoint, UtxoInfo>,
-    pub(crate) addr: HashMap<(NormalIndex, NormalIndex), AddrInfo>,
+    pub(crate) utxo: HashMap<Address, HashSet<UtxoInfo>>,
+    pub(crate) addr: HashMap<Terminal, AddrInfo>,
     pub(crate) max_known: HashMap<NormalIndex, NormalIndex>,
 }
 
@@ -97,6 +97,23 @@ impl<D: DeriveSpk, L2: Default> Wallet<D, L2> {
             cache: WalletCache::new(),
             layer2: default!(),
         }
+    }
+
+    pub fn coins(&self) -> impl Iterator<Item = UtxoInfo> + '_ {
+        self.cache.utxo.values().flatten().copied()
+    }
+
+    pub fn address_coins(
+        &self,
+    ) -> impl Iterator<Item = (Address, impl Iterator<Item = UtxoInfo> + '_)> + '_ {
+        self.cache.utxo.iter().map(|(k, v)| (*k, v.iter().copied()))
+    }
+
+    pub fn address_all(&self) -> impl Iterator<Item = AddrInfo> + '_ {
+        self.descr.addresses().map(|derived| match self.cache.addr.get(&derived.terminal) {
+            None => AddrInfo::from(derived),
+            Some(info) => *info,
+        })
     }
 }
 

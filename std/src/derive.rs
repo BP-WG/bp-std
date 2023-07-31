@@ -20,23 +20,42 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::cmp::Ordering;
+
 use bc::{InternalPk, ScriptPubkey};
 
 use crate::{Address, AddressNetwork, ComprPubkey, Idx, NormalIndex, WalletDescr, XpubDescriptor};
 
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
+#[display("/{keychain}/{index}")]
+pub struct Terminal {
+    pub keychain: NormalIndex,
+    pub index: NormalIndex,
+}
+
+impl Terminal {
+    pub fn new(keychain: NormalIndex, index: NormalIndex) -> Self { Terminal { keychain, index } }
+}
+
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub struct DerivedAddr {
     pub addr: Address,
-    pub keychain: NormalIndex,
-    pub index: NormalIndex,
+    pub terminal: Terminal,
+}
+
+impl Ord for DerivedAddr {
+    fn cmp(&self, other: &Self) -> Ordering { self.terminal.cmp(&other.terminal) }
+}
+
+impl PartialOrd for DerivedAddr {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
 }
 
 impl DerivedAddr {
     pub fn new(addr: Address, keychain: NormalIndex, index: NormalIndex) -> Self {
         DerivedAddr {
             addr,
-            keychain,
-            index,
+            terminal: Terminal::new(keychain, index),
         }
     }
 }
@@ -59,7 +78,7 @@ impl<'descr, D: DeriveSpk> Iterator for AddrIter<'descr, D> {
 }
 
 impl<D: DeriveSpk> WalletDescr<D> {
-    pub fn addresses<'descr>(&'descr self) -> AddrIter<'descr, D> {
+    pub fn addresses(&self) -> AddrIter<D> {
         AddrIter {
             script_pubkey: &self.script_pubkey,
             network: self.chain.into(),

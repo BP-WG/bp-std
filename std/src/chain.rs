@@ -27,11 +27,13 @@ use bc::{
     BlockHash, BlockHeader, LockTime, Outpoint, Sats, ScriptPubkey, SeqNo, SigScript, Txid, Witness,
 };
 
-use crate::{Address, DeriveSpk, Idx, NormalIndex, WalletCache, WalletDescr};
+use crate::{
+    Address, DeriveSpk, DerivedAddr, Idx, NormalIndex, Terminal, WalletCache, WalletDescr,
+};
 
 pub type BlockHeight = NonZeroU32;
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub struct BlockInfo {
     pub header: BlockHeader,
     pub difficulty: u8,
@@ -41,14 +43,14 @@ pub struct BlockInfo {
     pub mediantime: u32,
 }
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub struct MiningInfo {
     pub height: BlockHeight,
     pub time: u64,
     pub block_hash: BlockHash,
 }
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum TxStatus {
     Mined(MiningInfo),
     Mempool,
@@ -79,27 +81,38 @@ pub struct TxInInfo {
     pub value: Option<Sats>,
 }
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub struct TxOutInfo {
     pub outpoint: Outpoint,
     pub value: Sats,
-    pub derivation: Option<(NormalIndex, NormalIndex)>,
+    pub derivation: Option<Terminal>,
 }
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub struct UtxoInfo {
     pub outpoint: Outpoint,
     pub value: Sats,
     pub address: Address,
-    pub derivation: (NormalIndex, NormalIndex),
+    pub derivation: Terminal,
 }
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub struct AddrInfo {
-    pub derivation: (NormalIndex, NormalIndex),
+    pub derivation: Terminal,
     pub used: u32,
     pub volume: Sats,
     pub balance: Sats,
+}
+
+impl From<DerivedAddr> for AddrInfo {
+    fn from(derived: DerivedAddr) -> Self {
+        AddrInfo {
+            derivation: derived.terminal,
+            used: 0,
+            volume: Sats::ZERO,
+            balance: Sats::ZERO,
+        }
+    }
 }
 
 pub trait Blockchain {
@@ -137,13 +150,13 @@ impl WalletCache {
                 txids.extend(r.iter().map(|utxo| utxo.outpoint.txid));
                 let max_known = cache.max_known.entry(*keychain).or_default();
                 *max_known = max(
-                    r.iter().map(|utxo| utxo.derivation.1).max().unwrap_or_default(),
+                    r.iter().map(|utxo| utxo.derivation.index).max().unwrap_or_default(),
                     *max_known,
                 );
                 if r.is_empty() {
                     break;
                 }
-                cache.utxo.extend(r.into_iter().map(|utxo| (utxo.outpoint, utxo)));
+                cache.utxo.extend(r.into_iter().map(|utxo| (utxo.address, set! {utxo})));
                 if !index.saturating_add_assign(BATCH_SIZE) {
                     break;
                 }
