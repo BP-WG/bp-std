@@ -44,7 +44,7 @@ pub use address::{
 };
 pub use bc::{secp256k1, *};
 pub use chain::{AddrInfo, BlockInfo, MiningInfo, TxInInfo, TxInfo, TxOutInfo, TxStatus, UtxoInfo};
-pub use derive::{Derive, DeriveCompr, DeriveSet, DeriveSpk, DeriveXOnly};
+pub use derive::{AddrIter, Derive, DeriveCompr, DeriveSet, DeriveSpk, DeriveXOnly, DerivedAddr};
 pub use descriptors::{DescriptorStd, TrKey};
 pub use index::{
     DerivationIndex, HardenedIndex, Idx, IndexError, IndexParseError, NormalIndex,

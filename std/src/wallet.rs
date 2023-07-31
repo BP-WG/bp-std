@@ -27,7 +27,7 @@ use std::ops::Deref;
 use bc::{Chain, Outpoint, Txid};
 
 use crate::derive::DeriveSpk;
-use crate::{AddrInfo, Address, AddressNetwork, BlockInfo, Idx, NormalIndex, TxInfo, UtxoInfo};
+use crate::{AddrInfo, Address, BlockInfo, Idx, NormalIndex, TxInfo, UtxoInfo};
 
 #[derive(Getters, Clone, Eq, PartialEq, Debug)]
 pub struct WalletDescr<D>
@@ -37,32 +37,6 @@ where D: DeriveSpk
     pub(crate) keychains: BTreeSet<NormalIndex>,
     #[getter(as_copy)]
     pub(crate) chain: Chain,
-}
-
-pub struct AddrIter<'descr, D: DeriveSpk> {
-    script_pubkey: &'descr D,
-    network: AddressNetwork,
-    keychain: NormalIndex,
-    index: NormalIndex,
-}
-
-impl<'descr, D: DeriveSpk> Iterator for AddrIter<'descr, D> {
-    type Item = Address;
-    fn next(&mut self) -> Option<Self::Item> {
-        self.index.wrapping_inc_assign();
-        Some(self.script_pubkey.derive_address(self.network, self.keychain, self.index))
-    }
-}
-
-impl<D: DeriveSpk> WalletDescr<D> {
-    pub fn addresses<'descr>(&'descr self) -> AddrIter<'descr, D> {
-        AddrIter {
-            script_pubkey: &self.script_pubkey,
-            network: self.chain.into(),
-            keychain: *self.keychains.first().expect("keychain must contain at least one index"),
-            index: NormalIndex::ZERO,
-        }
-    }
 }
 
 impl<D: DeriveSpk> WalletDescr<D> {
