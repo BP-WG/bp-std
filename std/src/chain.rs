@@ -93,12 +93,13 @@ pub struct UtxoInfo {
     pub outpoint: Outpoint,
     pub value: Sats,
     pub address: Address,
-    pub derivation: Terminal,
+    pub terminal: Terminal,
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub struct AddrInfo {
-    pub derivation: Terminal,
+    pub addr: Address,
+    pub terminal: Terminal,
     pub used: u32,
     pub volume: Sats,
     pub balance: Sats,
@@ -107,7 +108,8 @@ pub struct AddrInfo {
 impl From<DerivedAddr> for AddrInfo {
     fn from(derived: DerivedAddr) -> Self {
         AddrInfo {
-            derivation: derived.terminal,
+            addr: derived.addr,
+            terminal: derived.terminal,
             used: 0,
             volume: Sats::ZERO,
             balance: Sats::ZERO,
@@ -150,7 +152,7 @@ impl WalletCache {
                 txids.extend(r.iter().map(|utxo| utxo.outpoint.txid));
                 let max_known = cache.max_known.entry(*keychain).or_default();
                 *max_known = max(
-                    r.iter().map(|utxo| utxo.derivation.index).max().unwrap_or_default(),
+                    r.iter().map(|utxo| utxo.terminal.index).max().unwrap_or_default(),
                     *max_known,
                 );
                 if r.is_empty() {
