@@ -77,10 +77,10 @@ pub struct WalletCache {
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Wallet<D: DeriveSpk, L2: Default = ()> {
-    descr: WalletDescr<D>,
-    data: WalletData,
-    cache: WalletCache,
-    layer2: L2,
+    pub(crate) descr: WalletDescr<D>,
+    pub(crate) data: WalletData,
+    pub(crate) cache: WalletCache,
+    pub(crate) layer2: L2,
 }
 
 impl<D: DeriveSpk, L2: Default> Deref for Wallet<D, L2> {

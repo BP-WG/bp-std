@@ -24,11 +24,12 @@ use std::cmp::max;
 use std::num::NonZeroU32;
 
 use bc::{
-    BlockHash, BlockHeader, LockTime, Outpoint, Sats, ScriptPubkey, SeqNo, SigScript, Txid, Witness,
+    BlockHash, BlockHeader, Chain, LockTime, Outpoint, Sats, ScriptPubkey, SeqNo, SigScript, Txid,
+    Witness,
 };
 
 use crate::{
-    Address, DeriveSpk, DerivedAddr, Idx, NormalIndex, Terminal, WalletCache, WalletDescr,
+    Address, DeriveSpk, DerivedAddr, Idx, NormalIndex, Terminal, Wallet, WalletCache, WalletDescr,
 };
 
 pub type BlockHeight = NonZeroU32;
@@ -91,9 +92,9 @@ pub struct TxOutInfo {
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub struct UtxoInfo {
     pub outpoint: Outpoint,
-    pub value: Sats,
-    pub address: Address,
     pub terminal: Terminal,
+    pub address: Address,
+    pub value: Sats,
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
@@ -117,27 +118,82 @@ impl From<DerivedAddr> for AddrInfo {
     }
 }
 
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
+pub struct MayError<T, E> {
+    pub ok: T,
+    pub err: Option<E>,
+}
+
+impl<T, E> MayError<T, E> {
+    pub fn ok(result: T) -> Self {
+        MayError {
+            ok: result,
+            err: None,
+        }
+    }
+
+    pub fn err(ok: T, err: E) -> Self { MayError { ok, err: Some(err) } }
+
+    pub fn map<U>(mut self, f: impl FnOnce(T) -> U) -> MayError<U, E> {
+        let ok = f(self.ok);
+        MayError { ok, err: self.err }
+    }
+
+    pub fn split(self) -> (T, Option<E>) { (self.ok, self.err) }
+
+    pub fn into_ok(self) -> T { self.ok }
+
+    pub fn into_err(self) -> Option<E> { self.err }
+
+    pub fn unwrap_err(self) -> E { self.err.unwrap() }
+
+    pub fn into_result(self) -> Result<T, E> {
+        match self.err {
+            Some(err) => Err(err),
+            None => Ok(self.ok),
+        }
+    }
+}
+
 pub trait Blockchain {
     type Error;
 
     fn get_blocks(
         &self,
         heights: impl IntoIterator<Item = BlockHeight>,
-    ) -> (Vec<BlockInfo>, Vec<Self::Error>);
+    ) -> MayError<Vec<BlockInfo>, Vec<Self::Error>>;
 
-    fn get_txes(&self, txids: impl IntoIterator<Item = Txid>) -> (Vec<TxInfo>, Vec<Self::Error>);
+    fn get_txes(
+        &self,
+        txids: impl IntoIterator<Item = Txid>,
+    ) -> MayError<Vec<TxInfo>, Vec<Self::Error>>;
 
     fn get_utxo<'s>(
         &self,
         scripts: impl IntoIterator<Item = &'s ScriptPubkey>,
-    ) -> (Vec<UtxoInfo>, Vec<Self::Error>);
+    ) -> MayError<Vec<UtxoInfo>, Vec<Self::Error>>;
+}
+
+impl<D: DeriveSpk, L2: Default> Wallet<D, L2> {
+    pub fn with<B: Blockchain>(
+        descr: D,
+        network: Chain,
+        blockchain: &B,
+    ) -> MayError<Self, Vec<B::Error>> {
+        let mut wallet = Wallet::new(descr, network);
+        wallet.update(blockchain).map(|_| wallet)
+    }
+
+    pub fn update<B: Blockchain>(&mut self, blockchain: &B) -> MayError<(), Vec<B::Error>> {
+        WalletCache::with(&self.descr, blockchain).map(|cache| self.cache = cache)
+    }
 }
 
 impl WalletCache {
     pub fn with<B: Blockchain, D: DeriveSpk>(
         descriptor: &WalletDescr<D>,
         blockchain: &B,
-    ) -> Result<Self, (Self, Vec<B::Error>)> {
+    ) -> MayError<Self, Vec<B::Error>> {
         const BATCH_SIZE: u8 = 20;
         let mut cache = WalletCache::new();
         let mut errors = vec![];
@@ -147,8 +203,8 @@ impl WalletCache {
             let mut index = NormalIndex::ZERO;
             loop {
                 let scripts = descriptor.derive_batch(keychain, index, BATCH_SIZE);
-                let (r, e) = blockchain.get_utxo(&scripts);
-                errors.extend(e);
+                let (r, e) = blockchain.get_utxo(&scripts).split();
+                e.map(|e| errors.extend(e));
                 txids.extend(r.iter().map(|utxo| utxo.outpoint.txid));
                 let max_known = cache.max_known.entry(*keychain).or_default();
                 *max_known = max(
@@ -165,17 +221,17 @@ impl WalletCache {
             }
         }
 
-        let (r, e) = blockchain.get_txes(txids);
-        errors.extend(e);
+        let (r, e) = blockchain.get_txes(txids).split();
+        e.map(|e| errors.extend(e));
         cache.tx.extend(r.into_iter().map(|tx| (tx.txid, tx)));
 
         // TODO: Update headers & tip
         // TODO: Construct addr information
 
         if errors.is_empty() {
-            Ok(cache)
+            MayError::ok(cache)
         } else {
-            Err((cache, errors))
+            MayError::err(cache, errors)
         }
     }
 

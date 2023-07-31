@@ -43,7 +43,10 @@ pub use address::{
     ScriptHash, WPubkeyHash, WScriptHash,
 };
 pub use bc::{secp256k1, *};
-pub use chain::{AddrInfo, BlockInfo, MiningInfo, TxInInfo, TxInfo, TxOutInfo, TxStatus, UtxoInfo};
+pub use chain::{
+    AddrInfo, BlockInfo, Blockchain, MayError, MiningInfo, TxInInfo, TxInfo, TxOutInfo, TxStatus,
+    UtxoInfo,
+};
 pub use derive::{
     AddrIter, Derive, DeriveCompr, DeriveSet, DeriveSpk, DeriveXOnly, DerivedAddr, Terminal,
 };
