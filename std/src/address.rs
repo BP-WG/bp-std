@@ -215,7 +215,7 @@ impl FromStr for Address {
          -> Result<Self, Self::Err> {
             let network = match hri.as_str() {
                 "bc1" | "BC1" => AddressNetwork::Mainnet,
-                "tc1" | "TC1" => AddressNetwork::Testnet,
+                "tb1" | "TB1" => AddressNetwork::Testnet,
                 "bcrt1" | "BCRT1" => AddressNetwork::Regtest,
                 _ => return parse_base58(),
             };
@@ -525,7 +525,7 @@ impl AddressNetwork {
     pub fn bech32_hrp(self) -> &'static str {
         match self {
             AddressNetwork::Mainnet => "bc",
-            AddressNetwork::Testnet => "tc",
+            AddressNetwork::Testnet => "tb",
             AddressNetwork::Regtest => "bcrt",
         }
     }
