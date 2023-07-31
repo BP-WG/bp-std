@@ -1,18 +1,18 @@
-# Bitcoin wallet libraries
+# Bitcoin standards implementation libraries
 
-![Build](https://github.com/BP-WG/bp-wallet/workflows/Build/badge.svg)
-![Tests](https://github.com/BP-WG/bp-wallet/workflows/Tests/badge.svg)
-![Lints](https://github.com/BP-WG/bp-wallet/workflows/Lints/badge.svg)
-[![codecov](https://codecov.io/gh/BP-WG/bp-wallet/branch/master/graph/badge.svg)](https://codecov.io/gh/BP-WG/bp-wallet)
+![Build](https://github.com/BP-WG/bp-std/workflows/Build/badge.svg)
+![Tests](https://github.com/BP-WG/bp-std/workflows/Tests/badge.svg)
+![Lints](https://github.com/BP-WG/bp-std/workflows/Lints/badge.svg)
+[![codecov](https://codecov.io/gh/BP-WG/bp-std/branch/master/graph/badge.svg)](https://codecov.io/gh/BP-WG/bp-std)
 
-[![crates.io](https://img.shields.io/crates/v/bp-wallet)](https://crates.io/crates/bp-wallet)
-[![Docs](https://docs.rs/bp-wallet/badge.svg)](https://docs.rs/bp-wallet)
-[![Apache-2 licensed](https://img.shields.io/crates/l/bp-wallet)](./LICENSE)
+[![crates.io](https://img.shields.io/crates/v/bp-std)](https://crates.io/crates/bp-std)
+[![Docs](https://docs.rs/bp-std/badge.svg)](https://docs.rs/bp-std)
+[![Apache-2 licensed](https://img.shields.io/crates/l/bp-std)](./LICENSE)
 
-Modern, minimalistic & standard-compliant cold wallet libraries: an alternative
+Modern, minimalistic & standard-compliant wallet-level libraries: an alternative
 to `rust-bitcoin` and BDK libraries from [LNP/BP Standards Association][Assoc].
 
-The main goals of the library are:
+The main goals of the libraries are:
 - **fast stabilization of APIs**: the library will be targeting v1.0 version
   within the first year of its development; which should enable downstream
   crates using the library also to stabilize and not spend too much effort

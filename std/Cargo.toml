@@ -1,7 +1,7 @@
 [package]
 name = "bp-std"
 version = { workspace = true }
-description = "Modern, minimalistic & standard-compliant cold wallet library"
+description = "Modern & lightweight implementation of bitcoin standards without rust-bitcoin/miniscript dependencies"
 keywords = { workspace = true }
 categories = { workspace = true }
 readme = "../README.md"
@@ -13,7 +13,7 @@ edition = { workspace = true }
 license = { workspace = true }
 
 [lib]
-name = "bpstd"
+name = "bp"
 
 [dependencies]
 amplify = { workspace = true }

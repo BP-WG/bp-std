@@ -19,33 +19,5 @@ bech32 = "0.9.1"
 bp-primitives = "0.10.6"
 serde_crate = { package = "serde", version = "1", features = ["derive"] }
 
-[package]
-name = "bp-wallet"
-version = { workspace = true }
-description = "Modern, minimalistic & standard-compliant cold wallet library"
-keywords = { workspace = true }
-categories = { workspace = true }
-readme = "README.md"
-authors = { workspace = true }
-homepage = { workspace = true }
-repository = { workspace = true }
-rust-version = { workspace = true }
-edition = { workspace = true }
-license = { workspace = true }
-
-[lib]
-name = "bp"
-
-[dependencies]
-amplify = { workspace = true }
-bp-std = { path = "std" }
-bp-invoice = { path = "invoice" }
-psbt = { path = "psbt" }
-
-[features]
-default = []
-all = ["serde"]
-serde = ["amplify/serde", "bp-std/serde", "bp-invoice/serde", "psbt/serde"]
-
 [patch.crates-io]
 bp-primitives = { git = "https://github.com/BP-WG/bp-core", branch = "primitives" }
