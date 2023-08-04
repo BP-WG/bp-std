@@ -108,9 +108,15 @@ impl Address {
     /// Constructs compatible address for a given `scriptPubkey`.
     /// Returns `None` if the uncompressed key is provided or `scriptPubkey`
     /// can't be represented as an address.
-    pub fn with(script: &ScriptPubkey, network: AddressNetwork) -> Result<Self, AddressError> {
+    pub fn with(
+        script: &ScriptPubkey,
+        network: impl Into<AddressNetwork>,
+    ) -> Result<Self, AddressError> {
         let payload = AddressPayload::from_script(script)?;
-        Ok(Address { payload, network })
+        Ok(Address {
+            payload,
+            network: network.into(),
+        })
     }
 
     /// Returns script corresponding to the given address.
