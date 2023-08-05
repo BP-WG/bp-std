@@ -12,6 +12,9 @@ rust-version = { workspace = true }
 edition = { workspace = true }
 license = { workspace = true }
 
+[lib]
+name = "bpinvoice"
+
 [dependencies]
 amplify = { workspace = true }
 bp-std = { path = "../std" }
