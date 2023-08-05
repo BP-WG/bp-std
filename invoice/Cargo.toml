@@ -15,9 +15,10 @@ license = { workspace = true }
 [dependencies]
 amplify = { workspace = true }
 bp-std = { path = "../std" }
-serde_crate = { workspace = true, optional = true }
+indexmap = "2.0.0"
+fluent-uri = "0.1.4"
+chrono = "0.4.24"
+percent-encoding = "2.2.0"
 
 [features]
 default = []
-all = ["serde"]
-serde = ["serde_crate", "bp-std/serde"]

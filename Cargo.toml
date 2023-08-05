@@ -16,7 +16,7 @@ license = "Apache-2.0"
 amplify = "4.0.1"
 bitcoin_hashes = "0.12.0"
 bech32 = "0.9.1"
-bp-primitives = "0.10.6"
+bp-primitives = "0.10.7"
 serde_crate = { package = "serde", version = "1", features = ["derive"] }
 
 [patch.crates-io]

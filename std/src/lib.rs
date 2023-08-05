@@ -41,6 +41,8 @@ pub use address::{
     ScriptHash, WPubkeyHash, WScriptHash,
 };
 pub use bc::{secp256k1, *};
+#[cfg(feature = "core")]
+pub use bp::*;
 pub use derive::{Derive, DeriveCompr, DeriveSet, DeriveSpk, DeriveXOnly, DerivedAddr, Terminal};
 pub use descriptors::{DescriptorStd, TrKey};
 pub use index::{
