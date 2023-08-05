@@ -18,6 +18,3 @@ bitcoin_hashes = "0.12.0"
 bech32 = "0.9.1"
 bp-primitives = "0.10.7"
 serde_crate = { package = "serde", version = "1", features = ["derive"] }
-
-[patch.crates-io]
-bp-primitives = { git = "https://github.com/BP-WG/bp-core", branch = "primitives" }
