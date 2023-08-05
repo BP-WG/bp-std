@@ -20,6 +20,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-mod factory;
+use bp::{Address, AddressNetwork, DeriveSpk, Idx, NormalIndex};
 
-pub use factory::AddressFactory;
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct AddressFactory<D: DeriveSpk> {
+    pub descriptor: D,
+    pub network: AddressNetwork,
+    pub keychain: NormalIndex,
+    pub unused_tip: NormalIndex,
+}
+
+impl<D: DeriveSpk> Iterator for AddressFactory<D> {
+    type Item = Address;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let addr = self.descriptor.derive_address(self.network, self.keychain, self.unused_tip);
+        self.unused_tip.wrapping_inc_assign();
+        Some(addr)
+    }
+}
