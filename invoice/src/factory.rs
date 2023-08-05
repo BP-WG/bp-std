@@ -39,3 +39,9 @@ impl<D: DeriveSpk> Iterator for AddressFactory<D> {
         Some(addr)
     }
 }
+
+impl<D: DeriveSpk> AddressFactory<D> {
+    pub fn address(&self, index: NormalIndex) -> Address {
+        self.descriptor.derive_address(self.network, self.keychain, index)
+    }
+}
