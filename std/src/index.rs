@@ -21,6 +21,8 @@
 // limitations under the License.
 
 use std::cmp::Ordering;
+use std::fmt::Display;
+use std::hash::Hash;
 use std::num::ParseIntError;
 use std::ops::Range;
 use std::str::FromStr;
@@ -482,7 +484,7 @@ impl FromStr for DerivationIndex {
 }
 
 pub trait Keychain
-where Self: Copy + Eq + Ord + Sized + 'static
+where Self: Sized + Copy + Eq + Ord + Hash + Display + FromStr + 'static
 {
     const STANDARD_SET: &'static [Self];
     fn derivation(self) -> NormalIndex;
@@ -506,4 +508,22 @@ pub enum Bip32Keychain {
 impl Keychain for Bip32Keychain {
     const STANDARD_SET: &'static [Self] = &[Self::External, Self::Internal];
     fn derivation(self) -> NormalIndex { NormalIndex::from(self as u8) }
+}
+
+impl FromStr for Bip32Keychain {
+    type Err = IndexParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match NormalIndex::from_str(s)? {
+            NormalIndex::ZERO => Ok(Bip32Keychain::External),
+            NormalIndex::ONE => Ok(Bip32Keychain::Internal),
+            val => Err(IndexError {
+                what: "non-standard keychain",
+                invalid: val.index(),
+                start: 0,
+                end: 1,
+            }
+            .into()),
+        }
+    }
 }

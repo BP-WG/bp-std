@@ -29,31 +29,31 @@ use crate::{Address, AddressNetwork, ComprPubkey, Idx, Keychain, NormalIndex, Xp
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
 #[display("/{keychain}/{index}")]
-pub struct Terminal {
-    pub keychain: NormalIndex,
+pub struct Terminal<K: Keychain> {
+    pub keychain: K,
     pub index: NormalIndex,
 }
 
-impl Terminal {
-    pub fn new(keychain: NormalIndex, index: NormalIndex) -> Self { Terminal { keychain, index } }
+impl<K: Keychain> Terminal<K> {
+    pub fn new(keychain: K, index: NormalIndex) -> Self { Terminal { keychain, index } }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
-pub struct DerivedAddr {
+pub struct DerivedAddr<K: Keychain> {
     pub addr: Address,
-    pub terminal: Terminal,
+    pub terminal: Terminal<K>,
 }
 
-impl Ord for DerivedAddr {
+impl<K: Keychain> Ord for DerivedAddr<K> {
     fn cmp(&self, other: &Self) -> Ordering { self.terminal.cmp(&other.terminal) }
 }
 
-impl PartialOrd for DerivedAddr {
+impl<K: Keychain> PartialOrd for DerivedAddr<K> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
 }
 
-impl DerivedAddr {
-    pub fn new(addr: Address, keychain: NormalIndex, index: NormalIndex) -> Self {
+impl<K: Keychain> DerivedAddr<K> {
+    pub fn new(addr: Address, keychain: K, index: NormalIndex) -> Self {
         DerivedAddr {
             addr,
             terminal: Terminal::new(keychain, index),
