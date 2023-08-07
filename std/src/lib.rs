@@ -44,7 +44,7 @@ pub use bc::{secp256k1, *};
 #[cfg(feature = "core")]
 pub use bp::{dbc, seals};
 pub use derive::{Derive, DeriveCompr, DeriveSet, DeriveSpk, DeriveXOnly, DerivedAddr, Terminal};
-pub use descriptors::{DescriptorStd, TrKey};
+pub use descriptors::{Descriptor, DescriptorStd, KeyTranslate, TrKey, VarResolve};
 pub use index::{
     Bip32Keychain, DerivationIndex, HardenedIndex, Idx, IndexError, IndexParseError, Keychain,
     NormalIndex, HARDENED_INDEX_BOUNDARY,

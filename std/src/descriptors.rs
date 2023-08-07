@@ -24,6 +24,31 @@ use bc::ScriptPubkey;
 
 use crate::{Derive, DeriveSet, DeriveXOnly, NormalIndex, XpubDescriptor};
 
+pub trait Descriptor<K, V = ()> {
+    type KeyIter<'k>: Iterator<Item = &'k K>
+    where
+        Self: 'k,
+        K: 'k;
+
+    type VarIter<'v>: Iterator<Item = &'v V>
+    where
+        Self: 'v,
+        V: 'v;
+
+    fn keys(&self) -> Self::KeyIter<'_>;
+    fn vars(&self) -> Self::VarIter<'_>;
+}
+
+pub trait KeyTranslate<K, V = ()>: Descriptor<K, V> {
+    type Dest<K2>: Descriptor<K2, V>;
+    fn translate<K2>(&self, f: impl Fn(K) -> K2) -> Self::Dest<K2>;
+}
+
+pub trait VarResolve<K, V>: Descriptor<K, V> {
+    type Dest<V2>: Descriptor<K, V2>;
+    fn translate<V2>(&self, f: impl Fn(V) -> V2) -> Self::Dest<V2>;
+}
+
 #[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
 pub struct TrKey<K: DeriveXOnly = XpubDescriptor>(K);
 
