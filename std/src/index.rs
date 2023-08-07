@@ -480,3 +480,27 @@ impl FromStr for DerivationIndex {
         }
     }
 }
+
+pub trait Keychain
+where
+    Self: Sized,
+    NormalIndex: From<Self>,
+{
+}
+
+impl Keychain for NormalIndex {}
+
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
+#[repr(u8)]
+pub enum Bip32Keychain {
+    #[display("0h", alt = "0'")]
+    External = 0,
+
+    #[display("1h", alt = "1'")]
+    Internal = 1,
+}
+
+impl From<Bip32Keychain> for NormalIndex {
+    fn from(index: Bip32Keychain) -> Self { NormalIndex::from(index as u8) }
+}
+impl Keychain for Bip32Keychain {}

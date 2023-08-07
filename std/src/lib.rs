@@ -46,8 +46,8 @@ pub use bp::{dbc, seals};
 pub use derive::{Derive, DeriveCompr, DeriveSet, DeriveSpk, DeriveXOnly, DerivedAddr, Terminal};
 pub use descriptors::{DescriptorStd, TrKey};
 pub use index::{
-    DerivationIndex, HardenedIndex, Idx, IndexError, IndexParseError, NormalIndex,
-    HARDENED_INDEX_BOUNDARY,
+    Bip32Keychain, DerivationIndex, HardenedIndex, Idx, IndexError, IndexParseError, Keychain,
+    NormalIndex, HARDENED_INDEX_BOUNDARY,
 };
 pub use key::{ComprPubkey, LegacyPubkey, TaprootPubkey, UncomprPubkey};
 pub use path::{DerivationParseError, DerivationPath};
