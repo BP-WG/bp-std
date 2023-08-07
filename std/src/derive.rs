@@ -25,7 +25,7 @@ use std::cmp::Ordering;
 use bc::{InternalPk, ScriptPubkey};
 
 use crate::address::AddressError;
-use crate::{Address, AddressNetwork, ComprPubkey, Idx, NormalIndex, XpubDescriptor};
+use crate::{Address, AddressNetwork, ComprPubkey, Idx, Keychain, NormalIndex, XpubDescriptor};
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
 #[display("/{keychain}/{index}")]
@@ -62,20 +62,19 @@ impl DerivedAddr {
 }
 
 pub trait Derive<D> {
-    fn derive(&self, change: impl Into<NormalIndex>, index: impl Into<NormalIndex>) -> D;
+    fn derive(&self, keychain: impl Keychain, index: impl Into<NormalIndex>) -> D;
 
     fn derive_batch(
         &self,
-        change: impl Into<NormalIndex>,
+        keychain: impl Keychain,
         from: impl Into<NormalIndex>,
         max_count: u8,
     ) -> Vec<D> {
-        let change = change.into();
         let mut index = from.into();
         let mut count = 0u8;
         let mut batch = Vec::with_capacity(max_count as usize);
         loop {
-            batch.push(self.derive(change, index));
+            batch.push(self.derive(keychain, index));
             count += 1;
             if index.checked_inc_assign().is_none() || count >= max_count {
                 return batch;
@@ -94,21 +93,21 @@ pub trait DeriveSpk: Derive<ScriptPubkey> {
     fn derive_address(
         &self,
         network: AddressNetwork,
-        change: impl Into<NormalIndex>,
+        keychain: impl Keychain,
         index: impl Into<NormalIndex>,
     ) -> Result<Address, AddressError> {
-        let spk = self.derive(change, index);
+        let spk = self.derive(keychain, index);
         Address::with(&spk, network)
     }
 
     fn derive_address_batch(
         &self,
         network: AddressNetwork,
-        change: impl Into<NormalIndex>,
+        keychain: impl Keychain,
         from: impl Into<NormalIndex>,
         max_count: u8,
     ) -> Result<Vec<Address>, AddressError> {
-        self.derive_batch(change, from, max_count)
+        self.derive_batch(keychain, from, max_count)
             .into_iter()
             .map(|spk| Address::with(&spk, network))
             .collect()
@@ -117,14 +116,14 @@ pub trait DeriveSpk: Derive<ScriptPubkey> {
 impl<T: Derive<ScriptPubkey>> DeriveSpk for T {}
 
 impl Derive<ComprPubkey> for XpubDescriptor {
-    fn derive(&self, change: impl Into<NormalIndex>, index: impl Into<NormalIndex>) -> ComprPubkey {
-        self.xpub().derive_pub([change.into(), index.into()]).to_compr_pub()
+    fn derive(&self, keychain: impl Keychain, index: impl Into<NormalIndex>) -> ComprPubkey {
+        self.xpub().derive_pub([keychain.derivation(), index.into()]).to_compr_pub()
     }
 }
 
 impl Derive<InternalPk> for XpubDescriptor {
-    fn derive(&self, change: impl Into<NormalIndex>, index: impl Into<NormalIndex>) -> InternalPk {
-        self.xpub().derive_pub([change.into(), index.into()]).to_xonly_pub().into()
+    fn derive(&self, keychain: impl Keychain, index: impl Into<NormalIndex>) -> InternalPk {
+        self.xpub().derive_pub([keychain.derivation(), index.into()]).to_xonly_pub().into()
     }
 }
 
