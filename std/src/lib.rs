@@ -37,8 +37,8 @@ mod address;
 mod derive;
 
 pub use address::{
-    Address, AddressNetwork, AddressParseError, AddressPayload, AddressType, PubkeyHash,
-    ScriptHash, WPubkeyHash, WScriptHash,
+    Address, AddressError, AddressNetwork, AddressParseError, AddressPayload, AddressType,
+    PubkeyHash, ScriptHash, WPubkeyHash, WScriptHash,
 };
 pub use bc::{secp256k1, *};
 #[cfg(feature = "core")]

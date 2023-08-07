@@ -24,6 +24,7 @@ use std::cmp::Ordering;
 
 use bc::{InternalPk, ScriptPubkey};
 
+use crate::address::AddressError;
 use crate::{Address, AddressNetwork, ComprPubkey, Idx, NormalIndex, XpubDescriptor};
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
@@ -95,10 +96,9 @@ pub trait DeriveSpk: Derive<ScriptPubkey> {
         network: AddressNetwork,
         change: impl Into<NormalIndex>,
         index: impl Into<NormalIndex>,
-    ) -> Address {
+    ) -> Result<Address, AddressError> {
         let spk = self.derive(change, index);
         Address::with(&spk, network)
-            .expect("invalid derive implementation constructing broken scriptPubkey")
     }
 
     fn derive_address_batch(
@@ -107,13 +107,10 @@ pub trait DeriveSpk: Derive<ScriptPubkey> {
         change: impl Into<NormalIndex>,
         from: impl Into<NormalIndex>,
         max_count: u8,
-    ) -> Vec<Address> {
+    ) -> Result<Vec<Address>, AddressError> {
         self.derive_batch(change, from, max_count)
             .into_iter()
-            .map(|spk| {
-                Address::with(&spk, network)
-                    .expect("invalid derive implementation constructing broken scriptPubkey")
-            })
+            .map(|spk| Address::with(&spk, network))
             .collect()
     }
 }
