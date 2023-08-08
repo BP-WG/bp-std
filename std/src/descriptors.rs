@@ -49,9 +49,23 @@ pub trait VarResolve<K, V>: Descriptor<K, V> {
     fn translate<V2>(&self, f: impl Fn(V) -> V2) -> Self::Dest<V2>;
 }
 
+#[cfg_attr(
+    feature = "serde",
+    cfg_eval,
+    serde_as,
+    derive(Serialize, Deserialize),
+    serde(
+        crate = "serde_crate",
+        bound(
+            serialize = "K: std::fmt::Display",
+            deserialize = "K: std::str::FromStr, K::Err: std::fmt::Display"
+        )
+    )
+)]
 #[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
-pub struct TrKey<K: DeriveXOnly = XpubDescriptor>(K);
+pub struct TrKey<K: DeriveXOnly = XpubDescriptor>(
+    #[cfg_attr(feature = "serde", serde_as(as = "serde_with::DisplayFromStr"))] K,
+);
 
 /*
 pub struct TrScript<K: DeriveXOnly> {
@@ -75,8 +89,9 @@ impl<K: DeriveXOnly> Derive<ScriptPubkey> for TrKey<K> {
         crate = "serde_crate",
         rename_all = "camelCase",
         bound(
-            serialize = "S::XOnly: serde::Serialize",
-            deserialize = "for<'d> S::XOnly: serde::Deserialize<'d>"
+            serialize = "S::XOnly: std::fmt::Display",
+            deserialize = "S::XOnly: std::str::FromStr, <S::XOnly as std::str::FromStr>::Err: \
+                           std::fmt::Display"
         )
     )
 )]
