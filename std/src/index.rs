@@ -484,7 +484,7 @@ impl FromStr for DerivationIndex {
 }
 
 pub trait Keychain
-where Self: Sized + Copy + Eq + Ord + Hash + Display + FromStr + 'static
+where Self: Sized + Copy + Eq + Ord + Hash + Display + FromStr<Err = IndexParseError> + 'static
 {
     const STANDARD_SET: &'static [Self];
     fn derivation(self) -> NormalIndex;
