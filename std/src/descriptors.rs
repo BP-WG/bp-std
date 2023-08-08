@@ -50,6 +50,7 @@ pub trait VarResolve<K, V>: Descriptor<K, V> {
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
 pub struct TrKey<K: DeriveXOnly = XpubDescriptor>(K);
 
 /*
@@ -67,6 +68,18 @@ impl<K: DeriveXOnly> Derive<ScriptPubkey> for TrKey<K> {
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(
+        crate = "serde_crate",
+        rename_all = "camelCase",
+        bound(
+            serialize = "S::XOnly: serde::Serialize",
+            deserialize = "for<'d> S::XOnly: serde::Deserialize<'d>"
+        )
+    )
+)]
 pub enum DescriptorStd<S: DeriveSet = XpubDescriptor> {
     #[from]
     TrKey(TrKey<S::XOnly>),

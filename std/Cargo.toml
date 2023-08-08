@@ -22,9 +22,10 @@ bech32 = { workspace = true }
 bp-primitives = { workspace = true }
 bp-core = { version = "0.10.9", optional = true }
 serde_crate = { workspace = true, optional = true }
+serde_with = { workspace = true, optional = true }
 
 [features]
 default = []
 all = ["core", "serde"]
 core = ["bp-core"]
-serde = ["serde_crate", "bp-primitives/serde"]
+serde = ["serde_crate", "serde_with", "bp-primitives/serde"]
