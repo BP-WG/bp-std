@@ -56,11 +56,11 @@ pub enum AddressError {
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum AddressParseError {
-    /// wrong Base58 encoding of extended pubkey data - {0}
+    /// wrong Base58 encoding of address data - {0}
     #[from]
     Base58(base58::Error),
 
-    /// wrong Bech32 encoding of extended pubkey data - {0}
+    /// wrong Bech32 encoding of address data - {0}
     #[from]
     Bech32(bech32::Error),
 
@@ -220,15 +220,17 @@ impl FromStr for Address {
                             variant: bech32::Variant|
          -> Result<Self, Self::Err> {
             let network = match hri.as_str() {
-                "bc1" | "BC1" => AddressNetwork::Mainnet,
-                "tb1" | "TB1" => AddressNetwork::Testnet,
-                "bcrt1" | "BCRT1" => AddressNetwork::Regtest,
+                "bc" | "BC" => AddressNetwork::Mainnet,
+                "tb" | "TB" => AddressNetwork::Testnet,
+                "bcrt" | "BCRT" => AddressNetwork::Regtest,
                 _ => return parse_base58(),
             };
             let (v, p5) = payload.split_at(1);
             let wv = v[0].to_u8();
-            let version = WitnessVer::from_version_no(wv)
-                .map_err(|_| AddressParseError::InvalidWitnessVersion(wv))?;
+            let version = WitnessVer::from_version_no(wv).map_err(|err| {
+                eprintln!("{err}");
+                AddressParseError::InvalidWitnessVersion(wv)
+            })?;
             let program: Vec<u8> = bech32::FromBase32::from_base32(p5)?;
             let payload = match (version, variant) {
                 (WitnessVer::V0, bech32::Variant::Bech32) if program.len() == 20 => {
@@ -545,5 +547,16 @@ impl From<Chain> for AddressNetwork {
             Chain::Regtest => AddressNetwork::Regtest,
             Chain::Signet => AddressNetwork::Testnet,
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn display_from_str() {
+        let b32 = "tb1p5kgdjdf99vfa2xwufd2cx2qru468z79s2arn3jf5feg95d9m62gqzpnjjk";
+        assert_eq!(Address::from_str(b32).unwrap().to_string(), b32);
     }
 }
