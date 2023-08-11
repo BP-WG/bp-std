@@ -21,11 +21,15 @@
 // limitations under the License.
 
 use std::cmp::Ordering;
+use std::str::FromStr;
 
 use bc::{InternalPk, ScriptPubkey};
 
 use crate::address::AddressError;
-use crate::{Address, AddressNetwork, ComprPubkey, Idx, Keychain, NormalIndex, XpubDescriptor};
+use crate::{
+    Address, AddressNetwork, ComprPubkey, DerivationParseError, DerivationPath, Idx, Keychain,
+    NormalIndex, XpubDescriptor,
+};
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
 #[display("/{keychain}/{index}")]
@@ -36,6 +40,38 @@ pub struct Terminal<K: Keychain> {
 
 impl<K: Keychain> Terminal<K> {
     pub fn new(keychain: K, index: NormalIndex) -> Self { Terminal { keychain, index } }
+}
+
+#[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
+#[display(doc_comments)]
+pub enum TerminalParseError {
+    #[from]
+    #[display(inner)]
+    DerivationPath(DerivationParseError),
+
+    /// derivation path '{0}' is not a terminal path - terminal path must contain exactly two
+    /// unhardened derivation components.
+    InvalidComponents(String),
+
+    /// index {0} doesn't correspond to the keychain accepted by the descriptor.
+    InvalidKeychain(NormalIndex),
+}
+
+impl<K: Keychain> FromStr for Terminal<K> {
+    type Err = TerminalParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let path = DerivationPath::<NormalIndex>::from_str(s)?;
+        let mut iter = path.iter();
+        match (iter.next(), iter.next(), iter.next()) {
+            (Some(keychain), Some(index), None) => Ok(Terminal::new(
+                Keychain::from_derivation(*keychain)
+                    .ok_or(TerminalParseError::InvalidKeychain(*keychain))?,
+                *index,
+            )),
+            _ => Err(TerminalParseError::InvalidComponents(s.to_owned())),
+        }
+    }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]

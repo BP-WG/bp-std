@@ -487,11 +487,15 @@ pub trait Keychain
 where Self: Sized + Copy + Eq + Ord + Hash + Display + FromStr<Err = IndexParseError> + 'static
 {
     const STANDARD_SET: &'static [Self];
+    fn from_derivation(index: NormalIndex) -> Option<Self>;
     fn derivation(self) -> NormalIndex;
 }
 
 impl Keychain for NormalIndex {
     const STANDARD_SET: &'static [Self] = &[Self::ZERO, Self::ONE];
+
+    fn from_derivation(index: NormalIndex) -> Option<Self> { Some(index) }
+
     fn derivation(self) -> NormalIndex { self }
 }
 
@@ -507,6 +511,15 @@ pub enum Bip32Keychain {
 
 impl Keychain for Bip32Keychain {
     const STANDARD_SET: &'static [Self] = &[Self::External, Self::Internal];
+
+    fn from_derivation(index: NormalIndex) -> Option<Self> {
+        match index.index() {
+            0 => Some(Self::External),
+            1 => Some(Self::Internal),
+            _ => None,
+        }
+    }
+
     fn derivation(self) -> NormalIndex { NormalIndex::from(self as u8) }
 }
 
