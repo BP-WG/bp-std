@@ -233,6 +233,11 @@ fn checked_sub_assign(index: &mut u32, sub: impl Into<u32>) -> Option<u32> {
 /// Index for unhardened children derivation; ensures that the inner value
 /// is always < 2^31
 #[derive(Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Debug, Hash, Default, Display, From)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", transparent)
+)]
 #[display(inner)]
 pub struct NormalIndex(
     #[from(u8)]
@@ -500,6 +505,11 @@ impl Keychain for NormalIndex {
 }
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
 #[repr(u8)]
 pub enum Bip32Keychain {
     #[display("0", alt = "0")]
