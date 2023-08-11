@@ -502,10 +502,10 @@ impl Keychain for NormalIndex {
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
 #[repr(u8)]
 pub enum Bip32Keychain {
-    #[display("0h", alt = "0'")]
+    #[display("0", alt = "0")]
     External = 0,
 
-    #[display("1h", alt = "1'")]
+    #[display("1", alt = "1")]
     Internal = 1,
 }
 
