@@ -67,6 +67,11 @@ pub struct TrKey<K: DeriveXOnly = XpubDescriptor>(
     #[cfg_attr(feature = "serde", serde_as(as = "serde_with::DisplayFromStr"))] K,
 );
 
+impl<K: DeriveXOnly> TrKey<K> {
+    pub fn as_internal_key(&self) -> &K { &self.0 }
+    pub fn into_internal_key(self) -> K { self.0 }
+}
+
 /*
 pub struct TrScript<K: DeriveXOnly> {
     internal_key: K,
