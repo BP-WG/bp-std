@@ -22,8 +22,13 @@
 
 use core::fmt::{self, Display, Formatter};
 use core::str::FromStr;
+use std::collections::BTreeSet;
+use std::ops::Index;
 
-use crate::{DerivationIndex, IndexParseError};
+use amplify::confinement;
+use amplify::confinement::Confined;
+
+use crate::{DerivationIndex, Idx, IndexParseError, NormalIndex};
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error)]
 #[display(doc_comments)]
@@ -32,6 +37,41 @@ pub enum DerivationParseError {
     InvalidIndex(String, IndexParseError),
     /// invalid derivation path format '{0}'
     InvalidFormat(String),
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct DerivationSeg<I: Idx = NormalIndex>(Confined<BTreeSet<I>, 1, 8>);
+
+impl<I: Idx> DerivationSeg<I> {
+    pub fn new(index: I) -> Self { DerivationSeg(confined_bset![index]) }
+
+    pub fn with(iter: impl IntoIterator<Item = I>) -> Result<Self, confinement::Error> {
+        Confined::try_from_iter(iter).map(DerivationSeg)
+    }
+
+    #[inline]
+    pub fn count(&self) -> u8 { self.0.len() as u8 }
+
+    #[inline]
+    pub fn is_distinct(&self, other: &Self) -> bool { self.0.is_disjoint(&other.0) }
+
+    #[inline]
+    pub fn at(&self, index: u8) -> Option<I> { self.0.iter().nth(index as usize).copied() }
+}
+
+impl DerivationSeg<NormalIndex> {
+    pub fn standard() -> Self { DerivationSeg(confined_bset![NormalIndex::ZERO, NormalIndex::ONE]) }
+}
+
+impl<I: Idx> Index<u8> for DerivationSeg<I> {
+    type Output = I;
+
+    fn index(&self, index: u8) -> &Self::Output {
+        self.0
+            .iter()
+            .nth(index as usize)
+            .expect("requested position in derivation segment exceeds its length")
+    }
 }
 
 /// Derivation path that consisting only of single type of segments.
