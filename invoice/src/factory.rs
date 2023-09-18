@@ -26,7 +26,7 @@ use bp::{Address, AddressError, AddressNetwork, DeriveSpk, Idx, NormalIndex};
 pub struct AddressFactory<D: DeriveSpk> {
     pub descriptor: D,
     pub network: AddressNetwork,
-    pub keychain: NormalIndex,
+    pub keychain: u8,
     pub unused_tip: NormalIndex,
 }
 

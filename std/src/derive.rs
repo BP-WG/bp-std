@@ -21,36 +21,42 @@
 // limitations under the License.
 
 use std::cmp::Ordering;
+use std::num::ParseIntError;
 use std::str::FromStr;
 
 use bc::{InternalPk, ScriptPubkey};
 
 use crate::address::AddressError;
 use crate::{
-    Address, AddressNetwork, ComprPubkey, DerivationParseError, DerivationPath, Idx, NormalIndex,
-    XpubDescriptor,
+    Address, AddressNetwork, ComprPubkey, Idx, IndexParseError, NormalIndex, XpubDescriptor,
 };
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
-#[display("/{keychain}/{index}")]
+#[display("&{keychain}/{index}")]
 pub struct Terminal {
-    pub keychain: NormalIndex,
+    pub keychain: u8,
     pub index: NormalIndex,
 }
 
 impl Terminal {
-    pub fn new(keychain: NormalIndex, index: NormalIndex) -> Self { Terminal { keychain, index } }
+    pub fn new(keychain: u8, index: NormalIndex) -> Self { Terminal { keychain, index } }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum TerminalParseError {
+    /// terminal derivation path must start with keychain index prefixed with '&'.
+    NoKeychain,
+
+    /// keychain index in terminal derivation path is not a number.
     #[from]
-    #[display(inner)]
-    DerivationPath(DerivationParseError),
+    InvalidKeychain(ParseIntError),
+
+    #[from]
+    Index(IndexParseError),
 
     /// derivation path '{0}' is not a terminal path - terminal path must contain exactly two
-    /// unhardened derivation components.
+    /// components.
     InvalidComponents(String),
 }
 
@@ -58,10 +64,14 @@ impl FromStr for Terminal {
     type Err = TerminalParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let path = DerivationPath::<NormalIndex>::from_str(s)?;
-        let mut iter = path.iter();
+        let mut iter = s.split('/');
         match (iter.next(), iter.next(), iter.next()) {
-            (Some(keychain), Some(index), None) => Ok(Terminal::new(*keychain, *index)),
+            (Some(keychain), Some(index), None) => {
+                if !keychain.starts_with('&') {
+                    return Err(TerminalParseError::NoKeychain);
+                }
+                Ok(Terminal::new(keychain.trim_start_matches('&').parse()?, index.parse()?))
+            }
             _ => Err(TerminalParseError::InvalidComponents(s.to_owned())),
         }
     }
@@ -82,7 +92,7 @@ impl PartialOrd for DerivedAddr {
 }
 
 impl DerivedAddr {
-    pub fn new(addr: Address, keychain: NormalIndex, index: NormalIndex) -> Self {
+    pub fn new(addr: Address, keychain: u8, index: NormalIndex) -> Self {
         DerivedAddr {
             addr,
             terminal: Terminal::new(keychain, index),
@@ -91,14 +101,9 @@ impl DerivedAddr {
 }
 
 pub trait Derive<D> {
-    fn derive(&self, keychain: impl Into<NormalIndex>, index: impl Into<NormalIndex>) -> D;
+    fn derive(&self, keychain: u8, index: impl Into<NormalIndex>) -> D;
 
-    fn derive_batch(
-        &self,
-        keychain: impl Into<NormalIndex>,
-        from: impl Into<NormalIndex>,
-        max_count: u8,
-    ) -> Vec<D> {
+    fn derive_batch(&self, keychain: u8, from: impl Into<NormalIndex>, max_count: u8) -> Vec<D> {
         let keychain = keychain.into();
         let mut index = from.into();
         let mut count = 0u8;
@@ -123,7 +128,7 @@ pub trait DeriveSpk: Derive<ScriptPubkey> {
     fn derive_address(
         &self,
         network: AddressNetwork,
-        keychain: impl Into<NormalIndex>,
+        keychain: u8,
         index: impl Into<NormalIndex>,
     ) -> Result<Address, AddressError> {
         let spk = self.derive(keychain, index);
@@ -133,7 +138,7 @@ pub trait DeriveSpk: Derive<ScriptPubkey> {
     fn derive_address_batch(
         &self,
         network: AddressNetwork,
-        keychain: impl Into<NormalIndex>,
+        keychain: u8,
         from: impl Into<NormalIndex>,
         max_count: u8,
     ) -> Result<Vec<Address>, AddressError> {
@@ -146,21 +151,13 @@ pub trait DeriveSpk: Derive<ScriptPubkey> {
 impl<T: Derive<ScriptPubkey>> DeriveSpk for T {}
 
 impl Derive<ComprPubkey> for XpubDescriptor {
-    fn derive(
-        &self,
-        keychain: impl Into<NormalIndex>,
-        index: impl Into<NormalIndex>,
-    ) -> ComprPubkey {
+    fn derive(&self, keychain: u8, index: impl Into<NormalIndex>) -> ComprPubkey {
         self.xpub().derive_pub([keychain.into(), index.into()]).to_compr_pub()
     }
 }
 
 impl Derive<InternalPk> for XpubDescriptor {
-    fn derive(
-        &self,
-        keychain: impl Into<NormalIndex>,
-        index: impl Into<NormalIndex>,
-    ) -> InternalPk {
+    fn derive(&self, keychain: u8, index: impl Into<NormalIndex>) -> InternalPk {
         self.xpub().derive_pub([keychain.into(), index.into()]).to_xonly_pub().into()
     }
 }
