@@ -74,6 +74,25 @@ impl<I: Idx> Index<u8> for DerivationSeg<I> {
     }
 }
 
+impl<I: Idx + Display> Display for DerivationSeg<I> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        if self.count() == 1 {
+            write!(f, "{}", self[0])
+        } else {
+            f.write_str("<")?;
+            let mut first = true;
+            for index in &self.0 {
+                if !first {
+                    f.write_str(";")?;
+                }
+                write!(f, "{index}")?;
+                first = false;
+            }
+            f.write_str(">")
+        }
+    }
+}
+
 /// Derivation path that consisting only of single type of segments.
 ///
 /// Useful in specifying concrete derivation from a provided extended public key
