@@ -93,6 +93,36 @@ impl<I: Idx + Display> Display for DerivationSeg<I> {
     }
 }
 
+#[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
+#[display(doc_comments)]
+pub enum SegParseError {
+    /// derivation contains invalid index - {0}.
+    #[from]
+    InvalidFormat(IndexParseError),
+
+    /// derivation segment contains too many variants.
+    #[from]
+    Confinement(confinement::Error),
+}
+
+impl<I: Idx> FromStr for DerivationSeg<I>
+where
+    I: FromStr,
+    SegParseError: From<I::Err>,
+{
+    type Err = SegParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let t = s.trim_start_matches('<').trim_end_matches('>');
+        if t.len() == s.len() - 2 {
+            let set = t.split(';').map(I::from_str).collect::<Result<BTreeSet<_>, _>>()?;
+            Ok(Self(Confined::try_from_iter(set)?))
+        } else {
+            Ok(Self(I::from_str(s).map(Confined::with)?))
+        }
+    }
+}
+
 /// Derivation path that consisting only of single type of segments.
 ///
 /// Useful in specifying concrete derivation from a provided extended public key

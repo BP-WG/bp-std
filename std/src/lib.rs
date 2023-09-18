@@ -59,5 +59,5 @@ pub use index::{
     HARDENED_INDEX_BOUNDARY,
 };
 pub use key::{ComprPubkey, LegacyPubkey, TaprootPubkey, UncomprPubkey};
-pub use path::{DerivationParseError, DerivationPath, DerivationSeg};
+pub use path::{DerivationParseError, DerivationPath, DerivationSeg, SegParseError};
 pub use xpub::{Xpub, XpubDescriptor, XpubFp, XpubId, XpubMeta, XpubOrigin};
