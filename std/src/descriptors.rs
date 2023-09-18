@@ -22,7 +22,7 @@
 
 use bc::ScriptPubkey;
 
-use crate::{Derive, DeriveSet, DeriveXOnly, Keychain, NormalIndex, XpubDescriptor};
+use crate::{Derive, DeriveSet, DeriveXOnly, NormalIndex, XpubDescriptor};
 
 pub trait Descriptor<K, V = ()> {
     type KeyIter<'k>: Iterator<Item = &'k K>
@@ -80,7 +80,11 @@ pub struct TrScript<K: DeriveXOnly> {
 */
 
 impl<K: DeriveXOnly> Derive<ScriptPubkey> for TrKey<K> {
-    fn derive(&self, keychain: impl Keychain, index: impl Into<NormalIndex>) -> ScriptPubkey {
+    fn derive(
+        &self,
+        keychain: impl Into<NormalIndex>,
+        index: impl Into<NormalIndex>,
+    ) -> ScriptPubkey {
         let internal_key = self.0.derive(keychain, index);
         ScriptPubkey::p2tr_key_only(internal_key)
     }
@@ -106,7 +110,11 @@ pub enum DescriptorStd<S: DeriveSet = XpubDescriptor> {
 }
 
 impl<S: DeriveSet> Derive<ScriptPubkey> for DescriptorStd<S> {
-    fn derive(&self, keychain: impl Keychain, index: impl Into<NormalIndex>) -> ScriptPubkey {
+    fn derive(
+        &self,
+        keychain: impl Into<NormalIndex>,
+        index: impl Into<NormalIndex>,
+    ) -> ScriptPubkey {
         match self {
             DescriptorStd::TrKey(d) => d.derive(keychain, index),
         }

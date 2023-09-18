@@ -55,8 +55,8 @@ pub use derive::{
 };
 pub use descriptors::{Descriptor, DescriptorStd, KeyTranslate, TrKey, VarResolve};
 pub use index::{
-    Bip32Keychain, DerivationIndex, HardenedIndex, Idx, IndexError, IndexParseError, Keychain,
-    NormalIndex, HARDENED_INDEX_BOUNDARY,
+    DerivationIndex, HardenedIndex, Idx, IndexError, IndexParseError, NormalIndex,
+    HARDENED_INDEX_BOUNDARY,
 };
 pub use key::{ComprPubkey, LegacyPubkey, TaprootPubkey, UncomprPubkey};
 pub use path::{DerivationParseError, DerivationPath};
