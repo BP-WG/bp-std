@@ -4,9 +4,9 @@ version = 3
 
 [[package]]
 name = "amplify"
-version = "4.0.1"
+version = "4.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4707ab08f19a25ba492cbf61713591b7f022b54ee188f35457e6de22f367df4a"
+checksum = "307ba542b2cf4ca3d956d0ee65b18e83f1264c061690adf796c91384058568e3"
 dependencies = [
  "amplify_apfloat",
  "amplify_derive 3.0.1",
@@ -797,11 +797,11 @@ dependencies = [
 
 [[package]]
 name = "serde_yaml"
-version = "0.9.25"
+version = "0.9.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a49e178e4452f45cb61d0cd8cebc1b0fafd3e41929e996cef79aa3aca91f574"
+checksum = "d9d684e3ec7de3bf5466b32bd75303ac16f0736426e5a4e0d6e489559ce1249c"
 dependencies = [
- "indexmap 2.0.0",
+ "indexmap 1.9.3",
  "itoa",
  "ryu",
  "serde",

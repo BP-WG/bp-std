@@ -24,7 +24,7 @@ use std::borrow::Borrow;
 use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 
-use amplify::{hex, Array, Bytes32, RawArray, Wrapper};
+use amplify::{hex, Bytes20, Bytes32, Bytes4, RawArray, Wrapper};
 use bc::secp256k1;
 use bc::secp256k1::{PublicKey, XOnlyPublicKey, SECP256K1};
 use hashes::{hash160, sha512, Hash, HashEngine, Hmac, HmacEngine};
@@ -112,14 +112,14 @@ pub struct XpubCore {
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default, Debug, Display, From)]
 #[wrapper(RangeOps, Hex, FromStr)]
 #[display(LowerHex)]
-pub struct XpubFp(Array<u8, 4>);
+pub struct XpubFp(
+    #[from]
+    #[from([u8; 4])]
+    Bytes4,
+);
 
 impl AsRef<[u8]> for XpubFp {
     fn as_ref(&self) -> &[u8] { self.0.as_ref() }
-}
-
-impl From<[u8; 4]> for XpubFp {
-    fn from(value: [u8; 4]) -> Self { Self(value.into()) }
 }
 
 impl From<XpubFp> for [u8; 4] {
@@ -129,14 +129,14 @@ impl From<XpubFp> for [u8; 4] {
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default, Debug, Display, From)]
 #[wrapper(RangeOps, Hex, FromStr)]
 #[display(LowerHex)]
-pub struct XpubId(Array<u8, 20>);
+pub struct XpubId(
+    #[from]
+    #[from([u8; 20])]
+    Bytes20,
+);
 
 impl AsRef<[u8]> for XpubId {
     fn as_ref(&self) -> &[u8] { self.0.as_ref() }
-}
-
-impl From<[u8; 20]> for XpubId {
-    fn from(value: [u8; 20]) -> Self { Self(value.into()) }
 }
 
 impl From<XpubId> for [u8; 20] {
