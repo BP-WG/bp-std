@@ -29,7 +29,8 @@ use bc::{InternalPk, ScriptPubkey};
 
 use crate::address::AddressError;
 use crate::{
-    Address, AddressNetwork, ComprPubkey, Idx, IndexParseError, NormalIndex, XpubDescriptor,
+    Address, AddressNetwork, AddressParseError, ComprPubkey, Idx, IndexParseError, NormalIndex,
+    XpubDescriptor,
 };
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
@@ -78,7 +79,8 @@ impl FromStr for Terminal {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display)]
+#[display("{addr}{terminal}")]
 pub struct DerivedAddr {
     pub addr: Address,
     pub terminal: Terminal,
@@ -98,6 +100,32 @@ impl DerivedAddr {
             addr,
             terminal: Terminal::new(keychain, index),
         }
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
+#[display(inner)]
+pub enum DerivedAddrParseError {
+    #[display("address must be followed by a & and derivation information")]
+    NoSeparator,
+
+    #[from]
+    Address(AddressParseError),
+
+    #[from]
+    Terminal(TerminalParseError),
+}
+
+impl FromStr for DerivedAddr {
+    type Err = DerivedAddrParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let pos = s.find('&').ok_or(DerivedAddrParseError::NoSeparator)?;
+        let (addr, terminal) = s.split_at(pos);
+        Ok(DerivedAddr {
+            addr: addr.parse()?,
+            terminal: terminal.parse()?,
+        })
     }
 }
 

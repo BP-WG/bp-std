@@ -50,8 +50,8 @@ pub use bc::{secp256k1, *};
 #[cfg(feature = "core")]
 pub use bp::{dbc, seals};
 pub use derive::{
-    Derive, DeriveCompr, DeriveSet, DeriveSpk, DeriveXOnly, DerivedAddr, Terminal,
-    TerminalParseError,
+    Derive, DeriveCompr, DeriveSet, DeriveSpk, DeriveXOnly, DerivedAddr, DerivedAddrParseError,
+    Terminal, TerminalParseError,
 };
 pub use descriptors::{Descriptor, DescriptorStd, KeyTranslate, TrKey, VarResolve};
 pub use index::{
