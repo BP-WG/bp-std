@@ -30,8 +30,8 @@ use bc::secp256k1::{PublicKey, XOnlyPublicKey, SECP256K1};
 use hashes::{hash160, sha512, Hash, HashEngine, Hmac, HmacEngine};
 
 use crate::{
-    base58, ComprPubkey, DerivationIndex, DerivationParseError, DerivationPath, HardenedIndex, Idx,
-    NormalIndex,
+    base58, ComprPubkey, DerivationIndex, DerivationParseError, DerivationPath, DerivationSeg,
+    HardenedIndex, Idx, IndexParseError, NormalIndex, SegParseError,
 };
 
 pub const XPUB_MAINNET_MAGIC: [u8; 4] = [0x04u8, 0x88, 0xB2, 0x1E];
@@ -70,8 +70,22 @@ pub enum XpubParseError {
     #[from]
     InvalidMasterFp(hex::Error),
 
+    /// invalid terminal derivation format.
+    InvalidTerminal,
+
+    /// invalid keychain segment - {0}
+    #[from]
+    InvalidKeychain(SegParseError),
+
+    /// invalid index value in terminal derivation segment.
+    #[from]
+    InvalidIndex(IndexParseError),
+
     /// no xpub key origin information.
     NoOrigin,
+
+    /// no extended public key.
+    NoXpub,
 
     /// xpub network and origin mismatch.
     NetworkMismatch,
@@ -325,11 +339,30 @@ impl FromStr for XpubOrigin {
     }
 }
 
-#[derive(Getters, Clone, Eq, PartialEq, Hash, Debug, Display)]
-#[display("[{origin}]{xpub}", alt = "[{origin:#}]{xpub}")]
+#[derive(Getters, Clone, Eq, PartialEq, Hash, Debug)]
 pub struct XpubDescriptor {
     origin: XpubOrigin,
     xpub: Xpub,
+    variant: Option<NormalIndex>,
+    pub(crate) keychains: DerivationSeg,
+}
+
+impl Display for XpubDescriptor {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str("[")?;
+        Display::fmt(&self.origin, f)?;
+        f.write_str("]")?;
+
+        write!(f, "{}/", self.xpub)?;
+
+        if let Some(variant) = self.variant {
+            write!(f, "{variant}/")?;
+        }
+
+        Display::fmt(&self.keychains, f)?;
+
+        f.write_str("/*")
+    }
 }
 
 impl FromStr for XpubDescriptor {
@@ -339,24 +372,43 @@ impl FromStr for XpubDescriptor {
         if !s.starts_with('[') {
             return Err(XpubParseError::NoOrigin);
         }
-        let (origin, xpub) =
+        let (origin, remains) =
             s.trim_start_matches('[').split_once(']').ok_or(XpubParseError::NoOrigin)?;
-        let d = XpubDescriptor {
-            origin: XpubOrigin::from_str(origin)?,
-            xpub: Xpub::from_str(xpub)?,
+        let origin = XpubOrigin::from_str(origin)?;
+
+        let mut segs = remains.split('/');
+        let Some(xpub) = segs.next() else {
+            return Err(XpubParseError::NoXpub);
         };
-        if d.origin.derivation.len() != d.xpub.meta.depth as usize {
+        let xpub = Xpub::from_str(xpub)?;
+
+        if origin.derivation.len() != xpub.meta.depth as usize {
             return Err(XpubParseError::DepthMismatch);
         }
-        if !d.origin.derivation.is_empty() {
-            let network = if d.xpub.testnet { HardenedIndex::ONE } else { HardenedIndex::ZERO };
-            if d.origin.derivation.get(1) != Some(&network.into()) {
+        if !origin.derivation.is_empty() {
+            let network = if xpub.testnet { HardenedIndex::ONE } else { HardenedIndex::ZERO };
+            if origin.derivation.get(1) != Some(&network.into()) {
                 return Err(XpubParseError::NetworkMismatch);
             }
-            if d.origin.derivation.last() != Some(&d.xpub.meta.child_number) {
+            if origin.derivation.last() != Some(&xpub.meta.child_number) {
                 return Err(XpubParseError::ParentMismatch);
             }
         }
+
+        let (variant, keychains) = match (segs.next(), segs.next(), segs.next(), segs.next()) {
+            (Some(var), Some(keychains), Some("*"), None) => {
+                (Some(var.parse()?), keychains.parse()?)
+            }
+            (Some(keychains), Some("*"), None, None) => (None, keychains.parse()?),
+            _ => return Err(XpubParseError::InvalidTerminal),
+        };
+
+        let d = XpubDescriptor {
+            origin,
+            xpub,
+            variant,
+            keychains,
+        };
         Ok(d)
     }
 }
@@ -367,7 +419,7 @@ mod test {
 
     #[test]
     fn display_from_str() {
-        let s = "[643a7adc/86h/1h/0h]tpubDCNiWHaiSkgnQjuhsg9kjwaUzaxQjUcmhagvYzqQ3TYJTgFGJstVaqnu4yhtFktBhCVFmBNLQ5sN53qKzZbMksm3XEyGJsEhQPfVZdWmTE2";
+        let s = "[643a7adc/86h/1h/0h]tpubDCNiWHaiSkgnQjuhsg9kjwaUzaxQjUcmhagvYzqQ3TYJTgFGJstVaqnu4yhtFktBhCVFmBNLQ5sN53qKzZbMksm3XEyGJsEhQPfVZdWmTE2/<0;1>/*";
         let xpub = XpubDescriptor::from_str(s).unwrap();
         assert_eq!(s, xpub.to_string());
     }

@@ -21,7 +21,6 @@
 // limitations under the License.
 
 use std::cmp::Ordering;
-use std::fmt::Display;
 use std::hash::Hash;
 use std::num::ParseIntError;
 use std::ops::Range;
@@ -484,69 +483,6 @@ impl FromStr for DerivationIndex {
         match s.strip_suffix(['h', 'H', '*']) {
             Some(_) => HardenedIndex::from_str(s).map(Self::Hardened),
             None => NormalIndex::from_str(s).map(Self::Normal),
-        }
-    }
-}
-
-pub trait Keychain
-where Self: Sized + Copy + Eq + Ord + Hash + Display + FromStr<Err = IndexParseError> + 'static
-{
-    const STANDARD_SET: &'static [Self];
-    fn from_derivation(index: NormalIndex) -> Option<Self>;
-    fn derivation(self) -> NormalIndex;
-}
-
-impl Keychain for NormalIndex {
-    const STANDARD_SET: &'static [Self] = &[Self::ZERO, Self::ONE];
-
-    fn from_derivation(index: NormalIndex) -> Option<Self> { Some(index) }
-
-    fn derivation(self) -> NormalIndex { self }
-}
-
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
-#[repr(u8)]
-pub enum Bip32Keychain {
-    #[display("0", alt = "0")]
-    External = 0,
-
-    #[display("1", alt = "1")]
-    Internal = 1,
-}
-
-impl Keychain for Bip32Keychain {
-    const STANDARD_SET: &'static [Self] = &[Self::External, Self::Internal];
-
-    fn from_derivation(index: NormalIndex) -> Option<Self> {
-        match index.index() {
-            0 => Some(Self::External),
-            1 => Some(Self::Internal),
-            _ => None,
-        }
-    }
-
-    fn derivation(self) -> NormalIndex { NormalIndex::from(self as u8) }
-}
-
-impl FromStr for Bip32Keychain {
-    type Err = IndexParseError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match NormalIndex::from_str(s)? {
-            NormalIndex::ZERO => Ok(Bip32Keychain::External),
-            NormalIndex::ONE => Ok(Bip32Keychain::Internal),
-            val => Err(IndexError {
-                what: "non-standard keychain",
-                invalid: val.index(),
-                start: 0,
-                end: 1,
-            }
-            .into()),
         }
     }
 }
