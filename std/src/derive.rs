@@ -22,6 +22,7 @@
 
 use std::cmp::Ordering;
 use std::num::ParseIntError;
+use std::ops::Range;
 use std::str::FromStr;
 
 use bc::{InternalPk, ScriptPubkey};
@@ -101,6 +102,8 @@ impl DerivedAddr {
 }
 
 pub trait Derive<D> {
+    fn keychains(&self) -> Range<u8>;
+
     fn derive(&self, keychain: u8, index: impl Into<NormalIndex>) -> D;
 
     fn derive_batch(&self, keychain: u8, from: impl Into<NormalIndex>, max_count: u8) -> Vec<D> {
@@ -151,12 +154,18 @@ pub trait DeriveSpk: Derive<ScriptPubkey> {
 impl<T: Derive<ScriptPubkey>> DeriveSpk for T {}
 
 impl Derive<ComprPubkey> for XpubDescriptor {
+    #[inline]
+    fn keychains(&self) -> Range<u8> { 0..self.keychains.count() }
+
     fn derive(&self, keychain: u8, index: impl Into<NormalIndex>) -> ComprPubkey {
         self.xpub().derive_pub([keychain.into(), index.into()]).to_compr_pub()
     }
 }
 
 impl Derive<InternalPk> for XpubDescriptor {
+    #[inline]
+    fn keychains(&self) -> Range<u8> { 0..self.keychains.count() }
+
     fn derive(&self, keychain: u8, index: impl Into<NormalIndex>) -> InternalPk {
         self.xpub().derive_pub([keychain.into(), index.into()]).to_xonly_pub().into()
     }

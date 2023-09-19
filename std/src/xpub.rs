@@ -344,7 +344,7 @@ pub struct XpubDescriptor {
     origin: XpubOrigin,
     xpub: Xpub,
     variant: Option<NormalIndex>,
-    keychains: DerivationSeg,
+    pub(crate) keychains: DerivationSeg,
 }
 
 impl Display for XpubDescriptor {

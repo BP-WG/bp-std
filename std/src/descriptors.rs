@@ -20,6 +20,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::ops::Range;
+
 use bc::ScriptPubkey;
 
 use crate::{Derive, DeriveSet, DeriveXOnly, NormalIndex, XpubDescriptor};
@@ -80,6 +82,9 @@ pub struct TrScript<K: DeriveXOnly> {
 */
 
 impl<K: DeriveXOnly> Derive<ScriptPubkey> for TrKey<K> {
+    #[inline]
+    fn keychains(&self) -> Range<u8> { self.0.keychains() }
+
     fn derive(&self, keychain: u8, index: impl Into<NormalIndex>) -> ScriptPubkey {
         let internal_key = self.0.derive(keychain, index);
         ScriptPubkey::p2tr_key_only(internal_key)
@@ -106,6 +111,12 @@ pub enum DescriptorStd<S: DeriveSet = XpubDescriptor> {
 }
 
 impl<S: DeriveSet> Derive<ScriptPubkey> for DescriptorStd<S> {
+    fn keychains(&self) -> Range<u8> {
+        match self {
+            DescriptorStd::TrKey(d) => d.keychains(),
+        }
+    }
+
     fn derive(&self, keychain: u8, index: impl Into<NormalIndex>) -> ScriptPubkey {
         match self {
             DescriptorStd::TrKey(d) => d.derive(keychain, index),
