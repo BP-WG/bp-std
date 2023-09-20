@@ -30,8 +30,8 @@ jobs:
       fail-fast: false
       matrix:
         feature:
+          - core
           - serde
-          - cli
     steps:
       - uses: actions/checkout@v2
       - name: Install rust stable

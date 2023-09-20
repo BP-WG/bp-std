@@ -42,13 +42,13 @@ mod descriptors;
 mod address;
 mod derive;
 
+#[cfg(feature = "core")]
+pub use ::bp::{dbc, seals};
 pub use address::{
     Address, AddressError, AddressNetwork, AddressParseError, AddressPayload, AddressType,
     PubkeyHash, ScriptHash, WPubkeyHash, WScriptHash,
 };
 pub use bc::{secp256k1, *};
-#[cfg(feature = "core")]
-pub use bp::{dbc, seals};
 pub use derive::{
     Derive, DeriveCompr, DeriveSet, DeriveSpk, DeriveXOnly, DerivedAddr, DerivedAddrParseError,
     Terminal, TerminalParseError,
