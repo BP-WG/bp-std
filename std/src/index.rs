@@ -104,47 +104,46 @@ where Self: Sized + Eq + Ord + Copy
 
     fn to_be_bytes(&self) -> [u8; 4] { self.index().to_be_bytes() }
 
-    /// Increases the index on one step; fails if the index value is already
-    /// maximum value - or if multiple indexes are present at the path segment
+    /// Increments the index on one step; fails if the index value is already
+    /// maximum value.
     #[must_use]
     fn checked_inc(&self) -> Option<Self> { self.checked_add(1u8) }
 
-    /// Decreases the index on one step; fails if the index value is already
-    /// minimum value - or if multiple indexes are present at the path segment
+    /// Decrements the index on one step; fails if the index value is already
+    /// minimum value.
     #[must_use]
     fn checked_dec(&self) -> Option<Self> { self.checked_sub(1u8) }
 
-    /// Increases the index on one step; fails if the index value is already
-    /// maximum value - or if multiple indexes are present at the path segment
+    /// Increments the index on one step saturating at the `Self::MAX` bounds
+    /// instead of overflowing.
     #[must_use]
     fn wrapping_inc(&self) -> Self { self.checked_add(1u8).unwrap_or(Self::MIN) }
 
-    /// Decreases the index on one step; fails if the index value is already
-    /// minimum value - or if multiple indexes are present at the path segment
+    /// Decrements the index on one step; fails if the index value is already
+    /// minimum value.
     #[must_use]
     fn wrapping_dec(&self) -> Self { self.checked_sub(1u8).unwrap_or(Self::MAX) }
 
-    /// Mutates the self by increasing the index on one step; fails if the index
-    /// value is already maximum value - or if multiple indexes are present at
-    /// the path segment
+    /// Mutates the self by incrementing the index on one step; fails if the index
+    /// value is already maximum value.
     fn checked_inc_assign(&mut self) -> Option<Self> { self.checked_add_assign(1u8) }
 
-    /// Mutates the self by decreasing the index on one step; fails if the index
-    /// value is already maximum value - or if multiple indexes are present at
-    /// the path segment
+    /// Mutates the self by decrementing the index on one step; fails if the index
+    /// value is already maximum value.
     fn checked_dec_assign(&mut self) -> Option<Self> { self.checked_sub_assign(1u8) }
 
-    /// Mutates the self by increasing the index on one step; fails if the index
-    /// value is already maximum value - or if multiple indexes are present at
-    /// the path segment
+    /// Mutates the self by incrementing the index on one step, saturating at the
+    /// `Self::MAX` bounds instead of overflowing.
+    fn saturating_inc_assign(&mut self) -> bool { self.saturating_add_assign(1u8) }
+    /// Mutates the self by incrementing the index on one step; fails if the index
+    /// value is already maximum value.
     fn wrapping_inc_assign(&mut self) { *self = self.wrapping_inc(); }
 
-    /// Mutates the self by decreasing the index on one step; fails if the index
-    /// value is already maximum value - or if multiple indexes are present at
-    /// the path segment
+    /// Mutates the self by decrementing the index on one step; fails if the index
+    /// value is already maximum value.
     fn wrapping_dec_assign(&mut self) { *self = self.wrapping_inc(); }
 
-    /// Adds value the index; fails if the index value overflow happens - or if
+    /// Adds value the index; fails if the index value overflow happens.
     #[must_use]
     fn checked_add(&self, add: impl Into<u32>) -> Option<Self> {
         let mut res = *self;
@@ -152,7 +151,7 @@ where Self: Sized + Eq + Ord + Copy
         Some(res)
     }
 
-    /// Subtracts value the index; fails if the index value overflow happens -
+    /// Subtracts value the index; fails if the index value overflow happens.
     #[must_use]
     fn checked_sub(&self, sub: impl Into<u32>) -> Option<Self> {
         let mut res = *self;
