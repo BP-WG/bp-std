@@ -19,21 +19,3 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-#[macro_use]
-extern crate amplify;
-#[cfg(feature = "serde")]
-#[macro_use]
-extern crate serde_crate as serde;
-
-mod v2;
-mod timelocks;
-mod scripts;
-mod sigtypes;
-mod propkeys;
-mod coders;
-
-pub use scripts::{RedeemScript, WitnessScript};
-pub use sigtypes::{EcdsaSig, EcdsaSigError, NonStandardSighashType, SighashFlag, SighashType};
-pub use timelocks::{InvalidTimelock, LockHeight, LockTimestamp, TimelockParseError};
-pub use v2::{InputV2, OutputV2, PsbtV2};

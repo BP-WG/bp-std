@@ -20,7 +20,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::str::FromStr;
+
+use amplify::hex;
 use bc::secp256k1::{PublicKey, XOnlyPublicKey};
+
+use crate::xpub::XpubParseError;
+use crate::{DerivationParseError, DerivationPath, XpubFp};
 
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
 #[wrap(Deref, LowerHex)]
@@ -50,4 +56,39 @@ pub struct UncomprPubkey(pub PublicKey);
 pub struct LegacyPubkey {
     pub compressed: bool,
     pub pubkey: PublicKey,
+}
+
+#[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
+#[display(doc_comments)]
+pub enum OriginParseError {
+    /// invalid derivation path - {0}
+    #[from]
+    DerivationPath(DerivationParseError),
+
+    /// invalid master key fingerprint - {0}
+    #[from]
+    InvalidMasterFp(hex::Error),
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
+#[display("{master_fp}{derivation}", alt = "{master_fp}{derivation:#}")]
+pub struct KeyOrigin {
+    master_fp: XpubFp,
+    derivation: DerivationPath,
+}
+
+impl FromStr for KeyOrigin {
+    type Err = XpubParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (master_fp, path) = match s.split_once('/') {
+            None => (XpubFp::default(), ""),
+            Some(("00000000", p)) | Some(("m", p)) => (XpubFp::default(), p),
+            Some((fp, p)) => (XpubFp::from_str(fp)?, p),
+        };
+        Ok(KeyOrigin {
+            master_fp,
+            derivation: DerivationPath::from_str(path)?,
+        })
+    }
 }

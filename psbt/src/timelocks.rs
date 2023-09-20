@@ -20,12 +20,38 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use bp::LockTime;
+use std::fmt::{self, Display, Formatter};
+use std::num::ParseIntError;
+use std::str::FromStr;
+
+use bp::{LockTime, LOCKTIME_THRESHOLD};
+use chrono::Utc;
 
 /// Error constructing timelock from the provided value.
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, Error)]
 #[display("invalid timelock value")]
 pub struct InvalidTimelock;
+
+#[derive(Debug, Clone, PartialEq, Eq, From, Display)]
+#[display(doc_comments)]
+pub enum TimelockParseError {
+    /// invalid number in time lock descriptor
+    #[from]
+    InvalidNumber(ParseIntError),
+
+    /// block height `{0}` is too large for time lock
+    InvalidHeight(u32),
+
+    /// timestamp `{0}` is too small for time lock
+    InvalidTimestamp(u32),
+
+    /// time lock descriptor `{0}` is not recognized
+    InvalidDescriptor(String),
+
+    /// use of randomly-generated RBF sequence numbers requires compilation
+    /// with `rand` feature
+    NoRand,
+}
 
 /// Value for a transaction `nTimeLock` field which is guaranteed to represent a
 /// UNIX timestamp which is always either 0 or a greater than or equal to
@@ -39,14 +65,18 @@ pub struct InvalidTimelock;
 pub struct LockTimestamp(u32);
 
 impl From<LockTimestamp> for u32 {
-    fn from(lock_timestamp: LockTimestamp) -> Self { lock_timestamp.into_consensus() }
+    fn from(lock_timestamp: LockTimestamp) -> Self { lock_timestamp.into_consensus_u32() }
+}
+
+impl From<LockTimestamp> for LockTime {
+    fn from(lock: LockTimestamp) -> Self { LockTime::from_consensus_u32(lock.into_consensus_u32()) }
 }
 
 impl TryFrom<u32> for LockTimestamp {
     type Error = InvalidTimelock;
 
     fn try_from(value: u32) -> Result<Self, Self::Error> {
-        LockTime::from_consensus(value).try_into()
+        LockTime::from_consensus_u32(value).try_into()
     }
 }
 
@@ -57,7 +87,7 @@ impl TryFrom<LockTime> for LockTimestamp {
         if !lock_time.is_time_based() {
             return Err(InvalidTimelock);
         }
-        Ok(Self(lock_time.into_consensus()))
+        Ok(Self(lock_time.into_consensus_u32()))
     }
 }
 
@@ -89,7 +119,7 @@ impl LockTimestamp {
     /// Converts into full u32 representation of `nSeq` value as it is
     /// serialized in bitcoin transaction.
     #[inline]
-    pub fn into_consensus(self) -> u32 { self.0 }
+    pub fn into_consensus_u32(self) -> u32 { self.0 }
 
     /// Converts into [`LockTime`] representation.
     #[inline]
@@ -105,7 +135,7 @@ impl Display for LockTimestamp {
 }
 
 impl FromStr for LockTimestamp {
-    type Err = ParseError;
+    type Err = TimelockParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.to_lowercase();
@@ -113,9 +143,9 @@ impl FromStr for LockTimestamp {
             Ok(LockTimestamp::anytime())
         } else if s.starts_with("time(") && s.ends_with(')') {
             let no = s[5..].trim_end_matches(')').parse()?;
-            LockTimestamp::try_from(no).map_err(|_| ParseError::InvalidTimestamp(no))
+            LockTimestamp::try_from(no).map_err(|_| TimelockParseError::InvalidTimestamp(no))
         } else {
-            Err(ParseError::InvalidDescriptor(s))
+            Err(TimelockParseError::InvalidDescriptor(s))
         }
     }
 }
@@ -131,14 +161,18 @@ impl FromStr for LockTimestamp {
 pub struct LockHeight(u32);
 
 impl From<LockHeight> for u32 {
-    fn from(lock_height: LockHeight) -> Self { lock_height.into_consensus() }
+    fn from(lock_height: LockHeight) -> Self { lock_height.into_consensus_u32() }
+}
+
+impl From<LockHeight> for LockTime {
+    fn from(lock: LockHeight) -> Self { LockTime::from_consensus_u32(lock.into_consensus_u32()) }
 }
 
 impl TryFrom<u32> for LockHeight {
     type Error = InvalidTimelock;
 
     fn try_from(value: u32) -> Result<Self, Self::Error> {
-        LockTime::from_consensus(value).try_into()
+        LockTime::from_consensus_u32(value).try_into()
     }
 }
 
@@ -149,7 +183,7 @@ impl TryFrom<LockTime> for LockHeight {
         if !lock_time.is_height_based() {
             return Err(InvalidTimelock);
         }
-        Ok(Self(lock_time.into_consensus()))
+        Ok(Self(lock_time.into_consensus_u32()))
     }
 }
 
@@ -174,7 +208,7 @@ impl LockHeight {
     /// Converts into full u32 representation of `nSeq` value as it is
     /// serialized in bitcoin transaction.
     #[inline]
-    pub fn into_consensus(self) -> u32 { self.0 }
+    pub fn into_consensus_u32(self) -> u32 { self.0 }
 
     /// Converts into [`LockTime`] representation.
     #[inline]
@@ -190,7 +224,7 @@ impl Display for LockHeight {
 }
 
 impl FromStr for LockHeight {
-    type Err = ParseError;
+    type Err = TimelockParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.to_lowercase();
@@ -198,9 +232,9 @@ impl FromStr for LockHeight {
             Ok(LockHeight::anytime())
         } else if s.starts_with("height(") && s.ends_with(')') {
             let no = s[7..].trim_end_matches(')').parse()?;
-            LockHeight::try_from(no).map_err(|_| ParseError::InvalidHeight(no))
+            LockHeight::try_from(no).map_err(|_| TimelockParseError::InvalidHeight(no))
         } else {
-            Err(ParseError::InvalidDescriptor(s))
+            Err(TimelockParseError::InvalidDescriptor(s))
         }
     }
 }

@@ -31,7 +31,7 @@ use hashes::{hash160, sha512, Hash, HashEngine, Hmac, HmacEngine};
 
 use crate::{
     base58, ComprPubkey, DerivationIndex, DerivationParseError, DerivationPath, DerivationSeg,
-    HardenedIndex, Idx, IndexParseError, NormalIndex, SegParseError,
+    HardenedIndex, Idx, IndexParseError, NormalIndex, OriginParseError, SegParseError,
 };
 
 pub const XPUB_MAINNET_MAGIC: [u8; 4] = [0x04u8, 0x88, 0xB2, 0x1E];
@@ -95,6 +95,15 @@ pub enum XpubParseError {
 
     /// xpub parent not matches the provided origin information.
     ParentMismatch,
+}
+
+impl From<OriginParseError> for XpubParseError {
+    fn from(err: OriginParseError) -> Self {
+        match err {
+            OriginParseError::DerivationPath(e) => XpubParseError::DerivationPath(e),
+            OriginParseError::InvalidMasterFp(e) => XpubParseError::InvalidMasterFp(e),
+        }
+    }
 }
 
 /// BIP32 chain code used for hierarchical derivation
@@ -320,11 +329,11 @@ impl FromStr for Xpub {
 #[display("{master_fp}{derivation}", alt = "{master_fp}{derivation:#}")]
 pub struct XpubOrigin {
     master_fp: XpubFp,
-    derivation: DerivationPath,
+    derivation: DerivationPath<HardenedIndex>,
 }
 
 impl FromStr for XpubOrigin {
-    type Err = XpubParseError;
+    type Err = OriginParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let (master_fp, path) = match s.split_once('/') {
@@ -390,7 +399,9 @@ impl FromStr for XpubDescriptor {
             if origin.derivation.get(1) != Some(&network.into()) {
                 return Err(XpubParseError::NetworkMismatch);
             }
-            if origin.derivation.last() != Some(&xpub.meta.child_number) {
+            if origin.derivation.last().copied().map(DerivationIndex::Hardened)
+                != Some(xpub.meta.child_number)
+            {
                 return Err(XpubParseError::ParentMismatch);
             }
         }

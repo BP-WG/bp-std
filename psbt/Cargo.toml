@@ -15,6 +15,7 @@ license = { workspace = true }
 [dependencies]
 amplify = { workspace = true }
 bp-std = { path = "../std" }
+chrono = "0.4.31"
 serde_crate = { workspace = true, optional = true }
 
 [features]

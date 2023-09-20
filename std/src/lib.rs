@@ -58,6 +58,8 @@ pub use index::{
     DerivationIndex, HardenedIndex, Idx, IndexError, IndexParseError, NormalIndex,
     HARDENED_INDEX_BOUNDARY,
 };
-pub use key::{ComprPubkey, LegacyPubkey, TaprootPubkey, UncomprPubkey};
+pub use key::{
+    ComprPubkey, KeyOrigin, LegacyPubkey, OriginParseError, TaprootPubkey, UncomprPubkey,
+};
 pub use path::{DerivationParseError, DerivationPath, DerivationSeg, SegParseError};
 pub use xpub::{Xpub, XpubDescriptor, XpubFp, XpubId, XpubMeta, XpubOrigin};
