@@ -106,30 +106,32 @@ where Self: Sized + Eq + Ord + Copy
 
     /// Increases the index on one step; fails if the index value is already
     /// maximum value - or if multiple indexes are present at the path segment
+    #[must_use]
     fn checked_inc(&self) -> Option<Self> { self.checked_add(1u8) }
 
     /// Decreases the index on one step; fails if the index value is already
     /// minimum value - or if multiple indexes are present at the path segment
+    #[must_use]
     fn checked_dec(&self) -> Option<Self> { self.checked_sub(1u8) }
 
     /// Increases the index on one step; fails if the index value is already
     /// maximum value - or if multiple indexes are present at the path segment
+    #[must_use]
     fn wrapping_inc(&self) -> Self { self.checked_add(1u8).unwrap_or(Self::MIN) }
 
     /// Decreases the index on one step; fails if the index value is already
     /// minimum value - or if multiple indexes are present at the path segment
+    #[must_use]
     fn wrapping_dec(&self) -> Self { self.checked_sub(1u8).unwrap_or(Self::MAX) }
 
     /// Mutates the self by increasing the index on one step; fails if the index
     /// value is already maximum value - or if multiple indexes are present at
     /// the path segment
-    #[must_use]
     fn checked_inc_assign(&mut self) -> Option<Self> { self.checked_add_assign(1u8) }
 
     /// Mutates the self by decreasing the index on one step; fails if the index
     /// value is already maximum value - or if multiple indexes are present at
     /// the path segment
-    #[must_use]
     fn checked_dec_assign(&mut self) -> Option<Self> { self.checked_sub_assign(1u8) }
 
     /// Mutates the self by increasing the index on one step; fails if the index
@@ -143,7 +145,7 @@ where Self: Sized + Eq + Ord + Copy
     fn wrapping_dec_assign(&mut self) { *self = self.wrapping_inc(); }
 
     /// Adds value the index; fails if the index value overflow happens - or if
-    /// multiple indexes are present at the path segment
+    #[must_use]
     fn checked_add(&self, add: impl Into<u32>) -> Option<Self> {
         let mut res = *self;
         res.checked_add_assign(add)?;
@@ -151,7 +153,7 @@ where Self: Sized + Eq + Ord + Copy
     }
 
     /// Subtracts value the index; fails if the index value overflow happens -
-    /// or if multiple indexes are present at the path segment
+    #[must_use]
     fn checked_sub(&self, sub: impl Into<u32>) -> Option<Self> {
         let mut res = *self;
         res.checked_sub_assign(sub)?;
@@ -160,6 +162,7 @@ where Self: Sized + Eq + Ord + Copy
 
     /// Saturating index addition. Computes `self + add`, saturating at the
     /// `Self::MAX` bounds instead of overflowing.
+    #[must_use]
     fn saturating_add(&self, add: impl Into<u32>) -> Self {
         let mut res = *self;
         let _ = res.saturating_add_assign(add);
@@ -168,6 +171,7 @@ where Self: Sized + Eq + Ord + Copy
 
     /// Saturating index subtraction. Computes `self - add`, saturating at
     /// the `Self::MIN` bounds instead of overflowing.
+    #[must_use]
     fn saturating_sub(&self, sub: impl Into<u32>) -> Self {
         let mut res = *self;
         let _ = res.saturating_sub_assign(sub);
@@ -176,18 +180,15 @@ where Self: Sized + Eq + Ord + Copy
 
     /// Mutates the self by adding value the index; fails if the index value
     /// overflow happens.
-    #[must_use]
     fn checked_add_assign(&mut self, add: impl Into<u32>) -> Option<Self>;
 
     /// Mutates the self by subtracting value the index; fails if the index
     /// value overflow happens.
-    #[must_use]
     fn checked_sub_assign(&mut self, sub: impl Into<u32>) -> Option<Self>;
 
     /// Mutates the self by adding value the index saturating it at the
     /// `Self::MAX` value in case of overflow. Returns boolean value
     /// indicating if no overflow had happened.
-    #[must_use]
     fn saturating_add_assign(&mut self, add: impl Into<u32>) -> bool {
         if self.checked_add_assign(add).is_none() {
             *self = Self::MAX;
@@ -200,7 +201,6 @@ where Self: Sized + Eq + Ord + Copy
     /// Mutates the self by subtracting value from the index saturating
     /// it at the `Self::MIN` value in case of overflow. Returns boolean value
     /// indicating if no overflow had happened.
-    #[must_use]
     fn saturating_sub_assign(&mut self, sub: impl Into<u32>) -> bool {
         if self.checked_sub_assign(sub).is_none() {
             *self = Self::MIN;
