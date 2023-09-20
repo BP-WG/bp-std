@@ -211,6 +211,7 @@ dependencies = [
  "bp-primitives",
  "bp-seals",
  "commit_verify",
+ "serde",
  "single_use_seals",
  "strict_encoding",
 ]
@@ -226,6 +227,7 @@ dependencies = [
  "bp-primitives",
  "commit_verify",
  "secp256k1",
+ "serde",
  "strict_encoding",
 ]
 
@@ -265,6 +267,7 @@ dependencies = [
  "bp-primitives",
  "commit_verify",
  "rand",
+ "serde",
  "single_use_seals",
  "strict_encoding",
 ]
@@ -358,6 +361,7 @@ dependencies = [
  "amplify",
  "commit_encoding_derive",
  "rand",
+ "serde",
  "sha2",
  "strict_encoding",
 ]
@@ -657,6 +661,7 @@ dependencies = [
  "amplify",
  "bp-std",
  "chrono",
+ "indexmap 2.0.0",
  "serde",
 ]
 

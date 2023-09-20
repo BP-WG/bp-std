@@ -29,4 +29,4 @@ serde_with = { workspace = true, optional = true }
 default = []
 all = ["core", "serde"]
 core = ["bp-core"]
-serde = ["cfg_eval", "serde_crate", "serde_with", "bp-primitives/serde"]
+serde = ["cfg_eval", "serde_crate", "serde_with", "bp-primitives/serde", "bp-core/serde"]

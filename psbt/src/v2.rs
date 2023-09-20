@@ -20,12 +20,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::BTreeMap;
-
 use bp::{
     ComprPubkey, KeyOrigin, LegacyPubkey, LockTime, Outpoint, ScriptPubkey, SeqNo, SigScript,
     TxOut, TxVer, Witness, Xpub, XpubOrigin,
 };
+use indexmap::IndexMap;
 
 use crate::{EcdsaSig, LockHeight, LockTimestamp, RedeemScript, SighashType, WitnessScript};
 
@@ -50,13 +49,13 @@ pub struct PsbtV2 {
 
     /// A global map from extended public keys to the used key fingerprint and
     /// derivation path as defined by BIP 32
-    pub xpub: BTreeMap<Xpub, XpubOrigin>,
+    pub xpub: IndexMap<Xpub, XpubOrigin>,
     // TODO: Add modifiable flags
     // TODO: Add proprietary flags
     // TODO: Add unknown flags
 }
 
-#[derive(Clone, Eq, PartialEq, Debug, Default)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
@@ -96,7 +95,7 @@ pub struct InputV2 {
     /// A map from public keys to their corresponding signature as would be
     /// pushed to the stack from a scriptSig or witness for a non-taproot
     /// inputs.
-    pub partial_sigs: BTreeMap<LegacyPubkey, EcdsaSig>,
+    pub partial_sigs: IndexMap<LegacyPubkey, EcdsaSig>,
 
     /// The sighash type to be used for this input. Signatures for this input
     /// must use the sighash type.
@@ -110,7 +109,7 @@ pub struct InputV2 {
 
     /// A map from public keys needed to sign this input to their corresponding
     /// master key fingerprints and derivation paths.
-    pub bip32_derivation: BTreeMap<ComprPubkey, KeyOrigin>,
+    pub bip32_derivation: IndexMap<ComprPubkey, KeyOrigin>,
 
     /// The finalized, fully-constructed scriptSig with signatures and any other
     /// scripts necessary for this input to pass validation.
@@ -151,7 +150,7 @@ pub struct OutputV2 {
 
     /// A map from public keys needed to spend this output to their
     /// corresponding master key fingerprints and derivation paths.
-    pub bip32_derivation: BTreeMap<ComprPubkey, KeyOrigin>,
+    pub bip32_derivation: IndexMap<ComprPubkey, KeyOrigin>,
     // TODO: Add proprietary flags
     // TODO: Add unknown flags
 }

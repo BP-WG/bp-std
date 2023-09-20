@@ -135,6 +135,11 @@ pub struct XpubCore {
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default, Debug, Display, From)]
 #[wrapper(RangeOps, Hex, FromStr)]
 #[display(LowerHex)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", transparent)
+)]
 pub struct XpubFp(
     #[from]
     #[from([u8; 4])]
@@ -152,6 +157,11 @@ impl From<XpubFp> for [u8; 4] {
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default, Debug, Display, From)]
 #[wrapper(RangeOps, Hex, FromStr)]
 #[display(LowerHex)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", transparent)
+)]
 pub struct XpubId(
     #[from]
     #[from([u8; 20])]
@@ -327,6 +337,11 @@ impl FromStr for Xpub {
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
 #[display("{master_fp}{derivation}", alt = "{master_fp}{derivation:#}")]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
 pub struct XpubOrigin {
     master_fp: XpubFp,
     derivation: DerivationPath<HardenedIndex>,
@@ -421,6 +436,40 @@ impl FromStr for XpubDescriptor {
             keychains,
         };
         Ok(d)
+    }
+}
+
+#[cfg(feature = "serde")]
+mod _serde {
+    use serde_crate::{de, Deserialize, Deserializer, Serialize, Serializer};
+
+    use super::*;
+
+    impl Serialize for Xpub {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: Serializer {
+            if serializer.is_human_readable() {
+                serializer.serialize_str(&self.to_string())
+            } else {
+                serializer.serialize_bytes(&self.encode())
+            }
+        }
+    }
+
+    impl<'de> Deserialize<'de> for Xpub {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where D: Deserializer<'de> {
+            if deserializer.is_human_readable() {
+                let s = String::deserialize(deserializer)?;
+                Xpub::from_str(&s).map_err(|err| {
+                    de::Error::custom(format!("invalid xpub string representation; {err}"))
+                })
+            } else {
+                let v = Vec::<u8>::deserialize(deserializer)?;
+                Xpub::decode(v)
+                    .map_err(|err| de::Error::custom(format!("invalid xpub bytes; {err}")))
+            }
+        }
     }
 }
 
