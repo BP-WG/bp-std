@@ -117,6 +117,16 @@ where Self: Sized + Eq + Ord + Copy
     /// Increments the index on one step saturating at the `Self::MAX` bounds
     /// instead of overflowing.
     #[must_use]
+    fn saturating_inc(&self) -> Self { self.saturating_add(1u8) }
+
+    /// Decrements the index on one step saturating at the `Self::MIN` bounds
+    /// instead of overflowing.
+    #[must_use]
+    fn saturating_dec(&self) -> Self { self.saturating_sub(1u8) }
+
+    /// Increments the index on one step; fails if the index value is already
+    /// maximum value.
+    #[must_use]
     fn wrapping_inc(&self) -> Self { self.checked_add(1u8).unwrap_or(Self::MIN) }
 
     /// Decrements the index on one step; fails if the index value is already
@@ -135,6 +145,11 @@ where Self: Sized + Eq + Ord + Copy
     /// Mutates the self by incrementing the index on one step, saturating at the
     /// `Self::MAX` bounds instead of overflowing.
     fn saturating_inc_assign(&mut self) -> bool { self.saturating_add_assign(1u8) }
+
+    /// Mutates the self by decrementing the index on one step, saturating at the
+    /// `Self::MIN` bounds instead of overflowing.
+    fn saturating_dec_assign(&mut self) -> bool { self.saturating_sub_assign(1u8) }
+
     /// Mutates the self by incrementing the index on one step; fails if the index
     /// value is already maximum value.
     fn wrapping_inc_assign(&mut self) { *self = self.wrapping_inc(); }
