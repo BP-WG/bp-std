@@ -19,3 +19,154 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+#[cfg(feature = "serde")]
+#[macro_use]
+extern crate serde_crate as serde;
+
+mod locktime;
+
+use std::collections::BTreeMap;
+
+use bp::{
+    ComprPubkey, LegacyPubkey, LockTime, Outpoint, ScriptPubkey, SeqNo, SigScript, TxOut, TxVer,
+    Witness, Xpub, XpubOrigin,
+};
+
+use crate::locktime::{LockHeight, LockTimestamp};
+
+/// Version of the PSBT (V0 stands for BIP174-defined version; V2 - for BIP370).
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+#[repr(u32)]
+#[non_exhaustive]
+pub enum PsbtVersion {
+    // /// Version defined by BIP174.
+    // V0 = 0x0,
+    /// Version defined by BIP370.
+    #[default]
+    V2 = 0x2,
+}
+
+#[derive(Clone, Eq, PartialEq, Debug, Default)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct PsbtV2 {
+    /// Transaction version.
+    pub tx_version: TxVer,
+
+    /// Fallback locktime (used if none of the inputs specifies their locktime).
+    pub fallback_locktime: Option<LockTime>,
+
+    /// The corresponding key-value map for each input.
+    pub inputs: Vec<InputV2>,
+
+    /// The corresponding key-value map for each output.
+    pub outputs: Vec<OutputV2>,
+
+    /// A global map from extended public keys to the used key fingerprint and
+    /// derivation path as defined by BIP 32
+    pub xpub: BTreeMap<Xpub, XpubOrigin>,
+    // TODO: Add modifiable flags
+    // TODO: Add proprietary flags
+    // TODO: Add unknown flags
+}
+
+#[derive(Clone, Eq, PartialEq, Debug, Default)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct InputV2 {
+    /// The index of this input. Used in error reporting.
+    pub(crate) index: usize,
+
+    /// Previous transaction outpoint to spent.
+    pub previous_outpoint: Outpoint,
+
+    /// Sequence number of this input. If omitted, the sequence number is
+    /// assumed to be the final sequence number (0xffffffff).
+    pub sequence_number: Option<SeqNo>,
+
+    /// 32 bit unsigned little endian integer greater than or equal to 500000000
+    /// representing the minimum Unix timestamp that this input requires to be
+    /// set as the transaction's lock time.
+    pub required_time_locktime: Option<LockTimestamp>,
+
+    /// 32 bit unsigned little endian integer less than 500000000 representing
+    /// the minimum block height that this input requires to be set as the
+    /// transaction's lock time.
+    pub required_height_locktime: Option<LockHeight>,
+
+    /* TODO: Add
+    /// The non-witness transaction this input spends from. Should only be
+    /// `Some` for inputs which spend non-segwit outputs or if it is unknown
+    /// whether an input spends a segwit output.
+    pub non_witness_utxo: Option<Transaction>,
+     */
+    /// The transaction output this input spends from. Should only be `Some` for
+    /// inputs which spend segwit outputs, including P2SH embedded ones.
+    pub witness_utxo: Option<TxOut>,
+
+    /// A map from public keys to their corresponding signature as would be
+    /// pushed to the stack from a scriptSig or witness for a non-taproot
+    /// inputs.
+    pub partial_sigs: BTreeMap<LegacyPubkey, EcdsaSig>,
+
+    /// The sighash type to be used for this input. Signatures for this input
+    /// must use the sighash type.
+    pub sighash_type: Option<SighashType>,
+
+    /// The redeem script for this input.
+    pub redeem_script: Option<RedeemScript>,
+
+    /// The witness script for this input.
+    pub witness_script: Option<WitnessScript>,
+
+    /// A map from public keys needed to sign this input to their corresponding
+    /// master key fingerprints and derivation paths.
+    pub bip32_derivation: BTreeMap<ComprPubkey, KeyOrigin>,
+
+    /// The finalized, fully-constructed scriptSig with signatures and any other
+    /// scripts necessary for this input to pass validation.
+    pub final_script_sig: Option<SigScript>,
+
+    /// The finalized, fully-constructed scriptWitness with signatures and any
+    /// other scripts necessary for this input to pass validation.
+    pub final_script_witness: Option<Witness>,
+}
+
+#[derive(Clone, Eq, PartialEq, Debug, Default)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct OutputV2 {
+    /// The index of this output. Used in error reporting.
+    pub(crate) index: usize,
+
+    /// The output's amount in satoshis.
+    pub amount: u64,
+
+    /// The script for this output, also known as the scriptPubKey.
+    pub script: ScriptPubkey,
+
+    /// The redeem script for this output.
+    pub redeem_script: Option<RedeemScript>,
+
+    /// The witness script for this output.
+    pub witness_script: Option<WitnessScript>,
+
+    /// A map from public keys needed to spend this output to their
+    /// corresponding master key fingerprints and derivation paths.
+    pub bip32_derivation: BTreeMap<ComprPubkey, KeyOrigin>,
+}
