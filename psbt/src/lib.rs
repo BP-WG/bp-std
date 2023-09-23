@@ -26,14 +26,16 @@ extern crate amplify;
 #[macro_use]
 extern crate serde_crate as serde;
 
-mod v2;
+mod maps;
 mod timelocks;
 mod scripts;
 mod sigtypes;
-mod propkeys;
+mod keypair;
 mod coders;
 
+pub use coders::{Decode, DecodeError, Encode, PsbtError, VarInt};
+pub use keypair::{GlobalKey, KeyPair, KeyType};
+pub use maps::{Input, ModifiableFlags, Output, Psbt};
 pub use scripts::{RedeemScript, WitnessScript};
 pub use sigtypes::{EcdsaSig, EcdsaSigError, NonStandardSighashType, SighashFlag, SighashType};
 pub use timelocks::{InvalidTimelock, LockHeight, LockTimestamp, TimelockParseError};
-pub use v2::{InputV2, OutputV2, PsbtV2};

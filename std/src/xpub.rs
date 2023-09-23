@@ -335,7 +335,7 @@ impl FromStr for Xpub {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
+#[derive(Getters, Clone, Eq, PartialEq, Hash, Debug, Display)]
 #[display("{master_fp}{derivation}", alt = "{master_fp}{derivation:#}")]
 #[cfg_attr(
     feature = "serde",
@@ -343,6 +343,7 @@ impl FromStr for Xpub {
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct XpubOrigin {
+    #[getter(as_copy)]
     master_fp: XpubFp,
     derivation: DerivationPath<HardenedIndex>,
 }

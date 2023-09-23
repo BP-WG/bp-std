@@ -34,7 +34,7 @@ use crate::{EcdsaSig, LockHeight, LockTimestamp, RedeemScript, SighashType, Witn
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-pub struct PsbtV2 {
+pub struct Psbt {
     /// Transaction version.
     pub tx_version: TxVer,
 
@@ -42,15 +42,17 @@ pub struct PsbtV2 {
     pub fallback_locktime: Option<LockTime>,
 
     /// The corresponding key-value map for each input.
-    pub inputs: Vec<InputV2>,
+    pub inputs: Vec<Input>,
 
     /// The corresponding key-value map for each output.
-    pub outputs: Vec<OutputV2>,
+    pub outputs: Vec<Output>,
 
     /// A global map from extended public keys to the used key fingerprint and
     /// derivation path as defined by BIP 32
     pub xpub: IndexMap<Xpub, XpubOrigin>,
-    // TODO: Add modifiable flags
+
+    /// Transaction Modifiable Flags
+    pub tx_modifiable: Option<ModifiableFlags>,
     // TODO: Add proprietary flags
     // TODO: Add unknown flags
 }
@@ -61,7 +63,7 @@ pub struct PsbtV2 {
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-pub struct InputV2 {
+pub struct Input {
     /// The index of this input. Used in error reporting.
     pub(crate) index: usize,
 
@@ -132,7 +134,7 @@ pub struct InputV2 {
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-pub struct OutputV2 {
+pub struct Output {
     /// The index of this output. Used in error reporting.
     pub(crate) index: usize,
 
@@ -153,4 +155,24 @@ pub struct OutputV2 {
     pub bip32_derivation: IndexMap<ComprPubkey, KeyOrigin>,
     // TODO: Add proprietary flags
     // TODO: Add unknown flags
+}
+
+#[derive(Clone, Eq, PartialEq, Debug, Default)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct ModifiableFlags {
+    pub inputs_modifiable: bool,
+    pub outputs_modifiable: bool,
+    pub sighash_single: bool,
+}
+
+impl ModifiableFlags {
+    pub fn to_standard_u8(&self) -> u8 {
+        (self.inputs_modifiable as u8)
+            | ((self.outputs_modifiable as u8) << 1)
+            | ((self.sighash_single as u8) << 2)
+    }
 }

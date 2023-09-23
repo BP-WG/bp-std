@@ -1,5 +1,6 @@
 [workspace]
 members = ["std", "invoice", "psbt", "."]
+resolver = "2"
 
 [workspace.package]
 version = "0.11.0"
