@@ -26,7 +26,7 @@ use std::io::Sink;
 
 use crate::Encode;
 
-pub trait KeyType: Copy + Ord + Eq + Hash + Debug + Into<u8> {
+pub trait KeyType: Copy + Ord + Eq + Hash + Debug + Encode {
     fn byte_len(&self) -> usize;
 }
 
@@ -84,10 +84,6 @@ pub enum GlobalKey {
     Proprietary = 0xFC,
 }
 
-impl From<GlobalKey> for u8 {
-    fn from(value: GlobalKey) -> Self { value as u8 }
-}
-
 impl KeyType for GlobalKey {
     fn byte_len(&self) -> usize { 1 }
 }
@@ -102,16 +98,12 @@ pub enum InputKey {
     WitnessScript = 0x05,
     Bip32Derivation = 0x06,
     FinalScriptSig = 0x07,
-    FinalScriptWitness = 0x08,
+    FinalWitness = 0x08,
     PreviousTxid = 0x0E,
     OutputIndex = 0x0F,
     Sequence = 0x10,
     RequiredTimeLock = 0x11,
     RequiredHeighLock = 0x12,
-}
-
-impl From<InputKey> for u8 {
-    fn from(value: InputKey) -> Self { value as u8 }
 }
 
 impl KeyType for InputKey {
@@ -135,10 +127,6 @@ pub enum OutputKey {
 
     /// `PSBT_OUT_SCRIPT`
     Script = 0x04,
-}
-
-impl From<OutputKey> for u8 {
-    fn from(value: OutputKey) -> Self { value as u8 }
 }
 
 impl KeyType for OutputKey {

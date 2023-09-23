@@ -77,12 +77,12 @@ pub struct Input {
     /// 32 bit unsigned little endian integer greater than or equal to 500000000
     /// representing the minimum Unix timestamp that this input requires to be
     /// set as the transaction's lock time.
-    pub required_time_locktime: Option<LockTimestamp>,
+    pub required_time_lock: Option<LockTimestamp>,
 
     /// 32 bit unsigned little endian integer less than 500000000 representing
     /// the minimum block height that this input requires to be set as the
     /// transaction's lock time.
-    pub required_height_locktime: Option<LockHeight>,
+    pub required_height_lock: Option<LockHeight>,
 
     /* TODO: Add non_witness_utxo
     /// The non-witness transaction this input spends from. Should only be
@@ -119,7 +119,7 @@ pub struct Input {
 
     /// The finalized, fully-constructed scriptWitness with signatures and any
     /// other scripts necessary for this input to pass validation.
-    pub final_script_witness: Option<Witness>,
+    pub final_witness: Option<Witness>,
     // TODO: Add taproot
     // TODO: Add proof of reserves
     // TODO: Add hashes

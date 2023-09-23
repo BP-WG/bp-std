@@ -64,7 +64,7 @@ pub enum AddressParseError {
     #[from]
     Bech32(bech32::Error),
 
-    /// legacy address has an invalid version code {0:#02x}.
+    /// proprietary address has an invalid version code {0:#02x}.
     InvalidAddressVersion(u8),
 
     /// segwit address has an invalid witness version {0:#02x}.
@@ -388,7 +388,7 @@ pub enum AddressPayload {
     #[from]
     Pkh(PubkeyHash),
 
-    /// P2SH and SegWit nested (legacy) P2WPKH/WSH-in-P2SH payloads.
+    /// P2SH and SegWit nested (proprietary) P2WPKH/WSH-in-P2SH payloads.
     #[from]
     Sh(ScriptHash),
 

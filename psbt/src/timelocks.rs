@@ -116,7 +116,12 @@ impl LockTimestamp {
         }
     }
 
-    /// Converts into full u32 representation of `nSeq` value as it is
+    /// Converts into full u32 representation of `nLockTime` value as it is
+    /// serialized in bitcoin transaction.
+    #[inline]
+    pub fn to_consensus_u32(&self) -> u32 { self.0 }
+
+    /// Converts into full u32 representation of `nLockTime` value as it is
     /// serialized in bitcoin transaction.
     #[inline]
     pub fn into_consensus_u32(self) -> u32 { self.0 }
@@ -205,7 +210,12 @@ impl LockHeight {
         }
     }
 
-    /// Converts into full u32 representation of `nSeq` value as it is
+    /// Converts into full u32 representation of `nLockTime` value as it is
+    /// serialized in bitcoin transaction.
+    #[inline]
+    pub fn to_consensus_u32(&self) -> u32 { self.0 }
+
+    /// Converts into full u32 representation of `nLockTime` value as it is
     /// serialized in bitcoin transaction.
     #[inline]
     pub fn into_consensus_u32(self) -> u32 { self.0 }

@@ -59,7 +59,7 @@ impl From<TaprootPubkey> for [u8; 32] {
 pub struct ComprPubkey(pub PublicKey);
 
 impl ComprPubkey {
-    pub fn encode(&self) -> [u8; 33] { self.0.serialize() }
+    pub fn to_byte_array(&self) -> [u8; 33] { self.0.serialize() }
 }
 
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
@@ -72,7 +72,7 @@ impl ComprPubkey {
 pub struct UncomprPubkey(pub PublicKey);
 
 impl UncomprPubkey {
-    pub fn encode(&self) -> [u8; 65] { self.0.serialize_uncompressed() }
+    pub fn to_byte_array(&self) -> [u8; 65] { self.0.serialize_uncompressed() }
 }
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
