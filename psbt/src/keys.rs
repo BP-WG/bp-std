@@ -76,7 +76,7 @@ pub enum GlobalKey {
 
     /// `PSBT_GLOBAL_VERSION`
     ///
-    ///  The 32-bit little endian unsigned integer representing the version number of this PSBT. If
+    /// The 32-bit little endian unsigned integer representing the version number of this PSBT. If
     /// omitted, the version number is 0.
     Version = 0xFB,
 
@@ -92,8 +92,57 @@ impl KeyType for GlobalKey {
     fn byte_len(&self) -> usize { 1 }
 }
 
-impl GlobalKey {
-    pub const fn first() -> GlobalKey { GlobalKey::Xpub }
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
+#[repr(u8)]
+pub enum InputKey {
+    WitnessUtxo = 0x01,
+    PartialSig = 0x02,
+    SighashType = 0x03,
+    RedeemScript = 0x04,
+    WitnessScript = 0x05,
+    Bip32Derivation = 0x06,
+    FinalScriptSig = 0x07,
+    FinalScriptWitness = 0x08,
+    PreviousTxid = 0x0E,
+    OutputIndex = 0x0F,
+    Sequence = 0x10,
+    RequiredTimeLock = 0x11,
+    RequiredHeighLock = 0x12,
+}
+
+impl From<InputKey> for u8 {
+    fn from(value: InputKey) -> Self { value as u8 }
+}
+
+impl KeyType for InputKey {
+    fn byte_len(&self) -> usize { 1 }
+}
+
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
+#[repr(u8)]
+pub enum OutputKey {
+    /// `PSBT_OUT_REDEEM_SCRIPT`
+    RedeemScript = 0x00,
+
+    /// `PSBT_OUT_WITNESS_SCRIPT`
+    WitnessScript = 0x01,
+
+    /// `PSBT_OUT_BIP32_DERIVATION`
+    Bip32Derivation = 0x02,
+
+    /// `PSBT_OUT_AMOUNT`
+    Amount = 0x03,
+
+    /// `PSBT_OUT_SCRIPT`
+    Script = 0x04,
+}
+
+impl From<OutputKey> for u8 {
+    fn from(value: OutputKey) -> Self { value as u8 }
+}
+
+impl KeyType for OutputKey {
+    fn byte_len(&self) -> usize { 1 }
 }
 
 pub struct KeyPair<'a, T: KeyType, K: Encode, V: Encode> {

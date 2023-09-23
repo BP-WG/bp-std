@@ -30,11 +30,11 @@ mod maps;
 mod timelocks;
 mod scripts;
 mod sigtypes;
-mod keypair;
+mod keys;
 mod coders;
 
 pub use coders::{Decode, DecodeError, Encode, PsbtError, VarInt};
-pub use keypair::{GlobalKey, KeyPair, KeyType};
+pub use keys::{GlobalKey, InputKey, KeyPair, KeyType, OutputKey};
 pub use maps::{Input, ModifiableFlags, Output, Psbt};
 pub use scripts::{RedeemScript, WitnessScript};
 pub use sigtypes::{EcdsaSig, EcdsaSigError, NonStandardSighashType, SighashFlag, SighashType};

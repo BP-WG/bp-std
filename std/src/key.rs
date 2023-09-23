@@ -58,6 +58,10 @@ impl From<TaprootPubkey> for [u8; 32] {
 )]
 pub struct ComprPubkey(pub PublicKey);
 
+impl ComprPubkey {
+    pub fn encode(&self) -> [u8; 33] { self.0.serialize() }
+}
+
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
 #[wrap(Deref, LowerHex)]
 #[cfg_attr(
@@ -66,6 +70,10 @@ pub struct ComprPubkey(pub PublicKey);
     serde(crate = "serde_crate", transparent)
 )]
 pub struct UncomprPubkey(pub PublicKey);
+
+impl UncomprPubkey {
+    pub fn encode(&self) -> [u8; 65] { self.0.serialize_uncompressed() }
+}
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
@@ -86,7 +94,7 @@ pub enum OriginParseError {
     InvalidMasterFp(hex::Error),
 }
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
+#[derive(Getters, Clone, Eq, PartialEq, Hash, Debug, Display)]
 #[display("{master_fp}{derivation}", alt = "{master_fp}{derivation:#}")]
 #[cfg_attr(
     feature = "serde",
@@ -94,6 +102,7 @@ pub enum OriginParseError {
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct KeyOrigin {
+    #[getter(as_copy)]
     master_fp: XpubFp,
     derivation: DerivationPath,
 }

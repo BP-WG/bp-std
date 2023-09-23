@@ -21,7 +21,7 @@
 // limitations under the License.
 
 use bp::{
-    ComprPubkey, KeyOrigin, LegacyPubkey, LockTime, Outpoint, ScriptPubkey, SeqNo, SigScript,
+    ComprPubkey, KeyOrigin, LegacyPubkey, LockTime, Outpoint, Sats, ScriptPubkey, SeqNo, SigScript,
     TxOut, TxVer, Witness, Xpub, XpubOrigin,
 };
 use indexmap::IndexMap;
@@ -139,7 +139,7 @@ pub struct Output {
     pub(crate) index: usize,
 
     /// The output's amount in satoshis.
-    pub amount: u64,
+    pub amount: Sats,
 
     /// The script for this output, also known as the scriptPubKey.
     pub script: ScriptPubkey,

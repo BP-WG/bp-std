@@ -405,7 +405,7 @@ impl Idx for HardenedIndex {
         }
     }
 
-    /// Returns hardened index number offset by [`HARDENED_INDEX_BOUNDARY`]
+    /// Returns hardened index number not offset by [`HARDENED_INDEX_BOUNDARY`]
     /// (i.e. zero-based).
     #[inline]
     fn child_number(&self) -> u32 { self.0 }
@@ -423,6 +423,8 @@ impl Idx for HardenedIndex {
         })
     }
 
+    /// Returns hardened index number offset by [`HARDENED_INDEX_BOUNDARY`]
+    /// (i.e. zero-based).
     #[inline]
     fn index(&self) -> u32 { self.0 + HARDENED_INDEX_BOUNDARY }
 

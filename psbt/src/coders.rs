@@ -23,10 +23,16 @@
 use std::io;
 use std::io::{Cursor, Read, Write};
 
-use amplify::IoError;
-use bp::{Idx, LockTime, TxVer, Xpub, XpubOrigin};
+use amplify::{IoError, Wrapper};
+use bp::{
+    ComprPubkey, Idx, KeyOrigin, LockTime, Sats, ScriptBytes, ScriptPubkey, SigScript, TxVer, Xpub,
+    XpubOrigin,
+};
 
-use crate::{GlobalKey, Input, KeyPair, KeyType, ModifiableFlags, Output, Psbt};
+use crate::{
+    GlobalKey, Input, KeyPair, KeyType, ModifiableFlags, Output, OutputKey, Psbt, RedeemScript,
+    WitnessScript,
+};
 
 #[derive(Clone, Debug, Display, Error, From)]
 #[display(inner)]
@@ -124,17 +130,20 @@ impl Psbt {
         for (xpub, source) in &self.xpub {
             counter += KeyPair::new(GlobalKey::Xpub, xpub, source).encode(writer)?;
         }
-        KeyPair::new(GlobalKey::TxVersion, &(), &self.tx_version).encode(writer)?;
 
-        KeyPair::new(GlobalKey::FallbackLocktime, &(), &self.fallback_locktime).encode(writer)?;
+        counter += KeyPair::new(GlobalKey::TxVersion, &(), &self.tx_version).encode(writer)?;
 
-        KeyPair::new(GlobalKey::InputCount, &(), &self.inputs.len()).encode(writer)?;
+        counter += KeyPair::new(GlobalKey::FallbackLocktime, &(), &self.fallback_locktime)
+            .encode(writer)?;
 
-        KeyPair::new(GlobalKey::InputCount, &(), &self.outputs.len()).encode(writer)?;
+        counter += KeyPair::new(GlobalKey::InputCount, &(), &self.inputs.len()).encode(writer)?;
 
-        KeyPair::new(GlobalKey::TxModifiable, &(), &self.tx_modifiable).encode(writer)?;
+        counter += KeyPair::new(GlobalKey::InputCount, &(), &self.outputs.len()).encode(writer)?;
 
-        KeyPair::new(GlobalKey::Version, &(), &0x02u32).encode(writer)?;
+        counter +=
+            KeyPair::new(GlobalKey::TxModifiable, &(), &self.tx_modifiable).encode(writer)?;
+
+        counter += KeyPair::new(GlobalKey::Version, &(), &0x02u32).encode(writer)?;
 
         Ok(counter)
     }
@@ -154,7 +163,19 @@ impl Output {
     fn encode_v2(&self, writer: &mut impl Write) -> Result<usize, IoError> {
         let mut counter = 0;
 
-        todo!();
+        counter +=
+            KeyPair::new(OutputKey::RedeemScript, &(), &self.redeem_script).encode(writer)?;
+
+        counter +=
+            KeyPair::new(OutputKey::WitnessScript, &(), &self.witness_script).encode(writer)?;
+
+        for (key, origin) in &self.bip32_derivation {
+            counter += KeyPair::new(OutputKey::Bip32Derivation, key, origin).encode(writer)?;
+        }
+
+        counter += KeyPair::new(OutputKey::Amount, &(), &self.amount).encode(writer)?;
+
+        counter += KeyPair::new(OutputKey::Script, &(), &self.script).encode(writer)?;
 
         Ok(counter)
     }
@@ -204,11 +225,63 @@ impl Encode for ModifiableFlags {
     }
 }
 
+impl Encode for ComprPubkey {
+    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
+        writer.write(&self.encode())?;
+        Ok(33)
+    }
+}
+
+impl Encode for KeyOrigin {
+    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
+        writer.write(self.master_fp().as_ref())?;
+        for index in self.derivation() {
+            index.index().encode(writer)?;
+        }
+        Ok(4 + self.derivation().len() * 4)
+    }
+}
+
 impl Encode for TxVer {
     fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
         writer.write(&self.to_consensus_i32().to_le_bytes())?;
         Ok(4)
     }
+}
+
+impl Encode for ScriptBytes {
+    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
+        writer.write(&self[..])?;
+        Ok(self.len())
+    }
+}
+
+impl Encode for WitnessScript {
+    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
+        self.as_inner().encode(writer)
+    }
+}
+
+impl Encode for RedeemScript {
+    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
+        self.as_inner().encode(writer)
+    }
+}
+
+impl Encode for ScriptPubkey {
+    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
+        self.as_inner().encode(writer)
+    }
+}
+
+impl Encode for SigScript {
+    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
+        self.as_inner().encode(writer)
+    }
+}
+
+impl Encode for Sats {
+    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> { self.0.encode(writer) }
 }
 
 impl Encode for VarInt {
