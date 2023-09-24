@@ -33,7 +33,7 @@ mod sigtypes;
 mod keys;
 mod coders;
 
-pub use coders::{Decode, DecodeError, Encode, PsbtError, VarInt};
+pub use coders::{Decode, DecodeError, Encode, PsbtError};
 pub use keys::{GlobalKey, InputKey, KeyPair, KeyType, OutputKey};
 pub use maps::{Input, ModifiableFlags, Output, Psbt};
 pub use scripts::{RedeemScript, WitnessScript};
