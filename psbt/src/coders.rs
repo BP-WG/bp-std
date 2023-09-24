@@ -106,7 +106,7 @@ impl Psbt {
     fn encode_v2_global(&self, writer: &mut impl Write) -> Result<usize, IoError> {
         let mut counter = 0;
 
-        for (xpub, source) in &self.xpub {
+        for (xpub, source) in &self.xpubs {
             counter += KeyPair::new(GlobalKey::Xpub, xpub, source).encode(writer)?;
         }
 

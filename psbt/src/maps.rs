@@ -21,14 +21,35 @@
 // limitations under the License.
 
 use bp::{
-    ComprPubkey, KeyOrigin, LegacyPubkey, LockTime, Outpoint, Sats, ScriptPubkey, SeqNo, SigScript,
-    TxOut, TxVer, Witness, Xpub, XpubOrigin,
+    ComprPubkey, Derive, KeyOrigin, LegacyPubkey, LockTime, Outpoint, Sats, ScriptPubkey, SeqNo,
+    SigScript, Terminal, TxOut, TxVer, Txid, Vout, Witness, Xpub, XpubDescriptor, XpubOrigin,
 };
 use indexmap::IndexMap;
 
 use crate::{EcdsaSig, LockHeight, LockTimestamp, RedeemScript, SighashType, WitnessScript};
 
-#[derive(Clone, Eq, PartialEq, Debug, Default)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error)]
+#[display("PSBT can't be modified")]
+pub struct Unmodifiable;
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub struct Prevout {
+    pub txid: Txid,
+    pub vout: Vout,
+    pub value: Sats,
+}
+
+impl Prevout {
+    pub fn new(outpoint: Outpoint, value: Sats) -> Self {
+        Prevout {
+            txid: outpoint.txid,
+            vout: outpoint.vout,
+            value,
+        }
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Debug)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
@@ -42,19 +63,102 @@ pub struct Psbt {
     pub fallback_locktime: Option<LockTime>,
 
     /// The corresponding key-value map for each input.
-    pub inputs: Vec<Input>,
+    pub(crate) inputs: Vec<Input>,
 
     /// The corresponding key-value map for each output.
-    pub outputs: Vec<Output>,
+    pub(crate) outputs: Vec<Output>,
 
     /// A global map from extended public keys to the used key fingerprint and
     /// derivation path as defined by BIP 32
-    pub xpub: IndexMap<Xpub, XpubOrigin>,
+    pub(crate) xpubs: IndexMap<Xpub, XpubOrigin>,
 
     /// Transaction Modifiable Flags
-    pub tx_modifiable: Option<ModifiableFlags>,
+    pub(crate) tx_modifiable: Option<ModifiableFlags>,
     // TODO: Add proprietary flags
     // TODO: Add unknown flags
+}
+
+impl Default for Psbt {
+    fn default() -> Self { Psbt::create() }
+}
+
+impl Psbt {
+    pub fn create() -> Psbt {
+        Psbt {
+            tx_version: TxVer::V2,
+            fallback_locktime: None,
+            inputs: vec![],
+            outputs: vec![],
+            xpubs: none!(),
+            tx_modifiable: Some(ModifiableFlags::modifiable()),
+        }
+    }
+
+    pub fn inputs(&self) -> impl Iterator<Item = &Input> { self.inputs.iter() }
+
+    pub fn outputs(&self) -> impl Iterator<Item = &Output> { self.outputs.iter() }
+
+    pub fn xpubs(&self) -> impl Iterator<Item = (&Xpub, &XpubOrigin)> { self.xpubs.iter() }
+
+    pub fn are_inputs_modifiable(&self) -> bool {
+        self.tx_modifiable
+            .map(|flags| flags.inputs_modifiable && !flags.sighash_single)
+            .unwrap_or_default()
+    }
+
+    pub fn are_outputs_modifiable(&self) -> bool {
+        self.tx_modifiable
+            .map(|flags| flags.inputs_modifiable && !flags.sighash_single)
+            .unwrap_or_default()
+    }
+
+    pub fn construct_input<D: DeriveScripts>(
+        &mut self,
+        prevout: Prevout,
+        decriptor: D,
+        terminal: Terminal,
+        sequence: SeqNo,
+    ) -> Result<(), Unmodifiable> {
+        if !self.are_inputs_modifiable() {
+            Err(Unmodifiable)
+        }
+        // Derive
+        // Add xpubs
+        self.inputs.push(input);
+        Ok(())
+    }
+
+    pub fn construct_input_expect<D: DeriveScripts>(
+        &mut self,
+        prevout: Prevout,
+        decriptor: D,
+        terminal: Terminal,
+        sequence: SeqNo,
+    ) {
+        self.construct_input(prevout, decriptor, terminal, sequence)
+            .expect("PSBT inputs are expected to be modifiable")
+    }
+
+    pub fn construct_output(
+        &mut self,
+        script_pubkey: ScriptPubkey,
+        value: Sats,
+    ) -> Result<(), Unmodifiable> {
+        if !self.are_outputs_modifiable() {
+            Err(Unmodifiable)
+        }
+        let output = Output::with(TxOut::new(script_pubkey, value));
+        self.outputs.push(output);
+        Ok(())
+    }
+
+    pub fn construct_output_expect(&mut self, output: Output) {
+        self.push_output(output).expect("PSBT outputs are expected to be modifiable")
+    }
+
+    pub fn complete_construction(&mut self) {
+        self.tx_modifiable = Some(ModifiableFlags::unmodifiable())
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -157,7 +261,7 @@ pub struct Output {
     // TODO: Add unknown flags
 }
 
-#[derive(Clone, Eq, PartialEq, Debug, Default)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
@@ -170,6 +274,30 @@ pub struct ModifiableFlags {
 }
 
 impl ModifiableFlags {
+    pub fn unmodifiable() -> Self {
+        ModifiableFlags {
+            inputs_modifiable: false,
+            outputs_modifiable: false,
+            sighash_single: false,
+        }
+    }
+
+    pub fn modifiable() -> Self {
+        ModifiableFlags {
+            inputs_modifiable: true,
+            outputs_modifiable: true,
+            sighash_single: false,
+        }
+    }
+
+    pub fn modifiable_sighash_single() -> Self {
+        ModifiableFlags {
+            inputs_modifiable: true,
+            outputs_modifiable: true,
+            sighash_single: true,
+        }
+    }
+
     pub fn to_standard_u8(&self) -> u8 {
         (self.inputs_modifiable as u8)
             | ((self.outputs_modifiable as u8) << 1)

@@ -25,6 +25,7 @@ use std::num::ParseIntError;
 use std::ops::Range;
 use std::str::FromStr;
 
+use bc::secp256k1::XOnlyPublicKey;
 use bc::{InternalPk, ScriptPubkey};
 
 use crate::address::AddressError;
@@ -77,6 +78,16 @@ impl FromStr for Terminal {
             _ => Err(TerminalParseError::InvalidComponents(s.to_owned())),
         }
     }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+#[non_exhaustive]
+pub enum DerivedScript {
+    Bare(ScriptPubkey),
+    Bip13(RedeemScript),
+    Segwit(WitnessScript),
+    Nested(WitnessScript),
+    // Taproot(XOnlyPublicKey, Option<TapTree>)
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display)]
