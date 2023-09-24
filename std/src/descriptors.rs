@@ -21,12 +21,12 @@
 // limitations under the License.
 
 use std::ops::Range;
+use std::{iter, vec};
 
-use bc::ScriptPubkey;
+use crate::derive::DerivedScript;
+use crate::{Derive, DeriveScripts, DeriveSet, DeriveXOnly, NormalIndex, XpubDescriptor};
 
-use crate::{Derive, DeriveSet, DeriveXOnly, NormalIndex, XpubDescriptor};
-
-pub trait Descriptor<K, V = ()> {
+pub trait Descriptor<K, V = ()>: DeriveScripts {
     type KeyIter<'k>: Iterator<Item = &'k K>
     where
         Self: 'k,
@@ -41,6 +41,7 @@ pub trait Descriptor<K, V = ()> {
     fn vars(&self) -> Self::VarIter<'_>;
 }
 
+/*
 pub trait KeyTranslate<K, V = ()>: Descriptor<K, V> {
     type Dest<K2>: Descriptor<K2, V>;
     fn translate<K2>(&self, f: impl Fn(K) -> K2) -> Self::Dest<K2>;
@@ -50,6 +51,7 @@ pub trait VarResolve<K, V>: Descriptor<K, V> {
     type Dest<V2>: Descriptor<K, V2>;
     fn translate<V2>(&self, f: impl Fn(V) -> V2) -> Self::Dest<V2>;
 }
+ */
 
 #[cfg_attr(
     feature = "serde",
@@ -81,14 +83,23 @@ pub struct TrScript<K: DeriveXOnly> {
 }
 */
 
-impl<K: DeriveXOnly> Derive<ScriptPubkey> for TrKey<K> {
+impl<K: DeriveXOnly> Derive<DerivedScript> for TrKey<K> {
     #[inline]
     fn keychains(&self) -> Range<u8> { self.0.keychains() }
 
-    fn derive(&self, keychain: u8, index: impl Into<NormalIndex>) -> ScriptPubkey {
+    fn derive(&self, keychain: u8, index: impl Into<NormalIndex>) -> DerivedScript {
         let internal_key = self.0.derive(keychain, index);
-        ScriptPubkey::p2tr_key_only(internal_key)
+        DerivedScript::TaprootKeyOnly(internal_key)
     }
+}
+
+impl<K: DeriveXOnly> Descriptor<K> for TrKey<K> {
+    type KeyIter<'k> = iter::Once<&'k K> where Self: 'k, K: 'k;
+    type VarIter<'v> = iter::Empty<&'v ()> where Self: 'v, (): 'v;
+
+    fn keys(&self) -> Self::KeyIter<'_> { iter::once(&self.0) }
+
+    fn vars(&self) -> Self::VarIter<'_> { iter::empty() }
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
@@ -110,16 +121,32 @@ pub enum DescriptorStd<S: DeriveSet = XpubDescriptor> {
     TrKey(TrKey<S::XOnly>),
 }
 
-impl<S: DeriveSet> Derive<ScriptPubkey> for DescriptorStd<S> {
+impl<S: DeriveSet> Derive<DerivedScript> for DescriptorStd<S> {
     fn keychains(&self) -> Range<u8> {
         match self {
             DescriptorStd::TrKey(d) => d.keychains(),
         }
     }
 
-    fn derive(&self, keychain: u8, index: impl Into<NormalIndex>) -> ScriptPubkey {
+    fn derive(&self, keychain: u8, index: impl Into<NormalIndex>) -> DerivedScript {
         match self {
             DescriptorStd::TrKey(d) => d.derive(keychain, index),
         }
     }
+}
+
+impl<K: DeriveSet<XOnly = K> + DeriveXOnly> Descriptor<K> for DescriptorStd<K>
+where Self: Derive<DerivedScript>
+{
+    type KeyIter<'k> = vec::IntoIter<&'k K> where Self: 'k, K: 'k;
+    type VarIter<'v> = iter::Empty<&'v ()> where Self: 'v, (): 'v;
+
+    fn keys(&self) -> Self::KeyIter<'_> {
+        match self {
+            DescriptorStd::TrKey(d) => d.keys().collect::<Vec<_>>(),
+        }
+        .into_iter()
+    }
+
+    fn vars(&self) -> Self::VarIter<'_> { iter::empty() }
 }

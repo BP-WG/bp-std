@@ -21,12 +21,13 @@
 // limitations under the License.
 
 use bp::{
-    ComprPubkey, Derive, KeyOrigin, LegacyPubkey, LockTime, Outpoint, Sats, ScriptPubkey, SeqNo,
-    SigScript, Terminal, TxOut, TxVer, Txid, Vout, Witness, Xpub, XpubDescriptor, XpubOrigin,
+    ComprPubkey, Derive, DeriveScripts, KeyOrigin, LegacyPubkey, LockTime, Outpoint, RedeemScript,
+    Sats, ScriptPubkey, SeqNo, SigScript, Terminal, TxOut, TxVer, Txid, Vout, Witness,
+    WitnessScript, Xpub, XpubDescriptor, XpubOrigin,
 };
 use indexmap::IndexMap;
 
-use crate::{EcdsaSig, LockHeight, LockTimestamp, RedeemScript, SighashType, WitnessScript};
+use crate::{EcdsaSig, LockHeight, LockTimestamp, SighashType};
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error)]
 #[display("PSBT can't be modified")]

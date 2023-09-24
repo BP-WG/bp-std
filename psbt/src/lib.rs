@@ -28,7 +28,6 @@ extern crate serde_crate as serde;
 
 mod maps;
 mod timelocks;
-mod scripts;
 mod sigtypes;
 mod keys;
 mod coders;
@@ -36,6 +35,5 @@ mod coders;
 pub use coders::{Decode, DecodeError, Encode, PsbtError};
 pub use keys::{GlobalKey, InputKey, KeyPair, KeyType, OutputKey};
 pub use maps::{Input, ModifiableFlags, Output, Psbt};
-pub use scripts::{RedeemScript, WitnessScript};
 pub use sigtypes::{EcdsaSig, EcdsaSigError, NonStandardSighashType, SighashFlag, SighashType};
 pub use timelocks::{InvalidTimelock, LockHeight, LockTimestamp, TimelockParseError};

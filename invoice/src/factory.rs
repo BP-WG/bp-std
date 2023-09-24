@@ -20,17 +20,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use bp::{Address, AddressError, AddressNetwork, DeriveSpk, Idx, NormalIndex};
+use bp::{Address, AddressError, AddressNetwork, DeriveScripts, Idx, NormalIndex};
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub struct AddressFactory<D: DeriveSpk> {
+pub struct AddressFactory<D: DeriveScripts> {
     pub descriptor: D,
     pub network: AddressNetwork,
     pub keychain: u8,
     pub unused_tip: NormalIndex,
 }
 
-impl<D: DeriveSpk> Iterator for AddressFactory<D> {
+impl<D: DeriveScripts> Iterator for AddressFactory<D> {
     type Item = Address;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -41,7 +41,7 @@ impl<D: DeriveSpk> Iterator for AddressFactory<D> {
     }
 }
 
-impl<D: DeriveSpk> AddressFactory<D> {
+impl<D: DeriveScripts> AddressFactory<D> {
     pub fn address(&self, index: NormalIndex) -> Result<Address, AddressError> {
         self.descriptor.derive_address(self.network, self.keychain, index)
     }

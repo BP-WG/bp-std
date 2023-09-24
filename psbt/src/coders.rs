@@ -25,13 +25,14 @@ use std::io::{Cursor, Read, Write};
 
 use amplify::{IoError, RawArray, Wrapper};
 use bp::{
-    ComprPubkey, Idx, KeyOrigin, LegacyPubkey, LockTime, Sats, ScriptBytes, ScriptPubkey, SeqNo,
-    SigScript, TxOut, TxVer, Txid, UncomprPubkey, VarInt, Vout, Witness, Xpub, XpubOrigin,
+    ComprPubkey, Idx, KeyOrigin, LegacyPubkey, LockTime, RedeemScript, Sats, ScriptBytes,
+    ScriptPubkey, SeqNo, SigScript, TxOut, TxVer, Txid, UncomprPubkey, VarInt, Vout, Witness,
+    WitnessScript, Xpub, XpubOrigin,
 };
 
 use crate::{
     EcdsaSig, GlobalKey, Input, InputKey, KeyPair, KeyType, LockHeight, LockTimestamp,
-    ModifiableFlags, Output, OutputKey, Psbt, RedeemScript, SighashType, WitnessScript,
+    ModifiableFlags, Output, OutputKey, Psbt, SighashType,
 };
 
 #[derive(Clone, Debug, Display, Error, From)]
