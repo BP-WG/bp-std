@@ -30,7 +30,7 @@ use bc::{InternalPk, ScriptPubkey};
 use crate::address::AddressError;
 use crate::{
     Address, AddressNetwork, AddressParseError, ComprPubkey, Idx, IndexParseError, NormalIndex,
-    RedeemScript, WitnessScript, XpubDescriptor,
+    RedeemScript, WitnessScript, XpubDerivable, XpubSpec,
 };
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
@@ -186,11 +186,15 @@ pub trait Derive<D> {
     }
 }
 
-pub trait DeriveCompr: Derive<ComprPubkey> {}
-impl<T: Derive<ComprPubkey>> DeriveCompr for T {}
+pub trait DeriveKey<D>: Derive<D> {
+    fn xpub_spec(&self) -> &XpubSpec;
+}
 
-pub trait DeriveXOnly: Derive<InternalPk> {}
-impl<T: Derive<InternalPk>> DeriveXOnly for T {}
+pub trait DeriveCompr: DeriveKey<ComprPubkey> {}
+impl<T: DeriveKey<ComprPubkey>> DeriveCompr for T {}
+
+pub trait DeriveXOnly: DeriveKey<InternalPk> {}
+impl<T: DeriveKey<InternalPk>> DeriveXOnly for T {}
 
 pub trait DeriveScripts: Derive<DerivedScript> {
     fn derive_address(
@@ -219,7 +223,15 @@ pub trait DeriveScripts: Derive<DerivedScript> {
 }
 impl<T: Derive<DerivedScript>> DeriveScripts for T {}
 
-impl Derive<ComprPubkey> for XpubDescriptor {
+impl DeriveKey<ComprPubkey> for XpubDerivable {
+    fn xpub_spec(&self) -> &XpubSpec { self.spec() }
+}
+
+impl DeriveKey<InternalPk> for XpubDerivable {
+    fn xpub_spec(&self) -> &XpubSpec { self.spec() }
+}
+
+impl Derive<ComprPubkey> for XpubDerivable {
     #[inline]
     fn keychains(&self) -> Range<u8> { 0..self.keychains.count() }
 
@@ -228,7 +240,7 @@ impl Derive<ComprPubkey> for XpubDescriptor {
     }
 }
 
-impl Derive<InternalPk> for XpubDescriptor {
+impl Derive<InternalPk> for XpubDerivable {
     #[inline]
     fn keychains(&self) -> Range<u8> { 0..self.keychains.count() }
 
@@ -242,7 +254,7 @@ pub trait DeriveSet {
     type XOnly: DeriveXOnly;
 }
 
-impl DeriveSet for XpubDescriptor {
-    type Compr = XpubDescriptor;
-    type XOnly = XpubDescriptor;
+impl DeriveSet for XpubDerivable {
+    type Compr = XpubDerivable;
+    type XOnly = XpubDerivable;
 }

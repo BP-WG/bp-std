@@ -51,8 +51,8 @@ pub use address::{
 };
 pub use bc::{secp256k1, *};
 pub use derive::{
-    Derive, DeriveCompr, DeriveScripts, DeriveSet, DeriveXOnly, DerivedAddr, DerivedAddrParseError,
-    Terminal, TerminalParseError,
+    Derive, DeriveCompr, DeriveKey, DeriveScripts, DeriveSet, DeriveXOnly, DerivedAddr,
+    DerivedAddrParseError, Terminal, TerminalParseError,
 };
 pub use descriptors::{Descriptor, DescriptorStd, TrKey};
 pub use index::{
@@ -64,4 +64,4 @@ pub use key::{
 };
 pub use path::{DerivationParseError, DerivationPath, DerivationSeg, SegParseError};
 pub use scripts::{RedeemScript, WitnessScript};
-pub use xpub::{Xpub, XpubDescriptor, XpubFp, XpubId, XpubMeta, XpubOrigin};
+pub use xpub::{Xpub, XpubDerivable, XpubFp, XpubId, XpubMeta, XpubOrigin, XpubSpec};

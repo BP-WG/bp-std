@@ -24,7 +24,7 @@ use std::ops::Range;
 use std::{iter, vec};
 
 use crate::derive::DerivedScript;
-use crate::{Derive, DeriveScripts, DeriveSet, DeriveXOnly, NormalIndex, XpubDescriptor};
+use crate::{Derive, DeriveScripts, DeriveSet, DeriveXOnly, NormalIndex, XpubDerivable, XpubSpec};
 
 pub trait Descriptor<K, V = ()>: DeriveScripts {
     type KeyIter<'k>: Iterator<Item = &'k K>
@@ -37,8 +37,12 @@ pub trait Descriptor<K, V = ()>: DeriveScripts {
         Self: 'v,
         V: 'v;
 
+    type XpubIter<'x>: Iterator<Item = &'x XpubSpec>
+    where Self: 'x;
+
     fn keys(&self) -> Self::KeyIter<'_>;
     fn vars(&self) -> Self::VarIter<'_>;
+    fn xpubs(&self) -> Self::XpubIter<'_>;
 }
 
 /*
@@ -49,7 +53,7 @@ pub trait KeyTranslate<K, V = ()>: Descriptor<K, V> {
 
 pub trait VarResolve<K, V>: Descriptor<K, V> {
     type Dest<V2>: Descriptor<K, V2>;
-    fn translate<V2>(&self, f: impl Fn(V) -> V2) -> Self::Dest<V2>;
+    fn resolve<V2>(&self, f: impl Fn(V) -> V2) -> Self::Dest<V2>;
 }
  */
 
@@ -67,7 +71,7 @@ pub trait VarResolve<K, V>: Descriptor<K, V> {
     )
 )]
 #[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
-pub struct TrKey<K: DeriveXOnly = XpubDescriptor>(
+pub struct TrKey<K: DeriveXOnly = XpubDerivable>(
     #[cfg_attr(feature = "serde", serde_as(as = "serde_with::DisplayFromStr"))] K,
 );
 
@@ -96,10 +100,11 @@ impl<K: DeriveXOnly> Derive<DerivedScript> for TrKey<K> {
 impl<K: DeriveXOnly> Descriptor<K> for TrKey<K> {
     type KeyIter<'k> = iter::Once<&'k K> where Self: 'k, K: 'k;
     type VarIter<'v> = iter::Empty<&'v ()> where Self: 'v, (): 'v;
+    type XpubIter<'x> = iter::Once<&'x XpubSpec> where Self: 'x;
 
     fn keys(&self) -> Self::KeyIter<'_> { iter::once(&self.0) }
-
     fn vars(&self) -> Self::VarIter<'_> { iter::empty() }
+    fn xpubs(&self) -> Self::XpubIter<'_> { iter::once(self.0.xpub_spec()) }
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
@@ -116,7 +121,7 @@ impl<K: DeriveXOnly> Descriptor<K> for TrKey<K> {
         )
     )
 )]
-pub enum DescriptorStd<S: DeriveSet = XpubDescriptor> {
+pub enum DescriptorStd<S: DeriveSet = XpubDerivable> {
     #[from]
     TrKey(TrKey<S::XOnly>),
 }
@@ -140,6 +145,7 @@ where Self: Derive<DerivedScript>
 {
     type KeyIter<'k> = vec::IntoIter<&'k K> where Self: 'k, K: 'k;
     type VarIter<'v> = iter::Empty<&'v ()> where Self: 'v, (): 'v;
+    type XpubIter<'x> = vec::IntoIter<&'x XpubSpec> where Self: 'x;
 
     fn keys(&self) -> Self::KeyIter<'_> {
         match self {
@@ -149,4 +155,11 @@ where Self: Derive<DerivedScript>
     }
 
     fn vars(&self) -> Self::VarIter<'_> { iter::empty() }
+
+    fn xpubs(&self) -> Self::XpubIter<'_> {
+        match self {
+            DescriptorStd::TrKey(d) => d.xpubs().collect::<Vec<_>>(),
+        }
+        .into_iter()
+    }
 }

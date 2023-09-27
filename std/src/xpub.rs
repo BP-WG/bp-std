@@ -365,46 +365,30 @@ impl FromStr for XpubOrigin {
 }
 
 #[derive(Getters, Clone, Eq, PartialEq, Hash, Debug)]
-pub struct XpubDescriptor {
+pub struct XpubSpec {
     origin: XpubOrigin,
     xpub: Xpub,
-    variant: Option<NormalIndex>,
-    pub(crate) keychains: DerivationSeg,
 }
 
-impl Display for XpubDescriptor {
+impl Display for XpubSpec {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str("[")?;
         Display::fmt(&self.origin, f)?;
         f.write_str("]")?;
-
-        write!(f, "{}/", self.xpub)?;
-
-        if let Some(variant) = self.variant {
-            write!(f, "{variant}/")?;
-        }
-
-        Display::fmt(&self.keychains, f)?;
-
-        f.write_str("/*")
+        write!(f, "{}/", self.xpub)
     }
 }
 
-impl FromStr for XpubDescriptor {
+impl FromStr for XpubSpec {
     type Err = XpubParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if !s.starts_with('[') {
             return Err(XpubParseError::NoOrigin);
         }
-        let (origin, remains) =
+        let (origin, xpub) =
             s.trim_start_matches('[').split_once(']').ok_or(XpubParseError::NoOrigin)?;
         let origin = XpubOrigin::from_str(origin)?;
-
-        let mut segs = remains.split('/');
-        let Some(xpub) = segs.next() else {
-            return Err(XpubParseError::NoXpub);
-        };
         let xpub = Xpub::from_str(xpub)?;
 
         if origin.derivation.len() != xpub.meta.depth as usize {
@@ -422,6 +406,44 @@ impl FromStr for XpubDescriptor {
             }
         }
 
+        Ok(XpubSpec { origin, xpub })
+    }
+}
+
+#[derive(Getters, Clone, Eq, PartialEq, Hash, Debug)]
+pub struct XpubDerivable {
+    spec: XpubSpec,
+    variant: Option<NormalIndex>,
+    pub(crate) keychains: DerivationSeg,
+}
+
+impl XpubDerivable {
+    pub fn xpub(&self) -> Xpub { self.spec.xpub }
+
+    pub fn origin(&self) -> &XpubOrigin { &self.spec.origin }
+}
+
+impl Display for XpubDerivable {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        Display::fmt(&self.spec, f)?;
+        if let Some(variant) = self.variant {
+            write!(f, "{variant}/")?;
+        }
+        Display::fmt(&self.keychains, f)?;
+        f.write_str("/*")
+    }
+}
+
+impl FromStr for XpubDerivable {
+    type Err = XpubParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut segs = s.split('/');
+        let Some(spec) = segs.next() else {
+            return Err(XpubParseError::NoXpub);
+        };
+        let spec = XpubSpec::from_str(spec)?;
+
         let (variant, keychains) = match (segs.next(), segs.next(), segs.next(), segs.next()) {
             (Some(var), Some(keychains), Some("*"), None) => {
                 (Some(var.parse()?), keychains.parse()?)
@@ -430,13 +452,11 @@ impl FromStr for XpubDescriptor {
             _ => return Err(XpubParseError::InvalidTerminal),
         };
 
-        let d = XpubDescriptor {
-            origin,
-            xpub,
+        Ok(XpubDerivable {
+            spec,
             variant,
             keychains,
-        };
-        Ok(d)
+        })
     }
 }
 
@@ -481,7 +501,7 @@ mod test {
     #[test]
     fn display_from_str() {
         let s = "[643a7adc/86h/1h/0h]tpubDCNiWHaiSkgnQjuhsg9kjwaUzaxQjUcmhagvYzqQ3TYJTgFGJstVaqnu4yhtFktBhCVFmBNLQ5sN53qKzZbMksm3XEyGJsEhQPfVZdWmTE2/<0;1>/*";
-        let xpub = XpubDescriptor::from_str(s).unwrap();
+        let xpub = XpubDerivable::from_str(s).unwrap();
         assert_eq!(s, xpub.to_string());
     }
 }
