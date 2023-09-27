@@ -26,7 +26,7 @@ use amplify::hex;
 use bc::secp256k1::{PublicKey, XOnlyPublicKey};
 
 use crate::xpub::XpubParseError;
-use crate::{DerivationParseError, DerivationPath, XpubFp};
+use crate::{DerivationIndex, DerivationParseError, DerivationPath, Terminal, XpubFp, XpubOrigin};
 
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
 #[wrap(Deref, LowerHex)]
@@ -120,5 +120,18 @@ impl FromStr for KeyOrigin {
             master_fp,
             derivation: DerivationPath::from_str(path)?,
         })
+    }
+}
+
+impl KeyOrigin {
+    pub fn with(xpub_origin: XpubOrigin, terminal: Terminal) -> Self {
+        let mut derivation = DerivationPath::new();
+        derivation.extend(xpub_origin.derivation().iter().copied().map(DerivationIndex::from));
+        derivation.push(DerivationIndex::normal(terminal.keychain as u16));
+        derivation.push(DerivationIndex::Normal(terminal.index));
+        KeyOrigin {
+            master_fp: xpub_origin.master_fp(),
+            derivation,
+        }
     }
 }

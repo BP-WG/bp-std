@@ -281,6 +281,7 @@ dependencies = [
  "bp-core",
  "bp-primitives",
  "cfg_eval",
+ "indexmap 2.0.0",
  "serde",
  "serde_with",
 ]

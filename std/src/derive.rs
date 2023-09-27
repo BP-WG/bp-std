@@ -41,7 +41,13 @@ pub struct Terminal {
 }
 
 impl Terminal {
-    pub fn new(keychain: u8, index: NormalIndex) -> Self { Terminal { keychain, index } }
+    pub fn new(keychain: u8, index: NormalIndex) -> Self {
+        Terminal {
+            keychain,
+            index: index.into(),
+        }
+    }
+    pub fn change(index: NormalIndex) -> Self { Self::new(1, index) }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
@@ -102,7 +108,7 @@ impl DerivedScript {
             }
         }
     }
-    pub fn redeem_script(&self) -> Option<WitnessScript> { todo!() }
+    pub fn redeem_script(&self) -> Option<RedeemScript> { todo!() }
     pub fn witness_script(&self) -> Option<WitnessScript> { todo!() }
     pub fn internal_key(&self) -> Option<InternalPk> {
         match self {

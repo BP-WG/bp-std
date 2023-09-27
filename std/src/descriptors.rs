@@ -23,8 +23,14 @@
 use std::ops::Range;
 use std::{iter, vec};
 
+use bc::InternalPk;
+use indexmap::IndexMap;
+
 use crate::derive::DerivedScript;
-use crate::{Derive, DeriveScripts, DeriveSet, DeriveXOnly, NormalIndex, XpubDerivable, XpubSpec};
+use crate::{
+    ComprPubkey, Derive, DeriveScripts, DeriveSet, DeriveXOnly, KeyOrigin, NormalIndex, Terminal,
+    XpubDerivable, XpubSpec,
+};
 
 pub trait Descriptor<K, V = ()>: DeriveScripts {
     type KeyIter<'k>: Iterator<Item = &'k K>
@@ -43,6 +49,9 @@ pub trait Descriptor<K, V = ()>: DeriveScripts {
     fn keys(&self) -> Self::KeyIter<'_>;
     fn vars(&self) -> Self::VarIter<'_>;
     fn xpubs(&self) -> Self::XpubIter<'_>;
+
+    fn compr_keyset(&self, terminal: Terminal) -> IndexMap<ComprPubkey, KeyOrigin>;
+    fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<InternalPk, KeyOrigin>;
 }
 
 /*
@@ -105,6 +114,17 @@ impl<K: DeriveXOnly> Descriptor<K> for TrKey<K> {
     fn keys(&self) -> Self::KeyIter<'_> { iter::once(&self.0) }
     fn vars(&self) -> Self::VarIter<'_> { iter::empty() }
     fn xpubs(&self) -> Self::XpubIter<'_> { iter::once(self.0.xpub_spec()) }
+
+    fn compr_keyset(&self, _terminal: Terminal) -> IndexMap<ComprPubkey, KeyOrigin> {
+        IndexMap::new()
+    }
+
+    fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<InternalPk, KeyOrigin> {
+        let mut map = IndexMap::with_capacity(1);
+        let key = self.0.derive(terminal.keychain, terminal.index);
+        map.insert(key, KeyOrigin::with(self.0.xpub_spec().origin().clone(), terminal));
+        map
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
@@ -161,5 +181,17 @@ where Self: Derive<DerivedScript>
             DescriptorStd::TrKey(d) => d.xpubs().collect::<Vec<_>>(),
         }
         .into_iter()
+    }
+
+    fn compr_keyset(&self, terminal: Terminal) -> IndexMap<ComprPubkey, KeyOrigin> {
+        match self {
+            DescriptorStd::TrKey(d) => d.compr_keyset(terminal),
+        }
+    }
+
+    fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<InternalPk, KeyOrigin> {
+        match self {
+            DescriptorStd::TrKey(d) => d.xonly_keyset(terminal),
+        }
     }
 }
