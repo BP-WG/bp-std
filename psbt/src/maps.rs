@@ -21,9 +21,9 @@
 // limitations under the License.
 
 use bp::{
-    ComprPubkey, Derive, DeriveScripts, KeyOrigin, LegacyPubkey, LockTime, Outpoint, RedeemScript,
-    Sats, ScriptPubkey, SeqNo, SigScript, Terminal, TxOut, TxVer, Txid, Vout, Witness,
-    WitnessScript, Xpub, XpubDescriptor, XpubOrigin,
+    ComprPubkey, Descriptor, KeyOrigin, LegacyPubkey, LockTime, NormalIndex, Outpoint,
+    RedeemScript, Sats, ScriptPubkey, SeqNo, SigScript, Terminal, TxOut, TxVer, Txid, Vout,
+    Witness, WitnessScript, Xpub, XpubOrigin,
 };
 use indexmap::IndexMap;
 
@@ -48,6 +48,8 @@ impl Prevout {
             value,
         }
     }
+
+    pub fn outpoint(&self) -> Outpoint { Outpoint::new(self.txid, self.vout) }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -103,40 +105,57 @@ impl Psbt {
 
     pub fn are_inputs_modifiable(&self) -> bool {
         self.tx_modifiable
+            .as_ref()
             .map(|flags| flags.inputs_modifiable && !flags.sighash_single)
             .unwrap_or_default()
     }
 
     pub fn are_outputs_modifiable(&self) -> bool {
         self.tx_modifiable
+            .as_ref()
             .map(|flags| flags.inputs_modifiable && !flags.sighash_single)
             .unwrap_or_default()
     }
 
-    pub fn construct_input<D: DeriveScripts>(
+    pub fn construct_input<K, D: Descriptor<K>>(
         &mut self,
         prevout: Prevout,
-        decriptor: D,
+        descriptor: D,
         terminal: Terminal,
         sequence: SeqNo,
-    ) -> Result<(), Unmodifiable> {
+    ) -> Result<&mut Input, Unmodifiable> {
         if !self.are_inputs_modifiable() {
-            Err(Unmodifiable)
+            return Err(Unmodifiable);
         }
-        // Derive
-        // Add xpubs
+
+        let scripts = descriptor.derive(terminal.keychain, terminal.index);
+        let input = Input {
+            index: self.inputs.len(),
+            previous_outpoint: prevout.outpoint(),
+            sequence_number: Some(sequence),
+            required_time_lock: None,
+            required_height_lock: None,
+            witness_utxo: Some(TxOut::new(scripts.script_pubkey(), prevout.value)),
+            partial_sigs: none!(),
+            sighash_type: None,
+            redeem_script: scripts.redeem_script(),
+            witness_script: scripts.witness_script(),
+            bip32_derivation: descriptor.compr_keyset(terminal),
+            final_script_sig: None,
+            final_witness: None,
+        };
         self.inputs.push(input);
-        Ok(())
+        Ok(self.inputs.last_mut().expect("just inserted"))
     }
 
-    pub fn construct_input_expect<D: DeriveScripts>(
+    pub fn construct_input_expect<K, D: Descriptor<K>>(
         &mut self,
         prevout: Prevout,
-        decriptor: D,
+        descriptor: D,
         terminal: Terminal,
         sequence: SeqNo,
-    ) {
-        self.construct_input(prevout, decriptor, terminal, sequence)
+    ) -> &mut Input {
+        self.construct_input(prevout, descriptor, terminal, sequence)
             .expect("PSBT inputs are expected to be modifiable")
     }
 
@@ -144,20 +163,76 @@ impl Psbt {
         &mut self,
         script_pubkey: ScriptPubkey,
         value: Sats,
-    ) -> Result<(), Unmodifiable> {
+    ) -> Result<&mut Output, Unmodifiable> {
         if !self.are_outputs_modifiable() {
-            Err(Unmodifiable)
+            return Err(Unmodifiable);
         }
-        let output = Output::with(TxOut::new(script_pubkey, value));
+
+        let output = Output {
+            index: self.outputs.len(),
+            amount: value,
+            script: script_pubkey,
+            redeem_script: None,
+            witness_script: None,
+            bip32_derivation: none!(),
+        };
         self.outputs.push(output);
-        Ok(())
+        Ok(self.outputs.last_mut().expect("just inserted"))
     }
 
-    pub fn construct_output_expect(&mut self, output: Output) {
-        self.push_output(output).expect("PSBT outputs are expected to be modifiable")
+    pub fn construct_output_expect(
+        &mut self,
+        script_pubkey: ScriptPubkey,
+        value: Sats,
+    ) -> &mut Output {
+        self.construct_output(script_pubkey, value)
+            .expect("PSBT outputs are expected to be modifiable")
+    }
+
+    pub fn construct_change<K, D: Descriptor<K>>(
+        &mut self,
+        descriptor: D,
+        index: NormalIndex,
+        value: Sats,
+    ) -> Result<&mut Output, Unmodifiable> {
+        if !self.are_outputs_modifiable() {
+            return Err(Unmodifiable);
+        }
+
+        /*
+        let mut input_sum = Sats::ZERO;
+        for input in &self.inputs {
+            input_sum += input.witness_utxo.ok_or(IncompletePsbt::NoWitness(input.index))?.value;
+        }
+        let output_sum = self.outputs().map(|output| output.amount).sum::<Sats>();
+        let change_amount = input_sum - output_sum;
+         */
+
+        let scripts = descriptor.derive(1, index);
+        let output = Output {
+            index: self.outputs.len(),
+            amount: value,
+            script: scripts.script_pubkey(),
+            redeem_script: scripts.redeem_script(),
+            witness_script: scripts.witness_script(),
+            bip32_derivation: descriptor.compr_keyset(Terminal::change(index)),
+        };
+        self.outputs.push(output);
+        Ok(self.outputs.last_mut().expect("just inserted"))
+    }
+
+    pub fn construct_change_expect<K, D: Descriptor<K>>(
+        &mut self,
+        descriptor: D,
+        index: NormalIndex,
+        value: Sats,
+    ) -> &mut Output {
+        self.construct_change(descriptor, index, value)
+            .expect("PSBT outputs are expected to be modifiable")
     }
 
     pub fn complete_construction(&mut self) {
+        // TODO: Check all inputs have witness_utxo or non_witness_tx
         self.tx_modifiable = Some(ModifiableFlags::unmodifiable())
     }
 }
