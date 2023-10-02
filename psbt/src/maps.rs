@@ -55,9 +55,11 @@ impl Prevout {
 #[derive(Clone, Eq, PartialEq, Debug)]
 #[cfg_attr(
     feature = "serde",
-    derive(Serialize, Deserialize),
+    derive(Serialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
+// TODO: Serde deserialize must correctly initialzie inputs and outputs with their indexes and
+//       account for unknown fields
 pub struct Psbt {
     /// Transaction version.
     pub tx_version: TxVer,
@@ -240,11 +242,16 @@ impl Psbt {
 #[derive(Clone, Eq, PartialEq, Debug)]
 #[cfg_attr(
     feature = "serde",
-    derive(Serialize, Deserialize),
+    derive(Serialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
+// TODO: Enusure than on serde deserialization:
+//       - all unknown fields go into unknown fields map
+//       - input always contains either witness UTXO or non-witness Tx
+//       - index is constructed in a correct way
 pub struct Input {
     /// The index of this input. Used in error reporting.
+    #[cfg_attr(feature = "serde", serde(skip))]
     pub(crate) index: usize,
 
     /// Previous transaction outpoint to spent.
@@ -311,11 +318,12 @@ pub struct Input {
 #[derive(Clone, Eq, PartialEq, Debug, Default)]
 #[cfg_attr(
     feature = "serde",
-    derive(Serialize, Deserialize),
+    derive(Serialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct Output {
     /// The index of this output. Used in error reporting.
+    #[cfg_attr(feature = "serde", serde(skip))]
     pub(crate) index: usize,
 
     /// The output's amount in satoshis.
