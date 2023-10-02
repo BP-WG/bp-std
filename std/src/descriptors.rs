@@ -32,7 +32,7 @@ use crate::{
     XpubDerivable, XpubSpec,
 };
 
-pub trait Descriptor<K, V = ()>: DeriveScripts {
+pub trait Descriptor<K = XpubDerivable, V = ()>: DeriveScripts {
     type KeyIter<'k>: Iterator<Item = &'k K>
     where
         Self: 'k,
