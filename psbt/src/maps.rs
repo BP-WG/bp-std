@@ -22,7 +22,7 @@
 
 use bp::{
     ComprPubkey, Descriptor, KeyOrigin, LegacyPubkey, LockTime, NormalIndex, Outpoint,
-    RedeemScript, Sats, ScriptPubkey, SeqNo, SigScript, Terminal, TxOut, TxVer, Txid, Vout,
+    RedeemScript, Sats, ScriptPubkey, SeqNo, SigScript, Terminal, Tx, TxOut, TxVer, Txid, Vout,
     Witness, WitnessScript, Xpub, XpubOrigin,
 };
 use indexmap::IndexMap;
@@ -102,6 +102,15 @@ impl Psbt {
     pub fn inputs(&self) -> impl Iterator<Item = &Input> { self.inputs.iter() }
 
     pub fn outputs(&self) -> impl Iterator<Item = &Output> { self.outputs.iter() }
+
+    #[inline]
+    pub fn input_sum(&self) -> Sats { self.inputs().map(Input::value).sum() }
+
+    #[inline]
+    pub fn output_sum(&self) -> Sats { self.outputs().map(Output::value).sum() }
+
+    #[inline]
+    pub fn fee(&self) -> Option<Sats> { self.input_sum().checked_sub(self.output_sum()) }
 
     pub fn xpubs(&self) -> impl Iterator<Item = (&Xpub, &XpubOrigin)> { self.xpubs.iter() }
 
@@ -200,15 +209,6 @@ impl Psbt {
         if !self.are_outputs_modifiable() {
             return Err(Unmodifiable);
         }
-
-        /*
-        let mut input_sum = Sats::ZERO;
-        for input in &self.inputs {
-            input_sum += input.witness_utxo.ok_or(IncompletePsbt::NoWitness(input.index))?.value;
-        }
-        let output_sum = self.outputs().map(|output| output.amount).sum::<Sats>();
-        let change_amount = input_sum - output_sum;
-         */
 
         let scripts = descriptor.derive(1, index);
         let output = Output {
@@ -315,6 +315,32 @@ pub struct Input {
     // TODO: Add unknown flags
 }
 
+impl Input {
+    #[inline]
+    pub fn txout(&self) -> &TxOut {
+        // TODO: Add support for nonwitness_utxo
+        match (&self.witness_utxo, None::<&Tx>) {
+            (Some(txout), _) => txout,
+            (None, Some(tx)) => &tx.outputs[self.index],
+            (None, None) => unreachable!(
+                "PSBT input must contain either witness UTXO or a non-witness transaction"
+            ),
+        }
+    }
+
+    #[inline]
+    pub fn prevout(&self) -> Prevout {
+        Prevout {
+            txid: self.previous_outpoint.txid,
+            vout: self.previous_outpoint.vout,
+            value: self.value(),
+        }
+    }
+
+    #[inline]
+    pub fn value(&self) -> Sats { self.txout().value }
+}
+
 #[derive(Clone, Eq, PartialEq, Debug, Default)]
 #[cfg_attr(
     feature = "serde",
@@ -343,6 +369,11 @@ pub struct Output {
     pub bip32_derivation: IndexMap<ComprPubkey, KeyOrigin>,
     // TODO: Add proprietary flags
     // TODO: Add unknown flags
+}
+
+impl Output {
+    #[inline]
+    pub fn value(&self) -> Sats { self.amount }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
