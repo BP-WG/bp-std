@@ -370,6 +370,10 @@ pub struct XpubSpec {
     xpub: Xpub,
 }
 
+impl XpubSpec {
+    pub fn new(xpub: Xpub, origin: XpubOrigin) -> Self { XpubSpec { xpub, origin } }
+}
+
 impl Display for XpubSpec {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str("[")?;
@@ -438,11 +442,18 @@ impl FromStr for XpubDerivable {
     type Err = XpubParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut segs = s.split('/');
-        let Some(spec) = segs.next() else {
+        if !s.starts_with('[') {
+            return Err(XpubParseError::NoOrigin);
+        }
+        let (origin, remains) =
+            s.trim_start_matches('[').split_once(']').ok_or(XpubParseError::NoOrigin)?;
+
+        let origin = XpubOrigin::from_str(origin)?;
+        let mut segs = remains.split('/');
+        let Some(xpub) = segs.next() else {
             return Err(XpubParseError::NoXpub);
         };
-        let spec = XpubSpec::from_str(spec)?;
+        let xpub = Xpub::from_str(xpub)?;
 
         let (variant, keychains) = match (segs.next(), segs.next(), segs.next(), segs.next()) {
             (Some(var), Some(keychains), Some("*"), None) => {
@@ -453,7 +464,7 @@ impl FromStr for XpubDerivable {
         };
 
         Ok(XpubDerivable {
-            spec,
+            spec: XpubSpec::new(xpub, origin),
             variant,
             keychains,
         })
