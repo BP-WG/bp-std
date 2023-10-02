@@ -34,6 +34,6 @@ mod coders;
 
 pub use coders::{Decode, DecodeError, Encode, PsbtError};
 pub use keys::{GlobalKey, InputKey, KeyPair, KeyType, OutputKey};
-pub use maps::{Input, ModifiableFlags, Output, Psbt};
+pub use maps::{Input, ModifiableFlags, Output, Prevout, Psbt};
 pub use sigtypes::{EcdsaSig, EcdsaSigError, NonStandardSighashType, SighashFlag, SighashType};
 pub use timelocks::{InvalidTimelock, LockHeight, LockTimestamp, TimelockParseError};
