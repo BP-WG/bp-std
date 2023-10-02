@@ -120,7 +120,7 @@ impl Psbt {
     pub fn construct_input<K, D: Descriptor<K>>(
         &mut self,
         prevout: Prevout,
-        descriptor: D,
+        descriptor: &D,
         terminal: Terminal,
         sequence: SeqNo,
     ) -> Result<&mut Input, Unmodifiable> {
@@ -151,7 +151,7 @@ impl Psbt {
     pub fn construct_input_expect<K, D: Descriptor<K>>(
         &mut self,
         prevout: Prevout,
-        descriptor: D,
+        descriptor: &D,
         terminal: Terminal,
         sequence: SeqNo,
     ) -> &mut Input {
@@ -191,7 +191,7 @@ impl Psbt {
 
     pub fn construct_change<K, D: Descriptor<K>>(
         &mut self,
-        descriptor: D,
+        descriptor: &D,
         index: NormalIndex,
         value: Sats,
     ) -> Result<&mut Output, Unmodifiable> {
@@ -223,7 +223,7 @@ impl Psbt {
 
     pub fn construct_change_expect<K, D: Descriptor<K>>(
         &mut self,
-        descriptor: D,
+        descriptor: &D,
         index: NormalIndex,
         value: Sats,
     ) -> &mut Output {
