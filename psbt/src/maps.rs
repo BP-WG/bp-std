@@ -239,6 +239,24 @@ impl Psbt {
     }
 }
 
+/* TODO: Complete weight implementation
+impl Weight for Psbt {
+    fn weight_units(&self) -> WeightUnits {
+        let bytes = 4 // version
+            + VarInt::with(self.inputs.len()).len()
+            + VarInt::with(self.outputs.len()).len()
+            + 4; // lock time
+        let mut weight = WeightUnits::no_discount(bytes)
+            + self.inputs().map(TxIn::weight_units).sum()
+            + self.outputs().map(TxOut::weight_units).sum();
+        if self.is_segwit() {
+            weight += WeightUnits::witness_discount(2); // marker and flag bytes
+        }
+        weight
+    }
+}
+ */
+
 #[derive(Clone, Eq, PartialEq, Debug)]
 #[cfg_attr(
     feature = "serde",
