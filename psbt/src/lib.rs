@@ -49,7 +49,7 @@ pub enum PsbtVer {
 }
 
 impl PsbtVer {
-    pub fn try_from_standard_u32(v: u32) -> Result<Self, PsbtUnsupportedVer> {
+    pub const fn try_from_standard_u32(v: u32) -> Result<Self, PsbtUnsupportedVer> {
         Ok(match v {
             0 => Self::V0,
             2 => Self::V2,
@@ -57,5 +57,13 @@ impl PsbtVer {
         })
     }
 
-    pub fn to_standard_u32(&self) -> u32 { *self as u32 }
+    pub const fn to_standard_u32(&self) -> u32 { *self as u32 }
+
+    pub const fn max() -> Self {
+        // this is a special syntax construct to get compiler error each time we add a new version
+        // and not to forget upgrade the result of this method
+        match Self::V0 {
+            PsbtVer::V0 | PsbtVer::V2 => PsbtVer::V2,
+        }
+    }
 }
