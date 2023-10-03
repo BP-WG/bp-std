@@ -85,12 +85,18 @@ impl From<ConsensusDecodeError> for DecodeError {
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum PsbtError {
+    /// invalid magic bytes {0}.
+    InvalidMagic(Bytes<5>),
+
     #[from]
     #[display(inner)]
     UnsupportedVersion(PsbtUnsupportedVer),
 
     /// unknown PSBT key type {0:#02x}.
     UnknownKeyType(u8),
+
+    /// unexpected end of data.
+    UnexpectedEod,
 
     /// PSBT data are followed by some excessive bytes.
     DataNotConsumed,
@@ -132,6 +138,15 @@ pub enum PsbtError {
     Consensus(ConsensusDataError),
 }
 
+impl From<DecodeError> for PsbtError {
+    fn from(err: DecodeError) -> Self {
+        match err {
+            DecodeError::Psbt(e) => e,
+            DecodeError::Io(_) => PsbtError::UnexpectedEod,
+        }
+    }
+}
+
 pub trait Encode {
     fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError>;
 }
@@ -146,11 +161,8 @@ where Self: Sized
     fn decode(reader: &mut impl Read) -> Result<Self, DecodeError>;
     fn deserialize(bytes: impl AsRef<[u8]>) -> Result<Self, PsbtError> {
         let mut cursor = Cursor::new(bytes.as_ref());
-        let me = Self::decode(&mut cursor).map_err(|err| match err {
-            DecodeError::Psbt(e) => e,
-            DecodeError::Io(_) => unreachable!(),
-        })?;
-        if cursor.position() as usize != bytes.as_ref().len() {
+        let me = Self::decode(&mut cursor)?;
+        if cursor.position() != bytes.len() as u64 {
             return Err(PsbtError::DataNotConsumed);
         }
         Ok(me)
@@ -158,24 +170,23 @@ where Self: Sized
 }
 
 impl Psbt {
-    pub fn encode(&self, ver: PsbtVer, writer: &mut impl Write) -> Result<usize, IoError> {
-        let mut counter = 5;
-        writer.write_all(b"psbt\xFF")?;
+    const MAGIC: [u8; 5] = *b"psbt\xFF";
+    const SEPARATOR: [u8; 1] = [0x0];
 
-        counter += self.encode_global(ver, writer)? + 1;
-        writer.write_all(&[0x0])?;
+    pub fn encode(&self, ver: PsbtVer, writer: &mut impl Write) -> Result<usize, IoError> {
+        let mut counter = Self::MAGIC.len();
+        writer.write_all(&Self::MAGIC)?;
+
+        counter += self.encode_global(ver, writer)? + Self::SEPARATOR.len();
+        writer.write_all(&Self::SEPARATOR)?;
 
         for input in &self.inputs {
             counter += input.encode(ver, writer)?;
         }
-        counter += 1;
-        writer.write_all(&[0x0])?;
 
         for output in &self.outputs {
             counter += output.encode(ver, writer)?;
         }
-        counter += 1;
-        writer.write_all(&[0x0])?;
 
         Ok(counter)
     }
@@ -187,6 +198,7 @@ impl Psbt {
         self.encode_vec(ver, &mut vec);
         vec
     }
+
     fn encode_global(&self, ver: PsbtVer, writer: &mut impl Write) -> Result<usize, IoError> {
         let mut counter = 0;
 
@@ -268,6 +280,9 @@ impl Input {
                 .encode(writer)?;
         }
 
+        counter += Psbt::SEPARATOR.len();
+        writer.write_all(&Psbt::SEPARATOR)?;
+
         Ok(counter)
     }
 }
@@ -291,6 +306,9 @@ impl Output {
 
             counter += KeyPair::new(OutputKey::Script, &(), &self.script).encode(writer)?;
         }
+
+        counter += Psbt::SEPARATOR.len();
+        writer.write_all(&Psbt::SEPARATOR)?;
 
         Ok(counter)
     }
