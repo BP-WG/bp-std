@@ -146,11 +146,11 @@ impl Psbt {
             sequence_number: Some(sequence),
             required_time_lock: None,
             required_height_lock: None,
-            witness_utxo: Some(TxOut::new(scripts.script_pubkey(), prevout.value)),
+            witness_utxo: Some(TxOut::new(scripts.to_script_pubkey(), prevout.value)),
             partial_sigs: none!(),
             sighash_type: None,
-            redeem_script: scripts.redeem_script(),
-            witness_script: scripts.witness_script(),
+            redeem_script: scripts.to_redeem_script(),
+            witness_script: scripts.to_witness_script(),
             bip32_derivation: descriptor.compr_keyset(terminal),
             final_script_sig: None,
             final_witness: None,
@@ -214,9 +214,9 @@ impl Psbt {
         let output = Output {
             index: self.outputs.len(),
             amount: value,
-            script: scripts.script_pubkey(),
-            redeem_script: scripts.redeem_script(),
-            witness_script: scripts.witness_script(),
+            script: scripts.to_script_pubkey(),
+            redeem_script: scripts.to_redeem_script(),
+            witness_script: scripts.to_witness_script(),
             bip32_derivation: descriptor.compr_keyset(Terminal::change(index)),
         };
         self.outputs.push(output);

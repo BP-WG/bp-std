@@ -97,7 +97,7 @@ pub enum DerivedScript {
 }
 
 impl DerivedScript {
-    pub fn script_pubkey(&self) -> ScriptPubkey {
+    pub fn to_script_pubkey(&self) -> ScriptPubkey {
         match self {
             DerivedScript::Bare(script_pubkey) => script_pubkey.clone(),
             DerivedScript::Bip13(_) => todo!(),
@@ -108,9 +108,30 @@ impl DerivedScript {
             }
         }
     }
-    pub fn redeem_script(&self) -> Option<RedeemScript> { todo!() }
-    pub fn witness_script(&self) -> Option<WitnessScript> { todo!() }
-    pub fn internal_key(&self) -> Option<InternalPk> {
+
+    pub fn as_redeem_script(&self) -> Option<&RedeemScript> {
+        match self {
+            DerivedScript::Bare(_) => None,
+            DerivedScript::Bip13(redeem_script) => Some(redeem_script),
+            DerivedScript::Segwit(_) => todo!(),
+            DerivedScript::Nested(_) => todo!(),
+            DerivedScript::TaprootKeyOnly(_) => None,
+        }
+    }
+    pub fn as_witness_script(&self) -> Option<&WitnessScript> {
+        match self {
+            DerivedScript::Bare(_) => None,
+            DerivedScript::Bip13(_) => None,
+            DerivedScript::Segwit(witness_script) | DerivedScript::Nested(witness_script) => {
+                Some(witness_script)
+            }
+            DerivedScript::TaprootKeyOnly(_) => None,
+        }
+    }
+    pub fn to_redeem_script(&self) -> Option<RedeemScript> { self.as_redeem_script().cloned() }
+    pub fn to_witness_script(&self) -> Option<WitnessScript> { self.as_witness_script().cloned() }
+
+    pub fn to_internal_key(&self) -> Option<InternalPk> {
         match self {
             DerivedScript::Bare(_)
             | DerivedScript::Bip13(_)
@@ -119,7 +140,8 @@ impl DerivedScript {
             DerivedScript::TaprootKeyOnly(internal_key) => Some(*internal_key),
         }
     }
-    // pub fn tap_tree(&self) -> Option<TapTree> {}
+
+    // pub fn to_tap_tree(&self) -> Option<TapTree> {}
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display)]
@@ -209,7 +231,7 @@ pub trait DeriveScripts: Derive<DerivedScript> {
         keychain: u8,
         index: impl Into<NormalIndex>,
     ) -> Result<Address, AddressError> {
-        let spk = self.derive(keychain, index).script_pubkey();
+        let spk = self.derive(keychain, index).to_script_pubkey();
         Address::with(&spk, network)
     }
 
@@ -222,7 +244,7 @@ pub trait DeriveScripts: Derive<DerivedScript> {
     ) -> Result<Vec<Address>, AddressError> {
         self.derive_batch(keychain, from, max_count)
             .iter()
-            .map(DerivedScript::script_pubkey)
+            .map(DerivedScript::to_script_pubkey)
             .map(|spk| Address::with(&spk, network))
             .collect()
     }
