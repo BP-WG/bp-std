@@ -26,10 +26,11 @@ use std::io::Sink;
 
 use bp::VarInt;
 
-use crate::Encode;
+use crate::{Decode, Encode};
 
-pub trait KeyType: Copy + Ord + Eq + Hash + Debug + Encode {
+pub trait KeyType: Copy + Ord + Eq + Hash + Debug + Encode + Decode {
     fn byte_len(&self) -> usize;
+    fn try_from_u8(val: u8) -> Result<Self, u8>;
 }
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
@@ -91,6 +92,21 @@ pub enum GlobalKey {
 
 impl KeyType for GlobalKey {
     fn byte_len(&self) -> usize { 1 }
+
+    fn try_from_u8(val: u8) -> Result<Self, u8> {
+        Ok(match val {
+            x if x == Self::UnsignedTx as u8 => Self::UnsignedTx,
+            x if x == Self::Xpub as u8 => Self::Xpub,
+            x if x == Self::TxVersion as u8 => Self::TxVersion,
+            x if x == Self::FallbackLocktime as u8 => Self::FallbackLocktime,
+            x if x == Self::InputCount as u8 => Self::InputCount,
+            x if x == Self::OutputCount as u8 => Self::OutputCount,
+            x if x == Self::TxModifiable as u8 => Self::TxModifiable,
+            x if x == Self::Version as u8 => Self::Version,
+            x if x == Self::Proprietary as u8 => Self::Proprietary,
+            wrong => return Err(wrong),
+        })
+    }
 }
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
@@ -109,10 +125,31 @@ pub enum InputKey {
     Sequence = 0x10,
     RequiredTimeLock = 0x11,
     RequiredHeighLock = 0x12,
+    Proprietary = 0xFC,
 }
 
 impl KeyType for InputKey {
     fn byte_len(&self) -> usize { 1 }
+
+    fn try_from_u8(val: u8) -> Result<Self, u8> {
+        Ok(match val {
+            x if x == Self::WitnessUtxo as u8 => Self::WitnessUtxo,
+            x if x == Self::PartialSig as u8 => Self::PartialSig,
+            x if x == Self::SighashType as u8 => Self::SighashType,
+            x if x == Self::RedeemScript as u8 => Self::RedeemScript,
+            x if x == Self::WitnessScript as u8 => Self::WitnessScript,
+            x if x == Self::Bip32Derivation as u8 => Self::Bip32Derivation,
+            x if x == Self::FinalScriptSig as u8 => Self::FinalScriptSig,
+            x if x == Self::FinalWitness as u8 => Self::FinalWitness,
+            x if x == Self::PreviousTxid as u8 => Self::PreviousTxid,
+            x if x == Self::OutputIndex as u8 => Self::OutputIndex,
+            x if x == Self::Sequence as u8 => Self::Sequence,
+            x if x == Self::RequiredTimeLock as u8 => Self::RequiredTimeLock,
+            x if x == Self::RequiredHeighLock as u8 => Self::RequiredHeighLock,
+            x if x == Self::Proprietary as u8 => Self::Proprietary,
+            wrong => return Err(wrong),
+        })
+    }
 }
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
@@ -132,19 +169,33 @@ pub enum OutputKey {
 
     /// `PSBT_OUT_SCRIPT`
     Script = 0x04,
+
+    Proprietary = 0xFC,
 }
 
 impl KeyType for OutputKey {
     fn byte_len(&self) -> usize { 1 }
+
+    fn try_from_u8(val: u8) -> Result<Self, u8> {
+        Ok(match val {
+            x if x == Self::RedeemScript as u8 => Self::RedeemScript,
+            x if x == Self::WitnessScript as u8 => Self::WitnessScript,
+            x if x == Self::Bip32Derivation as u8 => Self::Bip32Derivation,
+            x if x == Self::Amount as u8 => Self::Amount,
+            x if x == Self::Script as u8 => Self::Script,
+            x if x == Self::Proprietary as u8 => Self::Proprietary,
+            wrong => return Err(wrong),
+        })
+    }
 }
 
-pub struct KeyPair<'a, T: KeyType, K: Encode, V: Encode> {
+pub struct KeyPair<'a, T: KeyType, K, V> {
     pub key_type: T,
     pub key_data: &'a K,
     pub value_data: &'a V,
 }
 
-impl<'a, T: KeyType, K: Encode, V: Encode> KeyPair<'a, T, K, V> {
+impl<'a, T: KeyType, K, V> KeyPair<'a, T, K, V> {
     pub fn new(key_type: T, key_data: &'a K, value_data: &'a V) -> Self {
         Self {
             key_type,
@@ -153,14 +204,16 @@ impl<'a, T: KeyType, K: Encode, V: Encode> KeyPair<'a, T, K, V> {
         }
     }
 
-    pub fn key_len(&self) -> VarInt {
+    pub fn key_len(&self) -> VarInt
+    where K: Encode {
         let mut sink = Sink::default();
         let count = self.key_data.encode(&mut sink).expect("sink write doesn't fail");
         let len = count + self.key_type.byte_len();
         VarInt::with(len)
     }
 
-    pub fn value_len(&self) -> VarInt {
+    pub fn value_len(&self) -> VarInt
+    where V: Encode {
         let mut sink = Sink::default();
         let len = self.value_data.encode(&mut sink).expect("sink write doesn't fail");
         VarInt::with(len)

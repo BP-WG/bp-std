@@ -64,4 +64,6 @@ pub use key::{
 };
 pub use path::{DerivationParseError, DerivationPath, DerivationSeg, SegParseError};
 pub use scripts::{RedeemScript, WitnessScript};
-pub use xpub::{Xpub, XpubDerivable, XpubFp, XpubId, XpubMeta, XpubOrigin, XpubSpec};
+pub use xpub::{
+    Xpub, XpubDecodeError, XpubDerivable, XpubFp, XpubId, XpubMeta, XpubOrigin, XpubSpec,
+};

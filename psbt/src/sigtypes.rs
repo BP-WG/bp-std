@@ -155,6 +155,10 @@ impl SighashType {
         })
     }
 
+    pub fn from_psbt_u8(val: u8) -> Result<SighashType, NonStandardSighashType> {
+        Self::from_standard(val as u32)
+    }
+
     /// Converts [`SighashType`] to a `u32` sighash flag.
     ///
     /// The returned value is guaranteed to be a valid according to standardness rules.

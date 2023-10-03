@@ -29,8 +29,8 @@ use chrono::Utc;
 
 /// Error constructing timelock from the provided value.
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, Error)]
-#[display("invalid timelock value")]
-pub struct InvalidTimelock;
+#[display("invalid timelock value {0}")]
+pub struct InvalidTimelock(pub u32);
 
 #[derive(Debug, Clone, PartialEq, Eq, From, Display)]
 #[display(doc_comments)]
@@ -75,19 +75,14 @@ impl From<LockTimestamp> for LockTime {
 impl TryFrom<u32> for LockTimestamp {
     type Error = InvalidTimelock;
 
-    fn try_from(value: u32) -> Result<Self, Self::Error> {
-        LockTime::from_consensus_u32(value).try_into()
-    }
+    fn try_from(value: u32) -> Result<Self, Self::Error> { Self::try_from_consensus_u32(value) }
 }
 
 impl TryFrom<LockTime> for LockTimestamp {
     type Error = InvalidTimelock;
 
     fn try_from(lock_time: LockTime) -> Result<Self, Self::Error> {
-        if !lock_time.is_time_based() {
-            return Err(InvalidTimelock);
-        }
-        Ok(Self(lock_time.into_consensus_u32()))
+        Self::try_from_lock_time(lock_time)
     }
 }
 
@@ -116,19 +111,36 @@ impl LockTimestamp {
         }
     }
 
-    /// Converts into full u32 representation of `nLockTime` value as it is
-    /// serialized in bitcoin transaction.
     #[inline]
-    pub fn to_consensus_u32(&self) -> u32 { self.0 }
+    pub const fn try_from_lock_time(lock_time: LockTime) -> Result<Self, InvalidTimelock> {
+        Self::try_from_consensus_u32(lock_time.into_consensus_u32())
+    }
+
+    #[inline]
+    pub const fn try_from_consensus_u32(lock_time: u32) -> Result<Self, InvalidTimelock> {
+        if !LockTime::from_consensus_u32(lock_time).is_height_based() {
+            return Err(InvalidTimelock(lock_time));
+        }
+        Ok(Self(lock_time))
+    }
 
     /// Converts into full u32 representation of `nLockTime` value as it is
     /// serialized in bitcoin transaction.
     #[inline]
-    pub fn into_consensus_u32(self) -> u32 { self.0 }
+    pub const fn to_consensus_u32(&self) -> u32 { self.0 }
+
+    /// Converts into full u32 representation of `nLockTime` value as it is
+    /// serialized in bitcoin transaction.
+    #[inline]
+    pub const fn into_consensus_u32(self) -> u32 { self.0 }
 
     /// Converts into [`LockTime`] representation.
     #[inline]
-    pub fn into_locktime(self) -> LockTime { self.into() }
+    pub fn into_lock_time(self) -> LockTime { self.into() }
+
+    /// Converts into [`LockTime`] representation.
+    #[inline]
+    pub fn to_lock_time(self) -> LockTime { self.into_lock_time() }
 }
 
 impl Display for LockTimestamp {
@@ -176,19 +188,14 @@ impl From<LockHeight> for LockTime {
 impl TryFrom<u32> for LockHeight {
     type Error = InvalidTimelock;
 
-    fn try_from(value: u32) -> Result<Self, Self::Error> {
-        LockTime::from_consensus_u32(value).try_into()
-    }
+    fn try_from(value: u32) -> Result<Self, Self::Error> { Self::try_from_consensus_u32(value) }
 }
 
 impl TryFrom<LockTime> for LockHeight {
     type Error = InvalidTimelock;
 
     fn try_from(lock_time: LockTime) -> Result<Self, Self::Error> {
-        if !lock_time.is_height_based() {
-            return Err(InvalidTimelock);
-        }
-        Ok(Self(lock_time.into_consensus_u32()))
+        Self::try_from_lock_time(lock_time)
     }
 }
 
@@ -210,19 +217,36 @@ impl LockHeight {
         }
     }
 
-    /// Converts into full u32 representation of `nLockTime` value as it is
-    /// serialized in bitcoin transaction.
     #[inline]
-    pub fn to_consensus_u32(&self) -> u32 { self.0 }
+    pub const fn try_from_lock_time(lock_time: LockTime) -> Result<Self, InvalidTimelock> {
+        Self::try_from_consensus_u32(lock_time.into_consensus_u32())
+    }
+
+    #[inline]
+    pub const fn try_from_consensus_u32(lock_time: u32) -> Result<Self, InvalidTimelock> {
+        if !LockTime::from_consensus_u32(lock_time).is_height_based() {
+            return Err(InvalidTimelock(lock_time));
+        }
+        Ok(Self(lock_time))
+    }
 
     /// Converts into full u32 representation of `nLockTime` value as it is
     /// serialized in bitcoin transaction.
     #[inline]
-    pub fn into_consensus_u32(self) -> u32 { self.0 }
+    pub const fn to_consensus_u32(&self) -> u32 { self.0 }
+
+    /// Converts into full u32 representation of `nLockTime` value as it is
+    /// serialized in bitcoin transaction.
+    #[inline]
+    pub const fn into_consensus_u32(self) -> u32 { self.0 }
 
     /// Converts into [`LockTime`] representation.
     #[inline]
-    pub fn into_locktime(self) -> LockTime { self.into() }
+    pub fn to_lock_time(&self) -> LockTime { self.into_lock_time() }
+
+    /// Converts into [`LockTime`] representation.
+    #[inline]
+    pub fn into_lock_time(self) -> LockTime { self.into() }
 }
 
 impl Display for LockHeight {

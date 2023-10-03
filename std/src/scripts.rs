@@ -50,6 +50,8 @@ impl WitnessScript {
     pub fn push_opcode(&mut self, op_code: OpCode) {
         self.0.push(op_code as u8).expect("script exceeds 2^64 bytes");
     }
+
+    pub fn as_script_bytes(&self) -> &ScriptBytes { &self.0 }
 }
 
 impl FromHex for WitnessScript {
@@ -86,6 +88,8 @@ impl RedeemScript {
     pub fn push_opcode(&mut self, op_code: OpCode) {
         self.0.push(op_code as u8).expect("script exceeds 2^64 bytes");
     }
+
+    pub fn as_script_bytes(&self) -> &ScriptBytes { &self.0 }
 }
 
 impl FromHex for RedeemScript {

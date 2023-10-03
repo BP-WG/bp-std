@@ -24,6 +24,7 @@ use std::str::FromStr;
 
 use amplify::hex;
 use bc::secp256k1::{PublicKey, XOnlyPublicKey};
+use bp::secp256k1;
 
 use crate::xpub::XpubParseError;
 use crate::{DerivationIndex, DerivationParseError, DerivationPath, Terminal, XpubFp, XpubOrigin};
@@ -59,6 +60,9 @@ impl From<TaprootPubkey> for [u8; 32] {
 pub struct ComprPubkey(pub PublicKey);
 
 impl ComprPubkey {
+    pub fn from_byte_array(data: [u8; 33]) -> Result<Self, secp256k1::Error> {
+        PublicKey::from_slice(&data).map(Self)
+    }
     pub fn to_byte_array(&self) -> [u8; 33] { self.0.serialize() }
 }
 
@@ -72,6 +76,9 @@ impl ComprPubkey {
 pub struct UncomprPubkey(pub PublicKey);
 
 impl UncomprPubkey {
+    pub fn from_byte_array(data: [u8; 65]) -> Result<Self, secp256k1::Error> {
+        PublicKey::from_slice(&data).map(Self)
+    }
     pub fn to_byte_array(&self) -> [u8; 65] { self.0.serialize_uncompressed() }
 }
 
@@ -80,6 +87,30 @@ impl UncomprPubkey {
 pub struct LegacyPubkey {
     pub compressed: bool,
     pub pubkey: PublicKey,
+}
+
+impl From<ComprPubkey> for LegacyPubkey {
+    fn from(pk: ComprPubkey) -> Self { LegacyPubkey::compressed(pk.0) }
+}
+
+impl From<UncomprPubkey> for LegacyPubkey {
+    fn from(pk: UncomprPubkey) -> Self { LegacyPubkey::uncompressed(pk.0) }
+}
+
+impl LegacyPubkey {
+    pub const fn compressed(pubkey: PublicKey) -> Self {
+        LegacyPubkey {
+            compressed: true,
+            pubkey,
+        }
+    }
+
+    pub const fn uncompressed(pubkey: PublicKey) -> Self {
+        LegacyPubkey {
+            compressed: false,
+            pubkey,
+        }
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
@@ -124,6 +155,13 @@ impl FromStr for KeyOrigin {
 }
 
 impl KeyOrigin {
+    pub fn new(master_fp: XpubFp, derivation: DerivationPath) -> Self {
+        KeyOrigin {
+            master_fp,
+            derivation,
+        }
+    }
+
     pub fn with(xpub_origin: XpubOrigin, terminal: Terminal) -> Self {
         let mut derivation = DerivationPath::new();
         derivation.extend(xpub_origin.derivation().iter().copied().map(DerivationIndex::from));

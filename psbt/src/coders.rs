@@ -23,17 +23,21 @@
 use std::fmt::{self, Display, Formatter};
 use std::io::{self, Cursor, Read, Write};
 
-use amplify::{IoError, Wrapper};
+use amplify::{Bytes, IoError, RawArray, Wrapper};
 use base64::Engine;
+use bp::secp256k1::ecdsa;
 use bp::{
-    ComprPubkey, ConsensusEncode, Idx, KeyOrigin, LegacyPubkey, LockTime, RedeemScript, Sats,
-    ScriptBytes, ScriptPubkey, SeqNo, SigScript, Tx, TxOut, TxVer, Txid, UncomprPubkey, VarInt,
-    Vout, Witness, WitnessScript, Xpub, XpubOrigin,
+    secp256k1, ComprPubkey, ConsensusDataError, ConsensusDecode, ConsensusDecodeError,
+    ConsensusEncode, DerivationIndex, DerivationPath, HardenedIndex, Idx, KeyOrigin, LegacyPubkey,
+    LockTime, RedeemScript, Sats, ScriptBytes, ScriptPubkey, SeqNo, SigScript, Tx, TxOut, TxVer,
+    Txid, UncomprPubkey, VarInt, Vout, Witness, WitnessScript, Xpub, XpubDecodeError, XpubFp,
+    XpubOrigin,
 };
 
 use crate::{
     EcdsaSig, GlobalKey, Input, InputKey, KeyPair, KeyType, LockHeight, LockTimestamp,
-    ModifiableFlags, Output, OutputKey, Psbt, PsbtVer, SighashType,
+    ModifiableFlags, NonStandardSighashType, Output, OutputKey, Psbt, PsbtUnsupportedVer, PsbtVer,
+    SighashType,
 };
 
 impl Display for Psbt {
@@ -54,7 +58,7 @@ impl Display for Psbt {
     }
 }
 
-#[derive(Clone, Debug, Display, Error, From)]
+#[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
 #[display(inner)]
 pub enum DecodeError {
     #[from]
@@ -62,14 +66,70 @@ pub enum DecodeError {
     Io(IoError),
 
     #[from]
+    #[from(ConsensusDataError)]
+    #[from(PsbtUnsupportedVer)]
+    #[from(XpubDecodeError)]
+    #[from(NonStandardSighashType)]
     Psbt(PsbtError),
 }
 
-#[derive(Clone, Debug, Display, Error, From)]
+impl From<ConsensusDecodeError> for DecodeError {
+    fn from(e: ConsensusDecodeError) -> Self {
+        match e {
+            ConsensusDecodeError::Io(e) => DecodeError::Io(e),
+            ConsensusDecodeError::Data(data) => data.into(),
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum PsbtError {
-    /// PSBT data are followed by some excessive bytes
+    #[from]
+    #[display(inner)]
+    UnsupportedVersion(PsbtUnsupportedVer),
+
+    /// unknown PSBT key type {0:#02x}.
+    UnknownKeyType(u8),
+
+    /// PSBT data are followed by some excessive bytes.
     DataNotConsumed,
+
+    /// invalid lock height value {0}.
+    InvalidLockHeight(u32),
+
+    /// invalid lock timestamp {0}.
+    InvalidLockTimestamp(u32),
+
+    /// invalid compressed pubkey data.
+    InvalidComprPubkey(Bytes<33>),
+
+    /// invalid compressed pubkey data.
+    InvalidUncomprPubkey(Bytes<65>),
+
+    /// empty signature data.
+    EmptySig,
+
+    /// invalid signature data.
+    InvalidSig(secp256k1::Error),
+
+    #[from]
+    #[display(inner)]
+    InvalidSighash(NonStandardSighashType),
+
+    #[from]
+    #[display(inner)]
+    InvalidXub(XpubDecodeError),
+
+    /// one of xpubs has an unhardened derivation index
+    XpubUnhardenedOrigin,
+
+    /// unrecognized public key encoding starting with flag {0:#02x}.
+    UnrecognizedKeyFormat(u8),
+
+    #[from]
+    #[display(inner)]
+    Consensus(ConsensusDataError),
 }
 
 pub trait Encode {
@@ -238,15 +298,36 @@ impl Encode for GlobalKey {
     }
 }
 
+impl Decode for GlobalKey {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        let k = u8::decode(reader)?;
+        Self::try_from_u8(k).map_err(PsbtError::UnknownKeyType).map_err(DecodeError::from)
+    }
+}
+
 impl Encode for InputKey {
     fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
         (*self as u8).encode(writer)
     }
 }
 
+impl Decode for InputKey {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        let k = u8::decode(reader)?;
+        Self::try_from_u8(k).map_err(PsbtError::UnknownKeyType).map_err(DecodeError::from)
+    }
+}
+
 impl Encode for OutputKey {
     fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
         (*self as u8).encode(writer)
+    }
+}
+
+impl Decode for OutputKey {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        let k = u8::decode(reader)?;
+        Self::try_from_u8(k).map_err(PsbtError::UnknownKeyType).map_err(DecodeError::from)
     }
 }
 
@@ -265,9 +346,35 @@ impl<'a, T: KeyType, K: Encode, V: Encode> Encode for KeyPair<'a, T, K, V> {
     }
 }
 
+impl<'a, T: KeyType, K: Decode, V: Decode> Decode for KeyPair<'a, T, K, V> {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        let key_len = VarInt::decode(reader)?;
+        let key_type = T::decode(reader)?;
+        let mut key_data = Vec::<u8>::with_capacity(key_len.to_usize() - key_type.byte_len());
+        reader.read_exact(key_data.as_mut_slice())?;
+
+        let value_len = VarInt::decode(reader)?;
+        let mut value_data = Vec::<u8>::with_capacity(value_len.to_usize());
+        reader.read_exact(value_data.as_mut_slice())?;
+
+        Ok(KeyPair {
+            key_type,
+            key_data: K::deserialize(key_data)?,
+            value_data: V::deserialize(value_data)?,
+        })
+    }
+}
+
 impl Encode for ModifiableFlags {
     fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
         self.to_standard_u8().encode(writer)
+    }
+}
+
+impl Decode for ModifiableFlags {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        let val = u8::decode(reader)?;
+        Ok(Self::from_standard_u8(val))
     }
 }
 
@@ -277,10 +384,25 @@ impl Encode for PsbtVer {
     }
 }
 
+impl Decode for PsbtVer {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        let ver = u32::decode(reader)?;
+        PsbtVer::try_from_standard_u32(ver).map_err(DecodeError::from)
+    }
+}
+
 impl Encode for Xpub {
     fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
         writer.write_all(&self.encode())?;
         Ok(78)
+    }
+}
+
+impl Decode for Xpub {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        let mut buf = [0u8; 78];
+        reader.read_exact(&mut buf)?;
+        Xpub::decode(buf).map_err(DecodeError::from)
     }
 }
 
@@ -294,10 +416,35 @@ impl Encode for XpubOrigin {
     }
 }
 
+impl Decode for XpubOrigin {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        let mut buf = [0u8; 4];
+        reader.read_exact(&mut buf)?;
+        let master_fp = XpubFp::from_raw_array(buf);
+        let mut derivation = DerivationPath::<HardenedIndex>::new();
+        while let Ok(index) = u32::decode(reader) {
+            derivation.push(
+                HardenedIndex::try_from_index(index)
+                    .map_err(|_| PsbtError::XpubUnhardenedOrigin)?,
+            );
+        }
+        Ok(XpubOrigin::new(master_fp, derivation))
+    }
+}
+
 impl Encode for ComprPubkey {
     fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
         writer.write_all(&self.to_byte_array())?;
         Ok(33)
+    }
+}
+
+impl Decode for ComprPubkey {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        let mut buf = [0u8; 33];
+        reader.read_exact(&mut buf)?;
+        ComprPubkey::from_byte_array(buf)
+            .map_err(|_| PsbtError::InvalidComprPubkey(buf.into()).into())
     }
 }
 
@@ -308,12 +455,32 @@ impl Encode for UncomprPubkey {
     }
 }
 
+impl Decode for UncomprPubkey {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        let mut buf = [0u8; 65];
+        reader.read_exact(&mut buf)?;
+        UncomprPubkey::from_byte_array(buf)
+            .map_err(|_| PsbtError::InvalidUncomprPubkey(buf.into()).into())
+    }
+}
+
 impl Encode for LegacyPubkey {
     fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
         if self.compressed {
             ComprPubkey::from(self.pubkey).encode(writer)
         } else {
             UncomprPubkey::from(self.pubkey).encode(writer)
+        }
+    }
+}
+
+impl Decode for LegacyPubkey {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        let flag = u8::decode(reader)?;
+        match flag {
+            02 | 03 => ComprPubkey::decode(reader).map(Self::from),
+            04 => UncomprPubkey::decode(reader).map(Self::from),
+            other => Err(PsbtError::UnrecognizedKeyFormat(other).into()),
         }
     }
 }
@@ -328,6 +495,19 @@ impl Encode for KeyOrigin {
     }
 }
 
+impl Decode for KeyOrigin {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        let mut buf = [0u8; 4];
+        reader.read_exact(&mut buf)?;
+        let master_fp = XpubFp::from_raw_array(buf);
+        let mut derivation = DerivationPath::new();
+        while let Ok(index) = u32::decode(reader) {
+            derivation.push(DerivationIndex::from_index(index));
+        }
+        Ok(KeyOrigin::new(master_fp, derivation))
+    }
+}
+
 impl Encode for EcdsaSig {
     fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
         let sig = self.sig.serialize_der();
@@ -337,10 +517,34 @@ impl Encode for EcdsaSig {
     }
 }
 
+impl Decode for EcdsaSig {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        let mut buf = Vec::with_capacity(78);
+        reader.read_to_end(&mut buf)?;
+        let (sighash, sig) = buf.split_last().ok_or(PsbtError::EmptySig)?;
+        let sig = ecdsa::Signature::from_der(&sig).map_err(PsbtError::InvalidSig)?;
+        let sighash_type = SighashType::from_psbt_u8(*sighash)?;
+        Ok(EcdsaSig { sig, sighash_type })
+    }
+}
+
 impl Encode for SighashType {
     fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
         self.into_u32().encode(writer)
     }
+}
+
+impl Decode for SighashType {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        u32::decode(reader).map(Self::from_consensus)
+    }
+}
+
+macro_rules! psbt_code_using_consensus {
+    ($ty:ty) => {
+        psbt_encode_from_consensus!($ty);
+        psbt_decode_from_consensus!($ty);
+    };
 }
 
 macro_rules! psbt_encode_from_consensus {
@@ -353,17 +557,34 @@ macro_rules! psbt_encode_from_consensus {
     };
 }
 
-psbt_encode_from_consensus!(Tx);
-psbt_encode_from_consensus!(TxVer);
-psbt_encode_from_consensus!(TxOut);
-psbt_encode_from_consensus!(Txid);
-psbt_encode_from_consensus!(Vout);
-psbt_encode_from_consensus!(SeqNo);
-psbt_encode_from_consensus!(LockTime);
+macro_rules! psbt_decode_from_consensus {
+    ($ty:ty) => {
+        impl Decode for $ty {
+            fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+                Self::consensus_decode(reader).map_err(DecodeError::from)
+            }
+        }
+    };
+}
+
+psbt_code_using_consensus!(Tx);
+psbt_code_using_consensus!(TxVer);
+psbt_code_using_consensus!(TxOut);
+psbt_code_using_consensus!(Txid);
+psbt_code_using_consensus!(Vout);
+psbt_code_using_consensus!(SeqNo);
+psbt_code_using_consensus!(LockTime);
 
 impl Encode for LockTimestamp {
     fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
         self.to_consensus_u32().encode(writer)
+    }
+}
+
+impl Decode for LockTimestamp {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        let val = u32::decode(reader)?;
+        Self::try_from_consensus_u32(val).map_err(|e| PsbtError::InvalidLockTimestamp(e.0).into())
     }
 }
 
@@ -373,27 +594,46 @@ impl Encode for LockHeight {
     }
 }
 
-psbt_encode_from_consensus!(ScriptBytes);
-psbt_encode_from_consensus!(SigScript);
-psbt_encode_from_consensus!(ScriptPubkey);
-psbt_encode_from_consensus!(Witness);
+impl Decode for LockHeight {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        let val = u32::decode(reader)?;
+        Self::try_from_consensus_u32(val).map_err(|e| PsbtError::InvalidLockHeight(e.0).into())
+    }
+}
+
+psbt_code_using_consensus!(ScriptBytes);
+psbt_code_using_consensus!(SigScript);
+psbt_code_using_consensus!(ScriptPubkey);
+psbt_code_using_consensus!(Witness);
 
 impl Encode for WitnessScript {
     fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
-        self.as_inner().encode(writer)
+        self.as_script_bytes().encode(writer)
+    }
+}
+
+impl Decode for WitnessScript {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        ScriptBytes::decode(reader).map(Self::from_inner)
     }
 }
 
 impl Encode for RedeemScript {
     fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
-        self.as_inner().encode(writer)
+        self.as_script_bytes().encode(writer)
     }
 }
 
-psbt_encode_from_consensus!(Sats);
-psbt_encode_from_consensus!(u8);
-psbt_encode_from_consensus!(u32);
-psbt_encode_from_consensus!(VarInt);
+impl Decode for RedeemScript {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        ScriptBytes::decode(reader).map(Self::from_inner)
+    }
+}
+
+psbt_code_using_consensus!(Sats);
+psbt_code_using_consensus!(u8);
+psbt_code_using_consensus!(u32);
+psbt_code_using_consensus!(VarInt);
 
 impl<T: Encode> Encode for Option<T> {
     fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
@@ -406,4 +646,8 @@ impl<T: Encode> Encode for Option<T> {
 
 impl Encode for () {
     fn encode(&self, _writer: &mut impl Write) -> Result<usize, IoError> { Ok(0) }
+}
+
+impl Decode for () {
+    fn decode(_reader: &mut impl Read) -> Result<Self, DecodeError> { Ok(()) }
 }

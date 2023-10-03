@@ -348,6 +348,15 @@ pub struct XpubOrigin {
     derivation: DerivationPath<HardenedIndex>,
 }
 
+impl XpubOrigin {
+    pub fn new(master_fp: XpubFp, derivation: DerivationPath<HardenedIndex>) -> Self {
+        XpubOrigin {
+            master_fp,
+            derivation,
+        }
+    }
+}
+
 impl FromStr for XpubOrigin {
     type Err = OriginParseError;
 

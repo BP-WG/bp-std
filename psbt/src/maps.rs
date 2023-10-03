@@ -21,6 +21,7 @@
 // limitations under the License.
 
 use amplify::confinement::Confined;
+use amplify::num::u5;
 use bp::{
     ComprPubkey, Descriptor, KeyOrigin, LegacyPubkey, LockTime, NormalIndex, Outpoint,
     RedeemScript, Sats, ScriptPubkey, SeqNo, SigScript, Terminal, Tx, TxIn, TxOut, TxVer, Txid,
@@ -438,34 +439,51 @@ pub struct ModifiableFlags {
     pub inputs_modifiable: bool,
     pub outputs_modifiable: bool,
     pub sighash_single: bool,
+    pub unknown: u5,
 }
 
 impl ModifiableFlags {
-    pub fn unmodifiable() -> Self {
+    pub const fn unmodifiable() -> Self {
         ModifiableFlags {
             inputs_modifiable: false,
             outputs_modifiable: false,
             sighash_single: false,
+            unknown: u5::ZERO,
         }
     }
 
-    pub fn modifiable() -> Self {
+    pub const fn modifiable() -> Self {
         ModifiableFlags {
             inputs_modifiable: true,
             outputs_modifiable: true,
             sighash_single: false,
+            unknown: u5::ZERO,
         }
     }
 
-    pub fn modifiable_sighash_single() -> Self {
+    pub const fn modifiable_sighash_single() -> Self {
         ModifiableFlags {
             inputs_modifiable: true,
             outputs_modifiable: true,
             sighash_single: true,
+            unknown: u5::ZERO,
         }
     }
 
-    pub fn to_standard_u8(&self) -> u8 {
+    pub fn from_standard_u8(val: u8) -> Self {
+        let inputs_modifiable = val & 0x01 == 0x01;
+        let outputs_modifiable = val & 0x02 == 0x02;
+        let sighash_single = val & 0x04 == 0x04;
+        let unknown = u5::with(val >> 3);
+        Self {
+            inputs_modifiable,
+            outputs_modifiable,
+            sighash_single,
+            unknown,
+        }
+    }
+
+    pub const fn to_standard_u8(&self) -> u8 {
         (self.inputs_modifiable as u8)
             | ((self.outputs_modifiable as u8) << 1)
             | ((self.sighash_single as u8) << 2)
