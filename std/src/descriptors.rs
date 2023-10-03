@@ -23,13 +23,13 @@
 use std::ops::Range;
 use std::{iter, vec};
 
-use bc::InternalPk;
+use bc::{InternalPk, ScriptPubkey};
 use indexmap::IndexMap;
 
 use crate::derive::DerivedScript;
 use crate::{
-    ComprPubkey, Derive, DeriveScripts, DeriveSet, DeriveXOnly, KeyOrigin, NormalIndex, Terminal,
-    XpubDerivable, XpubSpec,
+    ComprPubkey, Derive, DeriveCompr, DeriveScripts, DeriveSet, DeriveXOnly, KeyOrigin,
+    NormalIndex, Terminal, WPubkeyHash, XpubDerivable, XpubSpec,
 };
 
 pub trait Descriptor<K = XpubDerivable, V = ()>: DeriveScripts {
@@ -80,6 +80,60 @@ pub trait VarResolve<K, V>: Descriptor<K, V> {
     )
 )]
 #[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
+pub struct Wpkh<K: DeriveCompr = XpubDerivable>(
+    #[cfg_attr(feature = "serde", serde_as(as = "serde_with::DisplayFromStr"))] K,
+);
+
+impl<K: DeriveCompr> Wpkh<K> {
+    pub fn as_key(&self) -> &K { &self.0 }
+    pub fn into_key(self) -> K { self.0 }
+}
+
+impl<K: DeriveCompr> Derive<DerivedScript> for Wpkh<K> {
+    #[inline]
+    fn keychains(&self) -> Range<u8> { self.0.keychains() }
+
+    fn derive(&self, keychain: u8, index: impl Into<NormalIndex>) -> DerivedScript {
+        let key = self.0.derive(keychain, index);
+        DerivedScript::Bare(ScriptPubkey::p2wpkh(WPubkeyHash::with(key)))
+    }
+}
+
+impl<K: DeriveCompr> Descriptor<K> for Wpkh<K> {
+    type KeyIter<'k> = iter::Once<&'k K> where Self: 'k, K: 'k;
+    type VarIter<'v> = iter::Empty<&'v ()> where Self: 'v, (): 'v;
+    type XpubIter<'x> = iter::Once<&'x XpubSpec> where Self: 'x;
+
+    fn keys(&self) -> Self::KeyIter<'_> { iter::once(&self.0) }
+    fn vars(&self) -> Self::VarIter<'_> { iter::empty() }
+    fn xpubs(&self) -> Self::XpubIter<'_> { iter::once(self.0.xpub_spec()) }
+
+    fn compr_keyset(&self, terminal: Terminal) -> IndexMap<ComprPubkey, KeyOrigin> {
+        let mut map = IndexMap::with_capacity(1);
+        let key = self.0.derive(terminal.keychain, terminal.index);
+        map.insert(key, KeyOrigin::with(self.0.xpub_spec().origin().clone(), terminal));
+        map
+    }
+
+    fn xonly_keyset(&self, _terminal: Terminal) -> IndexMap<InternalPk, KeyOrigin> {
+        IndexMap::new()
+    }
+}
+
+#[cfg_attr(
+    feature = "serde",
+    cfg_eval,
+    serde_as,
+    derive(Serialize, Deserialize),
+    serde(
+        crate = "serde_crate",
+        bound(
+            serialize = "K: std::fmt::Display",
+            deserialize = "K: std::str::FromStr, K::Err: std::fmt::Display"
+        )
+    )
+)]
+#[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
 pub struct TrKey<K: DeriveXOnly = XpubDerivable>(
     #[cfg_attr(feature = "serde", serde_as(as = "serde_with::DisplayFromStr"))] K,
 );
@@ -88,13 +142,6 @@ impl<K: DeriveXOnly> TrKey<K> {
     pub fn as_internal_key(&self) -> &K { &self.0 }
     pub fn into_internal_key(self) -> K { self.0 }
 }
-
-/*
-pub struct TrScript<K: DeriveXOnly> {
-    internal_key: K,
-    tap_tree: TapTree<Policy<K>>,
-}
-*/
 
 impl<K: DeriveXOnly> Derive<DerivedScript> for TrKey<K> {
     #[inline]
@@ -127,6 +174,13 @@ impl<K: DeriveXOnly> Descriptor<K> for TrKey<K> {
     }
 }
 
+/*
+pub struct TrScript<K: DeriveXOnly> {
+    internal_key: K,
+    tap_tree: TapTree<Policy<K>>,
+}
+*/
+
 #[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
 #[cfg_attr(
     feature = "serde",
@@ -135,13 +189,17 @@ impl<K: DeriveXOnly> Descriptor<K> for TrKey<K> {
         crate = "serde_crate",
         rename_all = "camelCase",
         bound(
-            serialize = "S::XOnly: std::fmt::Display",
-            deserialize = "S::XOnly: std::str::FromStr, <S::XOnly as std::str::FromStr>::Err: \
-                           std::fmt::Display"
+            serialize = "S::Compr: std::fmt::Display, S::XOnly: std::fmt::Display",
+            deserialize = "S::Compr: std::str::FromStr, <S::Compr as std::str::FromStr>::Err: \
+                           std::fmt::Display, S::XOnly: std::str::FromStr, <S::XOnly as \
+                           std::str::FromStr>::Err: std::fmt::Display"
         )
     )
 )]
 pub enum DescriptorStd<S: DeriveSet = XpubDerivable> {
+    #[from]
+    Wpkh(Wpkh<S::Compr>),
+
     #[from]
     TrKey(TrKey<S::XOnly>),
 }
@@ -149,18 +207,21 @@ pub enum DescriptorStd<S: DeriveSet = XpubDerivable> {
 impl<S: DeriveSet> Derive<DerivedScript> for DescriptorStd<S> {
     fn keychains(&self) -> Range<u8> {
         match self {
+            DescriptorStd::Wpkh(d) => d.keychains(),
             DescriptorStd::TrKey(d) => d.keychains(),
         }
     }
 
     fn derive(&self, keychain: u8, index: impl Into<NormalIndex>) -> DerivedScript {
         match self {
+            DescriptorStd::Wpkh(d) => d.derive(keychain, index),
             DescriptorStd::TrKey(d) => d.derive(keychain, index),
         }
     }
 }
 
-impl<K: DeriveSet<XOnly = K> + DeriveXOnly> Descriptor<K> for DescriptorStd<K>
+impl<K: DeriveSet<Compr = K, XOnly = K> + DeriveCompr + DeriveXOnly> Descriptor<K>
+    for DescriptorStd<K>
 where Self: Derive<DerivedScript>
 {
     type KeyIter<'k> = vec::IntoIter<&'k K> where Self: 'k, K: 'k;
@@ -169,6 +230,7 @@ where Self: Derive<DerivedScript>
 
     fn keys(&self) -> Self::KeyIter<'_> {
         match self {
+            DescriptorStd::Wpkh(d) => d.keys().collect::<Vec<_>>(),
             DescriptorStd::TrKey(d) => d.keys().collect::<Vec<_>>(),
         }
         .into_iter()
@@ -178,6 +240,7 @@ where Self: Derive<DerivedScript>
 
     fn xpubs(&self) -> Self::XpubIter<'_> {
         match self {
+            DescriptorStd::Wpkh(d) => d.xpubs().collect::<Vec<_>>(),
             DescriptorStd::TrKey(d) => d.xpubs().collect::<Vec<_>>(),
         }
         .into_iter()
@@ -185,12 +248,14 @@ where Self: Derive<DerivedScript>
 
     fn compr_keyset(&self, terminal: Terminal) -> IndexMap<ComprPubkey, KeyOrigin> {
         match self {
+            DescriptorStd::Wpkh(d) => d.compr_keyset(terminal),
             DescriptorStd::TrKey(d) => d.compr_keyset(terminal),
         }
     }
 
     fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<InternalPk, KeyOrigin> {
         match self {
+            DescriptorStd::Wpkh(d) => d.xonly_keyset(terminal),
             DescriptorStd::TrKey(d) => d.xonly_keyset(terminal),
         }
     }

@@ -54,7 +54,7 @@ pub use derive::{
     Derive, DeriveCompr, DeriveKey, DeriveScripts, DeriveSet, DeriveXOnly, DerivedAddr,
     DerivedAddrParseError, Terminal, TerminalParseError,
 };
-pub use descriptors::{Descriptor, DescriptorStd, TrKey};
+pub use descriptors::{Descriptor, DescriptorStd, TrKey, Wpkh};
 pub use index::{
     DerivationIndex, HardenedIndex, Idx, IndexError, IndexParseError, NormalIndex,
     HARDENED_INDEX_BOUNDARY,

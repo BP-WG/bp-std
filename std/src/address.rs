@@ -30,8 +30,9 @@ use amplify::hex::ToHex;
 use amplify::{Array, Wrapper};
 use bc::{Chain, ScriptPubkey, WitnessVer};
 use bech32::u5;
+use hashes::{hash160, Hash};
 
-use crate::{base58, TaprootPubkey};
+use crate::{base58, ComprPubkey, TaprootPubkey};
 
 /// Mainnet (bitcoin) pubkey address prefix.
 pub const PUBKEY_ADDRESS_PREFIX_MAIN: u8 = 0; // 0x00
@@ -351,6 +352,13 @@ impl From<WPubkeyHash> for [u8; 20] {
 impl Debug for WPubkeyHash {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_tuple("WPubkeyHash").field(&self.to_hex()).finish()
+    }
+}
+
+impl WPubkeyHash {
+    pub fn with(key: ComprPubkey) -> Self {
+        let hash = hash160::Hash::hash(&key.to_byte_array());
+        Self(hash.to_byte_array().into())
     }
 }
 
