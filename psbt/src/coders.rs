@@ -20,10 +20,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io;
-use std::io::{Cursor, Read, Write};
+use std::fmt::{self, Display, Formatter};
+use std::io::{self, Cursor, Read, Write};
 
 use amplify::{IoError, Wrapper};
+use base64::Engine;
 use bp::{
     ComprPubkey, ConsensusEncode, Idx, KeyOrigin, LegacyPubkey, LockTime, RedeemScript, Sats,
     ScriptBytes, ScriptPubkey, SeqNo, SigScript, Tx, TxOut, TxVer, Txid, UncomprPubkey, Vout,
@@ -34,6 +35,24 @@ use crate::{
     EcdsaSig, GlobalKey, Input, InputKey, KeyPair, KeyType, LockHeight, LockTimestamp,
     ModifiableFlags, Output, OutputKey, Psbt, PsbtVer, SighashType,
 };
+
+impl Display for Psbt {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let engine = base64::engine::GeneralPurpose::new(
+            &base64::alphabet::STANDARD,
+            base64::engine::GeneralPurposeConfig::new(),
+        );
+        let mut ver = match f.width().unwrap_or(0) {
+            0 => PsbtVer::V0,
+            2 => PsbtVer::V2,
+            _ => return Err(fmt::Error),
+        };
+        if f.alternate() {
+            ver = PsbtVer::V2;
+        }
+        f.write_str(&engine.encode(self.serialize(ver)))
+    }
+}
 
 #[derive(Clone, Debug, Display, Error, From)]
 #[display(inner)]

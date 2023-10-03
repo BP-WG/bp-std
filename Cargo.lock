@@ -658,6 +658,7 @@ name = "psbt"
 version = "0.11.0"
 dependencies = [
  "amplify",
+ "base64",
  "bp-std",
  "chrono",
  "indexmap 2.0.2",
