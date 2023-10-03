@@ -189,14 +189,14 @@ impl KeyType for OutputKey {
     }
 }
 
-pub struct KeyPair<'a, T: KeyType, K, V> {
+pub struct KeyPair<T: KeyType, K, V> {
     pub key_type: T,
-    pub key_data: &'a K,
-    pub value_data: &'a V,
+    pub key_data: K,
+    pub value_data: V,
 }
 
-impl<'a, T: KeyType, K, V> KeyPair<'a, T, K, V> {
-    pub fn new(key_type: T, key_data: &'a K, value_data: &'a V) -> Self {
+impl<T: KeyType, K, V> KeyPair<T, K, V> {
+    pub fn new(key_type: T, key_data: K, value_data: V) -> Self {
         Self {
             key_type,
             key_data,

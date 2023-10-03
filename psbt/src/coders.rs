@@ -136,6 +136,10 @@ pub trait Encode {
     fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError>;
 }
 
+impl<'a, T: Encode> Encode for &'a T {
+    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> { (*self).encode(writer) }
+}
+
 pub trait Decode
 where Self: Sized
 {
@@ -331,7 +335,7 @@ impl Decode for OutputKey {
     }
 }
 
-impl<'a, T: KeyType, K: Encode, V: Encode> Encode for KeyPair<'a, T, K, V> {
+impl<T: KeyType, K: Encode, V: Encode> Encode for KeyPair<T, K, V> {
     fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
         let mut counter = 0;
 
@@ -346,7 +350,7 @@ impl<'a, T: KeyType, K: Encode, V: Encode> Encode for KeyPair<'a, T, K, V> {
     }
 }
 
-impl<'a, T: KeyType, K: Decode, V: Decode> Decode for KeyPair<'a, T, K, V> {
+impl<T: KeyType, K: Decode, V: Decode> Decode for KeyPair<T, K, V> {
     fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
         let key_len = VarInt::decode(reader)?;
         let key_type = T::decode(reader)?;
