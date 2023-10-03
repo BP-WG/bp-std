@@ -118,7 +118,7 @@ impl Psbt {
 
         counter += KeyPair::new(GlobalKey::InputCount, &(), &self.inputs.len()).encode(writer)?;
 
-        counter += KeyPair::new(GlobalKey::InputCount, &(), &self.outputs.len()).encode(writer)?;
+        counter += KeyPair::new(GlobalKey::OutputCount, &(), &self.outputs.len()).encode(writer)?;
 
         counter +=
             KeyPair::new(GlobalKey::TxModifiable, &(), &self.tx_modifiable).encode(writer)?;
