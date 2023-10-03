@@ -27,8 +27,8 @@ use amplify::{IoError, Wrapper};
 use base64::Engine;
 use bp::{
     ComprPubkey, ConsensusEncode, Idx, KeyOrigin, LegacyPubkey, LockTime, RedeemScript, Sats,
-    ScriptBytes, ScriptPubkey, SeqNo, SigScript, Tx, TxOut, TxVer, Txid, UncomprPubkey, Vout,
-    Witness, WitnessScript, Xpub, XpubOrigin,
+    ScriptBytes, ScriptPubkey, SeqNo, SigScript, Tx, TxOut, TxVer, Txid, UncomprPubkey, VarInt,
+    Vout, Witness, WitnessScript, Xpub, XpubOrigin,
 };
 
 use crate::{
@@ -143,10 +143,12 @@ impl Psbt {
                     .encode(writer)?;
 
                 counter +=
-                    KeyPair::new(GlobalKey::InputCount, &(), &self.inputs.len()).encode(writer)?;
+                    KeyPair::new(GlobalKey::InputCount, &(), &VarInt::with(self.inputs.len()))
+                        .encode(writer)?;
 
-                counter += KeyPair::new(GlobalKey::OutputCount, &(), &self.outputs.len())
-                    .encode(writer)?;
+                counter +=
+                    KeyPair::new(GlobalKey::OutputCount, &(), &VarInt::with(self.outputs.len()))
+                        .encode(writer)?;
 
                 counter += KeyPair::new(GlobalKey::TxModifiable, &(), &self.tx_modifiable)
                     .encode(writer)?;
@@ -391,7 +393,7 @@ impl Encode for RedeemScript {
 psbt_encode_from_consensus!(Sats);
 psbt_encode_from_consensus!(u8);
 psbt_encode_from_consensus!(u32);
-psbt_encode_from_consensus!(usize);
+psbt_encode_from_consensus!(VarInt);
 
 impl<T: Encode> Encode for Option<T> {
     fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {

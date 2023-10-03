@@ -24,6 +24,8 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::io::Sink;
 
+use bp::VarInt;
+
 use crate::Encode;
 
 pub trait KeyType: Copy + Ord + Eq + Hash + Debug + Encode {
@@ -151,14 +153,16 @@ impl<'a, T: KeyType, K: Encode, V: Encode> KeyPair<'a, T, K, V> {
         }
     }
 
-    pub fn key_len(&self) -> usize {
+    pub fn key_len(&self) -> VarInt {
         let mut sink = Sink::default();
         let count = self.key_data.encode(&mut sink).expect("sink write doesn't fail");
-        count + self.key_type.byte_len()
+        let len = count + self.key_type.byte_len();
+        VarInt::with(len)
     }
 
-    pub fn value_len(&self) -> usize {
+    pub fn value_len(&self) -> VarInt {
         let mut sink = Sink::default();
-        self.value_data.encode(&mut sink).expect("sink write doesn't fail")
+        let len = self.value_data.encode(&mut sink).expect("sink write doesn't fail");
+        VarInt::with(len)
     }
 }

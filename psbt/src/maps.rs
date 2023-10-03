@@ -117,7 +117,7 @@ impl Psbt {
 
     pub fn lock_time(&self) -> LockTime {
         // TODO: Compute correct LockTime
-        self.fallback_locktime.unwrap_or(LockTime::zero())
+        self.fallback_locktime.unwrap_or(LockTime::ZERO)
     }
 
     #[inline]
