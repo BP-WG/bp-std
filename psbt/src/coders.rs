@@ -23,16 +23,16 @@
 use std::io;
 use std::io::{Cursor, Read, Write};
 
-use amplify::{IoError, RawArray, Wrapper};
+use amplify::{IoError, Wrapper};
 use bp::{
-    ComprPubkey, Idx, KeyOrigin, LegacyPubkey, LockTime, RedeemScript, Sats, ScriptBytes,
-    ScriptPubkey, SeqNo, SigScript, TxOut, TxVer, Txid, UncomprPubkey, VarInt, Vout, Witness,
-    WitnessScript, Xpub, XpubOrigin,
+    ComprPubkey, ConsensusEncode, Idx, KeyOrigin, LegacyPubkey, LockTime, RedeemScript, Sats,
+    ScriptBytes, ScriptPubkey, SeqNo, SigScript, Tx, TxOut, TxVer, Txid, UncomprPubkey, Vout,
+    Witness, WitnessScript, Xpub, XpubOrigin,
 };
 
 use crate::{
     EcdsaSig, GlobalKey, Input, InputKey, KeyPair, KeyType, LockHeight, LockTimestamp,
-    ModifiableFlags, Output, OutputKey, Psbt, SighashType,
+    ModifiableFlags, Output, OutputKey, Psbt, PsbtVer, SighashType,
 };
 
 #[derive(Clone, Debug, Display, Error, From)]
@@ -234,18 +234,9 @@ impl Encode for ModifiableFlags {
     }
 }
 
-impl Encode for TxVer {
+impl Encode for PsbtVer {
     fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
-        writer.write_all(&self.to_consensus_i32().to_le_bytes())?;
-        Ok(4)
-    }
-}
-
-impl Encode for TxOut {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
-        let mut counter = self.value.encode(writer)?;
-        counter += self.script_pubkey.encode(writer)?;
-        Ok(counter)
+        self.to_standard_u32().encode(writer)
     }
 }
 
@@ -315,30 +306,23 @@ impl Encode for SighashType {
     }
 }
 
-impl Encode for Txid {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
-        writer.write_all(&self.to_raw_array())?;
-        Ok(32)
-    }
+macro_rules! psbt_encode_from_consensus {
+    ($ty:ty) => {
+        impl Encode for $ty {
+            fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
+                self.consensus_encode(writer)
+            }
+        }
+    };
 }
 
-impl Encode for Vout {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
-        self.into_u32().encode(writer)
-    }
-}
-
-impl Encode for SeqNo {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
-        self.to_consensus_u32().encode(writer)
-    }
-}
-
-impl Encode for LockTime {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
-        self.to_consensus_u32().encode(writer)
-    }
-}
+psbt_encode_from_consensus!(Tx);
+psbt_encode_from_consensus!(TxVer);
+psbt_encode_from_consensus!(TxOut);
+psbt_encode_from_consensus!(Txid);
+psbt_encode_from_consensus!(Vout);
+psbt_encode_from_consensus!(SeqNo);
+psbt_encode_from_consensus!(LockTime);
 
 impl Encode for LockTimestamp {
     fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
@@ -352,12 +336,10 @@ impl Encode for LockHeight {
     }
 }
 
-impl Encode for ScriptBytes {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
-        writer.write_all(&self[..])?;
-        Ok(self.len())
-    }
-}
+psbt_encode_from_consensus!(ScriptBytes);
+psbt_encode_from_consensus!(SigScript);
+psbt_encode_from_consensus!(ScriptPubkey);
+psbt_encode_from_consensus!(Witness);
 
 impl Encode for WitnessScript {
     fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
@@ -371,130 +353,10 @@ impl Encode for RedeemScript {
     }
 }
 
-impl Encode for ScriptPubkey {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
-        self.as_inner().encode(writer)
-    }
-}
-
-impl Encode for SigScript {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
-        self.as_inner().encode(writer)
-    }
-}
-
-impl Encode for Witness {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
-        let mut counter = 0;
-        counter += self.len().encode(writer)?;
-        for el in self.elements() {
-            let len = el.len();
-            counter += len.encode(writer)?;
-            writer.write_all(el)?;
-            counter += len;
-        }
-        Ok(counter)
-    }
-}
-
-impl Encode for Sats {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> { self.0.encode(writer) }
-}
-
-impl Encode for VarInt {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
-        match self.0 {
-            0..=0xFC => {
-                (self.0 as u8).encode(writer)?;
-                Ok(1)
-            }
-            0xFD..=0xFFFF => {
-                0xFDu8.encode(writer)?;
-                (self.0 as u16).encode(writer)?;
-                Ok(3)
-            }
-            0x10000..=0xFFFFFFFF => {
-                0xFEu8.encode(writer)?;
-                (self.0 as u32).encode(writer)?;
-                Ok(5)
-            }
-            _ => {
-                0xFFu8.encode(writer)?;
-                self.0.encode(writer)?;
-                Ok(9)
-            }
-        }
-    }
-}
-
-/*
-impl Decode for VarInt {
-    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
-        let n = u8::decode(reader)?;
-        match n {
-            0xFF => {
-                let x = u64::decode(reader)?;
-                if x < 0x100000000 {
-                    Err(self::Error::NonMinimalVarInt)
-                } else {
-                    Ok(VarInt::with(x))
-                }
-            }
-            0xFE => {
-                let x = u32::decode(reader)?;
-                if x < 0x10000 {
-                    Err(self::Error::NonMinimalVarInt)
-                } else {
-                    Ok(VarInt::with(x))
-                }
-            }
-            0xFD => {
-                let x = u16::decode(reader)?;
-                if x < 0xFD {
-                    Err(self::Error::NonMinimalVarInt)
-                } else {
-                    Ok(VarInt::with(x))
-                }
-            }
-            n => Ok(VarInt::with(n)),
-        }
-    }
-}
- */
-
-impl Encode for u8 {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
-        writer.write_all(&[*self])?;
-        Ok(1)
-    }
-}
-
-impl Encode for u16 {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
-        writer.write_all(&self.to_le_bytes())?;
-        Ok(2)
-    }
-}
-
-impl Encode for u32 {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
-        writer.write_all(&self.to_le_bytes())?;
-        Ok(4)
-    }
-}
-
-impl Encode for u64 {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
-        writer.write_all(&self.to_le_bytes())?;
-        Ok(8)
-    }
-}
-
-impl Encode for usize {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
-        VarInt::with(*self).encode(writer)
-    }
-}
+psbt_encode_from_consensus!(Sats);
+psbt_encode_from_consensus!(u8);
+psbt_encode_from_consensus!(u32);
+psbt_encode_from_consensus!(usize);
 
 impl<T: Encode> Encode for Option<T> {
     fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
