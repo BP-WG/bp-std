@@ -37,3 +37,25 @@ pub use keys::{GlobalKey, InputKey, KeyPair, KeyType, OutputKey};
 pub use maps::{Input, ModifiableFlags, Output, Prevout, Psbt};
 pub use sigtypes::{EcdsaSig, EcdsaSigError, NonStandardSighashType, SighashFlag, SighashType};
 pub use timelocks::{InvalidTimelock, LockHeight, LockTimestamp, TimelockParseError};
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error)]
+#[display("unsupported version of PSBT v{0}")]
+pub struct PsbtUnsupportedVer(u32);
+
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
+pub enum PsbtVer {
+    V0 = 0,
+    V2 = 2,
+}
+
+impl PsbtVer {
+    pub fn try_from_standard_u32(v: u32) -> Result<Self, PsbtUnsupportedVer> {
+        Ok(match v {
+            0 => Self::V0,
+            2 => Self::V2,
+            wrong => return Err(PsbtUnsupportedVer(wrong)),
+        })
+    }
+
+    pub fn to_standard_u32(&self) -> u32 { *self as u32 }
+}
