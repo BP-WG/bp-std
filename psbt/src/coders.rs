@@ -75,62 +75,73 @@ where Self: Sized
 }
 
 impl Psbt {
-    pub fn encode_v2(&self, writer: &mut impl Write) -> Result<usize, IoError> {
+    pub fn encode(&self, ver: PsbtVer, writer: &mut impl Write) -> Result<usize, IoError> {
         let mut counter = 5;
         writer.write_all(b"psbt\xFF")?;
 
-        counter += self.encode_v2_global(writer)? + 1;
+        counter += self.encode_global(ver, writer)? + 1;
         writer.write_all(&[0x0])?;
 
         for input in &self.inputs {
-            counter += input.encode_v2(writer)?;
+            counter += input.encode(ver, writer)?;
         }
         counter += 1;
         writer.write_all(&[0x0])?;
 
         for output in &self.outputs {
-            counter += output.encode_v2(writer)?;
+            counter += output.encode(ver, writer)?;
         }
         counter += 1;
         writer.write_all(&[0x0])?;
 
         Ok(counter)
     }
-    pub fn encode_v2_vec(&self, writer: &mut Vec<u8>) -> usize {
-        self.encode_v2(writer).expect("in-memory encoding can't error")
+    pub fn encode_vec(&self, ver: PsbtVer, writer: &mut Vec<u8>) -> usize {
+        self.encode(ver, writer).expect("in-memory encoding can't error")
     }
-    pub fn serialize_v2(&self) -> Vec<u8> {
+    pub fn serialize(&self, ver: PsbtVer) -> Vec<u8> {
         let mut vec = Vec::new();
-        self.encode_v2_vec(&mut vec);
+        self.encode_vec(ver, &mut vec);
         vec
     }
-    fn encode_v2_global(&self, writer: &mut impl Write) -> Result<usize, IoError> {
+    fn encode_global(&self, ver: PsbtVer, writer: &mut impl Write) -> Result<usize, IoError> {
         let mut counter = 0;
 
         for (xpub, source) in &self.xpubs {
             counter += KeyPair::new(GlobalKey::Xpub, xpub, source).encode(writer)?;
         }
 
-        counter += KeyPair::new(GlobalKey::TxVersion, &(), &self.tx_version).encode(writer)?;
+        match ver {
+            PsbtVer::V0 => {
+                counter += KeyPair::new(GlobalKey::UnsignedTx, &(), &self.to_unsigned_tx())
+                    .encode(writer)?;
+            }
+            PsbtVer::V2 => {
+                counter +=
+                    KeyPair::new(GlobalKey::TxVersion, &(), &self.tx_version).encode(writer)?;
 
-        counter += KeyPair::new(GlobalKey::FallbackLocktime, &(), &self.fallback_locktime)
-            .encode(writer)?;
+                counter += KeyPair::new(GlobalKey::FallbackLocktime, &(), &self.fallback_locktime)
+                    .encode(writer)?;
 
-        counter += KeyPair::new(GlobalKey::InputCount, &(), &self.inputs.len()).encode(writer)?;
+                counter +=
+                    KeyPair::new(GlobalKey::InputCount, &(), &self.inputs.len()).encode(writer)?;
 
-        counter += KeyPair::new(GlobalKey::OutputCount, &(), &self.outputs.len()).encode(writer)?;
+                counter += KeyPair::new(GlobalKey::OutputCount, &(), &self.outputs.len())
+                    .encode(writer)?;
 
-        counter +=
-            KeyPair::new(GlobalKey::TxModifiable, &(), &self.tx_modifiable).encode(writer)?;
+                counter += KeyPair::new(GlobalKey::TxModifiable, &(), &self.tx_modifiable)
+                    .encode(writer)?;
+            }
+        }
 
-        counter += KeyPair::new(GlobalKey::Version, &(), &0x02u32).encode(writer)?;
+        counter += KeyPair::new(GlobalKey::Version, &(), &ver).encode(writer)?;
 
         Ok(counter)
     }
 }
 
 impl Input {
-    fn encode_v2(&self, writer: &mut impl Write) -> Result<usize, IoError> {
+    fn encode(&self, ver: PsbtVer, writer: &mut impl Write) -> Result<usize, IoError> {
         let mut counter = 0;
 
         counter += KeyPair::new(InputKey::WitnessUtxo, &(), &self.witness_utxo).encode(writer)?;
@@ -155,26 +166,29 @@ impl Input {
 
         counter += KeyPair::new(InputKey::FinalWitness, &(), &self.final_witness).encode(writer)?;
 
-        counter += KeyPair::new(InputKey::PreviousTxid, &(), &self.previous_outpoint.txid)
-            .encode(writer)?;
+        if ver < PsbtVer::V2 {
+            counter += KeyPair::new(InputKey::PreviousTxid, &(), &self.previous_outpoint.txid)
+                .encode(writer)?;
 
-        counter += KeyPair::new(InputKey::OutputIndex, &(), &self.previous_outpoint.vout)
-            .encode(writer)?;
+            counter += KeyPair::new(InputKey::OutputIndex, &(), &self.previous_outpoint.vout)
+                .encode(writer)?;
 
-        counter += KeyPair::new(InputKey::Sequence, &(), &self.sequence_number).encode(writer)?;
+            counter +=
+                KeyPair::new(InputKey::Sequence, &(), &self.sequence_number).encode(writer)?;
 
-        counter += KeyPair::new(InputKey::RequiredTimeLock, &(), &self.required_time_lock)
-            .encode(writer)?;
+            counter += KeyPair::new(InputKey::RequiredTimeLock, &(), &self.required_time_lock)
+                .encode(writer)?;
 
-        counter += KeyPair::new(InputKey::RequiredHeighLock, &(), &self.required_height_lock)
-            .encode(writer)?;
+            counter += KeyPair::new(InputKey::RequiredHeighLock, &(), &self.required_height_lock)
+                .encode(writer)?;
+        }
 
         Ok(counter)
     }
 }
 
 impl Output {
-    fn encode_v2(&self, writer: &mut impl Write) -> Result<usize, IoError> {
+    fn encode(&self, ver: PsbtVer, writer: &mut impl Write) -> Result<usize, IoError> {
         let mut counter = 0;
 
         counter +=
@@ -187,9 +201,11 @@ impl Output {
             counter += KeyPair::new(OutputKey::Bip32Derivation, key, origin).encode(writer)?;
         }
 
-        counter += KeyPair::new(OutputKey::Amount, &(), &self.amount).encode(writer)?;
+        if ver < PsbtVer::V2 {
+            counter += KeyPair::new(OutputKey::Amount, &(), &self.amount).encode(writer)?;
 
-        counter += KeyPair::new(OutputKey::Script, &(), &self.script).encode(writer)?;
+            counter += KeyPair::new(OutputKey::Script, &(), &self.script).encode(writer)?;
+        }
 
         Ok(counter)
     }

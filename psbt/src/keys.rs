@@ -33,6 +33,9 @@ pub trait KeyType: Copy + Ord + Eq + Hash + Debug + Encode {
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
 #[repr(u8)]
 pub enum GlobalKey {
+    /// `PSBT_GLOBAL_UNSIGNED_TX`
+    UnsignedTx = 0x00,
+
     /// `PSBT_GLOBAL_XPUB`
     ///
     /// The master key fingerprint as defined by BIP 32 concatenated with the derivation path of

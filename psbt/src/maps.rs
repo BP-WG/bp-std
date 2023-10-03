@@ -20,10 +20,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use amplify::confinement::Confined;
 use bp::{
     ComprPubkey, Descriptor, KeyOrigin, LegacyPubkey, LockTime, NormalIndex, Outpoint,
-    RedeemScript, Sats, ScriptPubkey, SeqNo, SigScript, Terminal, Tx, TxOut, TxVer, Txid, Vout,
-    Witness, WitnessScript, Xpub, XpubOrigin,
+    RedeemScript, Sats, ScriptPubkey, SeqNo, SigScript, Terminal, Tx, TxIn, TxOut, TxVer, Txid,
+    Vout, Witness, WitnessScript, Xpub, XpubOrigin,
 };
 use indexmap::IndexMap;
 
@@ -99,9 +100,25 @@ impl Psbt {
         }
     }
 
+    pub fn to_unsigned_tx(&self) -> Tx {
+        Tx {
+            version: self.tx_version,
+            inputs: Confined::try_from_iter(self.inputs().map(Input::to_unsigned_txin))
+                .expect("number of inputs exceeds billions"),
+            outputs: Confined::try_from_iter(self.outputs().map(Output::to_txout))
+                .expect("number of inputs exceeds billions"),
+            lock_time: self.lock_time(),
+        }
+    }
+
     pub fn inputs(&self) -> impl Iterator<Item = &Input> { self.inputs.iter() }
 
     pub fn outputs(&self) -> impl Iterator<Item = &Output> { self.outputs.iter() }
+
+    pub fn lock_time(&self) -> LockTime {
+        // TODO: Compute correct LockTime
+        self.fallback_locktime.unwrap_or(LockTime::zero())
+    }
 
     #[inline]
     pub fn input_sum(&self) -> Sats { self.inputs().map(Input::value).sum() }
@@ -334,8 +351,18 @@ pub struct Input {
 }
 
 impl Input {
+    pub fn to_unsigned_txin(&self) -> TxIn {
+        TxIn {
+            prev_output: self.previous_outpoint,
+            sig_script: none!(),
+            // TODO: Figure out default SeqNo
+            sequence: self.sequence_number.unwrap_or(SeqNo::from_consensus_u32(0)),
+            witness: none!(),
+        }
+    }
+
     #[inline]
-    pub fn txout(&self) -> &TxOut {
+    pub fn prev_txout(&self) -> &TxOut {
         // TODO: Add support for nonwitness_utxo
         match (&self.witness_utxo, None::<&Tx>) {
             (Some(txout), _) => txout,
@@ -356,7 +383,7 @@ impl Input {
     }
 
     #[inline]
-    pub fn value(&self) -> Sats { self.txout().value }
+    pub fn value(&self) -> Sats { self.prev_txout().value }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Default)]
@@ -390,6 +417,13 @@ pub struct Output {
 }
 
 impl Output {
+    pub fn to_txout(&self) -> TxOut {
+        TxOut {
+            value: self.amount,
+            script_pubkey: self.script.clone(),
+        }
+    }
+
     #[inline]
     pub fn value(&self) -> Sats { self.amount }
 }
