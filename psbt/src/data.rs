@@ -214,7 +214,7 @@ impl Psbt {
             ripemd160: none!(),
             sha256: none!(),
             hash160: none!(),
-            hash360: none!(),
+            hash256: none!(),
             tap_key_sig: None,
             tap_script_sig: none!(),
             tap_leaf_script: none!(),
@@ -415,7 +415,7 @@ pub struct Input {
 
     /// The hash preimage, encoded as a byte vector, which must equal the key when run through the
     /// SHA256 algorithm twice.
-    pub hash360: IndexMap<Bytes32, ValueData>,
+    pub hash256: IndexMap<Bytes32, ValueData>,
 
     /// The 64 or 65 byte Schnorr signature for key path spending a Taproot output. Finalizers
     /// should remove this field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
@@ -477,7 +477,7 @@ impl Input {
             ripemd160: none!(),
             sha256: none!(),
             hash160: none!(),
-            hash360: none!(),
+            hash256: none!(),
             tap_key_sig: None,
             tap_script_sig: none!(),
             tap_leaf_script: none!(),

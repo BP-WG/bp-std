@@ -22,7 +22,6 @@
 
 use std::collections::BTreeMap;
 use std::io::{Read, Write};
-use std::iter;
 
 use amplify::IoError;
 use bp::{LockTime, Tx, TxVer, VarInt, VarIntArray, Xpub, XpubOrigin};
@@ -169,8 +168,8 @@ pub trait KeyMap: Sized {
             counter += pair.encode(writer)?;
         }
 
-        counter += Psbt::SEPARATOR.len();
-        writer.write_all(&Psbt::SEPARATOR)?;
+        counter += 1;
+        writer.write_all(&[0])?;
 
         Ok(counter)
     }
@@ -263,12 +262,12 @@ impl KeyMap for Psbt {
         match key_type {
             GlobalKey::UnsignedTx => once!(UnsignedTx, self.to_unsigned_tx()),
             GlobalKey::Xpub => iter!(Xpub, self.xpubs),
-            GlobalKey::TxVersion => once!(TxVersion, &self.tx_version),
+            GlobalKey::TxVersion => once!(TxVersion, self.tx_version),
             GlobalKey::FallbackLocktime => option!(FallbackLocktime, self.fallback_locktime),
             GlobalKey::InputCount => once!(InputCount, VarInt::with(self.inputs.len())),
             GlobalKey::OutputCount => once!(OutputCount, VarInt::with(self.inputs.len())),
             GlobalKey::TxModifiable => option!(FallbackLocktime, self.tx_modifiable),
-            GlobalKey::Version => once!(OutputCount, &self.version),
+            GlobalKey::Version => once!(OutputCount, self.version),
 
             GlobalKey::Proprietary | GlobalKey::Unknown(_) => unreachable!(),
         }
@@ -342,7 +341,35 @@ impl KeyMap for Input {
         &'enc self,
         key_type: Self::Keys,
     ) -> Vec<KeyPair<Self::Keys, Box<dyn Encode + 'enc>, Box<dyn Encode + 'enc>>> {
-        todo!()
+        match key_type {
+            InputKey::NonWitnessUtxo => option!(NonWitnessUtxo, self.non_witness_tx),
+            InputKey::WitnessUtxo => option!(WitnessUtxo, self.witness_utxo),
+            InputKey::PartialSig => iter!(PartialSig, self.partial_sigs),
+            InputKey::SighashType => option!(SighashType, self.sighash_type),
+            InputKey::RedeemScript => option!(RedeemScript, self.redeem_script),
+            InputKey::WitnessScript => option!(WitnessScript, self.witness_script),
+            InputKey::Bip32Derivation => iter!(Bip32Derivation, self.bip32_derivation),
+            InputKey::FinalScriptSig => option!(FinalScriptSig, self.final_script_sig),
+            InputKey::FinalWitness => option!(FinalWitness, self.final_witness),
+            InputKey::PorCommitment => option!(PorCommitment, self.proof_of_reserves),
+            InputKey::Ripemd160 => iter!(Ripemd160, self.ripemd160),
+            InputKey::Sha256 => iter!(Sha256, self.sha256),
+            InputKey::Hash160 => iter!(Hash160, self.hash160),
+            InputKey::Hash256 => iter!(Hash256, self.hash256),
+            InputKey::PreviousTxid => once!(PreviousTxid, self.previous_outpoint.txid),
+            InputKey::OutputIndex => once!(OutputIndex, self.previous_outpoint.vout),
+            InputKey::Sequence => option!(OutputIndex, self.sequence_number),
+            InputKey::RequiredTimeLock => option!(RequiredTimeLock, self.required_time_lock),
+            InputKey::RequiredHeighLock => option!(RequiredHeighLock, self.required_height_lock),
+            InputKey::TapKeySig => option!(TapKeySig, self.tap_key_sig),
+            InputKey::TapScriptSig => iter!(TapScriptSig, self.tap_script_sig),
+            InputKey::TapLeafScript => iter!(TapLeafScript, self.tap_leaf_script),
+            InputKey::TapBip32Derivation => iter!(TapBip32Derivation, self.tap_bip32_derivation),
+            InputKey::TapInternalKey => option!(TapInternalKey, self.tap_internal_key),
+            InputKey::TapMerkleRoot => option!(TapMerkleRoot, self.tap_merkle_root),
+
+            InputKey::Proprietary | InputKey::Unknown(_) => unreachable!(),
+        }
     }
 
     fn insert_singular(
@@ -441,7 +468,18 @@ impl KeyMap for Output {
         &'enc self,
         key_type: Self::Keys,
     ) -> Vec<KeyPair<Self::Keys, Box<dyn Encode + 'enc>, Box<dyn Encode + 'enc>>> {
-        todo!()
+        match key_type {
+            OutputKey::RedeemScript => option!(RedeemScript, self.redeem_script),
+            OutputKey::WitnessScript => option!(WitnessScript, self.witness_script),
+            OutputKey::Bip32Derivation => iter!(Bip32Derivation, self.bip32_derivation),
+            OutputKey::Amount => once!(Amount, self.amount),
+            OutputKey::Script => once!(Script, self.script),
+            OutputKey::TapInternalKey => option!(TapInternalKey, self.tap_internal_key),
+            OutputKey::TapTree => option!(TapTree, self.tap_tree),
+            OutputKey::TapBip32Derivation => iter!(TapBip32Derivation, self.tap_bip32_derivation),
+
+            OutputKey::Proprietary | OutputKey::Unknown(_) => unreachable!(),
+        }
     }
 
     fn insert_singular(

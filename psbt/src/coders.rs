@@ -36,9 +36,9 @@ use bp::{
 
 use crate::keys::KeyValue;
 use crate::{
-    GlobalKey, Input, InputKey, KeyData, KeyMap, KeyPair, KeyType, LegacySig, LockHeight,
-    LockTimestamp, Map, ModifiableFlags, NonStandardSighashType, Output, OutputKey, PropKey, Psbt,
-    PsbtUnsupportedVer, PsbtVer, SighashType, ValueData,
+    GlobalKey, InputKey, KeyData, KeyMap, KeyPair, KeyType, LegacySig, LockHeight, LockTimestamp,
+    Map, ModifiableFlags, NonStandardSighashType, OutputKey, PropKey, Psbt, PsbtUnsupportedVer,
+    PsbtVer, SighashType, ValueData,
 };
 
 impl Display for Psbt {
@@ -196,28 +196,28 @@ where Self: Sized
 
 impl Psbt {
     const MAGIC: [u8; 5] = *b"psbt\xFF";
-    pub(crate) const SEPARATOR: [u8; 1] = [0x0];
 
     pub fn encode(&self, ver: PsbtVer, writer: &mut dyn Write) -> Result<usize, IoError> {
         let mut counter = Self::MAGIC.len();
         writer.write_all(&Self::MAGIC)?;
 
-        counter += self.encode_map(ver, writer)? + Self::SEPARATOR.len();
-        writer.write_all(&Self::SEPARATOR)?;
+        counter += self.encode_map(ver, writer)?;
 
         for input in &self.inputs {
-            counter += input.encode(ver, writer)?;
+            counter += input.encode_map(ver, writer)?;
         }
 
         for output in &self.outputs {
-            counter += output.encode(ver, writer)?;
+            counter += output.encode_map(ver, writer)?;
         }
 
         Ok(counter)
     }
+
     pub fn encode_vec(&self, ver: PsbtVer, writer: &mut Vec<u8>) -> usize {
         self.encode(ver, writer).expect("in-memory encoding can't error")
     }
+
     pub fn serialize(&self, ver: PsbtVer) -> Vec<u8> {
         let mut vec = Vec::new();
         self.encode_vec(ver, &mut vec);
@@ -252,6 +252,7 @@ impl Psbt {
 
         Ok(psbt)
     }
+
     pub fn deserialize(&self, data: impl AsRef<[u8]>) -> Result<Self, PsbtError> {
         let data = data.as_ref();
         let mut cursor = Cursor::new(data);
@@ -260,119 +261,6 @@ impl Psbt {
             return Err(PsbtError::DataNotConsumed);
         }
         Ok(psbt)
-    }
-}
-
-impl Input {
-    fn encode(&self, ver: PsbtVer, writer: &mut dyn Write) -> Result<usize, IoError> {
-        let mut counter = 0;
-
-        counter += KeyPair::new(InputKey::WitnessUtxo, &(), &self.witness_utxo).encode(writer)?;
-
-        for (key, sig) in &self.partial_sigs {
-            counter += KeyPair::new(InputKey::PartialSig, key, sig).encode(writer)?;
-        }
-
-        counter += KeyPair::new(InputKey::SighashType, &(), &self.sighash_type).encode(writer)?;
-
-        counter += KeyPair::new(InputKey::RedeemScript, &(), &self.redeem_script).encode(writer)?;
-
-        counter +=
-            KeyPair::new(InputKey::WitnessScript, &(), &self.witness_script).encode(writer)?;
-
-        for (key, origin) in &self.bip32_derivation {
-            counter += KeyPair::new(InputKey::Bip32Derivation, key, origin).encode(writer)?;
-        }
-
-        counter +=
-            KeyPair::new(InputKey::FinalScriptSig, &(), &self.final_script_sig).encode(writer)?;
-
-        counter += KeyPair::new(InputKey::FinalWitness, &(), &self.final_witness).encode(writer)?;
-
-        if ver < PsbtVer::V2 {
-            counter += KeyPair::new(InputKey::PreviousTxid, &(), &self.previous_outpoint.txid)
-                .encode(writer)?;
-
-            counter += KeyPair::new(InputKey::OutputIndex, &(), &self.previous_outpoint.vout)
-                .encode(writer)?;
-
-            counter +=
-                KeyPair::new(InputKey::Sequence, &(), &self.sequence_number).encode(writer)?;
-
-            counter += KeyPair::new(InputKey::RequiredTimeLock, &(), &self.required_time_lock)
-                .encode(writer)?;
-
-            counter += KeyPair::new(InputKey::RequiredHeighLock, &(), &self.required_height_lock)
-                .encode(writer)?;
-        }
-
-        counter += Psbt::SEPARATOR.len();
-        writer.write_all(&Psbt::SEPARATOR)?;
-
-        Ok(counter)
-    }
-}
-
-impl Output {
-    fn encode(&self, ver: PsbtVer, writer: &mut dyn Write) -> Result<usize, IoError> {
-        let mut counter = 0;
-
-        counter +=
-            KeyPair::new(OutputKey::RedeemScript, &(), &self.redeem_script).encode(writer)?;
-
-        counter +=
-            KeyPair::new(OutputKey::WitnessScript, &(), &self.witness_script).encode(writer)?;
-
-        for (key, origin) in &self.bip32_derivation {
-            counter += KeyPair::new(OutputKey::Bip32Derivation, key, origin).encode(writer)?;
-        }
-
-        if ver < PsbtVer::V2 {
-            counter += KeyPair::new(OutputKey::Amount, &(), &self.amount).encode(writer)?;
-
-            counter += KeyPair::new(OutputKey::Script, &(), &self.script).encode(writer)?;
-        }
-
-        counter += Psbt::SEPARATOR.len();
-        writer.write_all(&Psbt::SEPARATOR)?;
-
-        Ok(counter)
-    }
-}
-
-impl Encode for GlobalKey {
-    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
-        self.to_u8().encode(writer)
-    }
-}
-
-impl Decode for GlobalKey {
-    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
-        u8::decode(reader).map(Self::from_u8)
-    }
-}
-
-impl Encode for InputKey {
-    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
-        self.to_u8().encode(writer)
-    }
-}
-
-impl Decode for InputKey {
-    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
-        u8::decode(reader).map(Self::from_u8)
-    }
-}
-
-impl Encode for OutputKey {
-    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
-        self.to_u8().encode(writer)
-    }
-}
-
-impl Decode for OutputKey {
-    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
-        u8::decode(reader).map(Self::from_u8)
     }
 }
 
