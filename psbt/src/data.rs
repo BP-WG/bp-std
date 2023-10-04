@@ -84,7 +84,7 @@ pub struct Psbt {
 
     /// A global map from extended public keys to the used key fingerprint and
     /// derivation path as defined by BIP 32
-    pub(crate) xpubs: IndexMap<Xpub, XpubOrigin>,
+    pub xpubs: IndexMap<Xpub, XpubOrigin>,
 
     /// Transaction Modifiable Flags
     pub(crate) tx_modifiable: Option<ModifiableFlags>,
@@ -308,10 +308,6 @@ impl Psbt {
     pub fn complete_construction(&mut self) {
         // TODO: Check all inputs have witness_utxo or non_witness_tx
         self.tx_modifiable = Some(ModifiableFlags::unmodifiable())
-    }
-
-    pub fn push_xpub(&mut self, xpub: Xpub, origin: XpubOrigin) -> Option<XpubOrigin> {
-        self.xpubs.insert(xpub, origin)
     }
 }
 

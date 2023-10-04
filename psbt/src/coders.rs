@@ -22,6 +22,7 @@
 
 use std::fmt::{self, Display, Formatter};
 use std::io::{self, Cursor, Read, Write};
+use std::string::FromUtf8Error;
 
 use amplify::{confinement, Array, Bytes, IoError, RawArray, Wrapper};
 use base64::Engine;
@@ -153,6 +154,9 @@ pub enum PsbtError {
 
     /// unrecognized public key encoding starting with flag {0:#02x}.
     UnrecognizedKeyFormat(u8),
+
+    /// proof of reserves is not a valid UTF-8 string. {0}.
+    InvalidPorString(FromUtf8Error),
 
     #[from]
     #[display(inner)]
@@ -678,6 +682,14 @@ impl<T: AsRef<[u8]>> Encode for RawBytes<T> {
         let bytes = self.0.as_ref();
         writer.write_all(bytes)?;
         Ok(bytes.len())
+    }
+}
+
+impl Decode for RawBytes<Vec<u8>> {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        let mut buf = Vec::new();
+        reader.read_to_end(&mut buf)?;
+        Ok(Self(buf))
     }
 }
 

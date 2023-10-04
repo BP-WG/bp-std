@@ -23,15 +23,20 @@
 use std::collections::BTreeMap;
 use std::io::{Read, Write};
 
-use amplify::IoError;
-use bp::{LockTime, Tx, TxVer, VarInt, VarIntArray, Xpub, XpubOrigin};
+use amplify::{Bytes20, Bytes32, IoError};
+use bp::{
+    CompressedPk, InternalPk, KeyOrigin, LegacyPk, LockTime, RedeemScript, Sats, ScriptPubkey,
+    SeqNo, SigScript, TaprootPk, Tx, TxOut, TxVer, Txid, VarInt, VarIntArray, Vout, Witness,
+    WitnessScript, Xpub, XpubOrigin,
+};
 use indexmap::IndexMap;
 
 use crate::coders::RawBytes;
 use crate::keys::KeyValue;
 use crate::{
-    Decode, DecodeError, Encode, GlobalKey, Input, InputKey, KeyPair, KeyType, ModifiableFlags,
-    Output, OutputKey, PropKey, Psbt, PsbtError, PsbtVer,
+    Bip340Sig, Decode, DecodeError, Encode, GlobalKey, Input, InputKey, KeyPair, KeyType,
+    LegacySig, LockHeight, LockTimestamp, ModifiableFlags, Output, OutputKey, PropKey, Psbt,
+    PsbtError, PsbtVer, SighashType,
 };
 
 pub type KeyData = VarIntArray<u8>;
@@ -73,7 +78,9 @@ impl<K: KeyType> Map<K> {
             } else if K::STANDARD.contains(&pair.key_type) {
                 if pair.key_type.has_key_data() {
                     let submap = map.plural.entry(pair.key_type).or_default();
-                    submap.insert(pair.key_data, pair.value_data);
+                    if submap.insert(pair.key_data, pair.value_data).is_some() {
+                        return Err(PsbtError::RepeatedKey(pair.key_type.to_u8()).into());
+                    }
                 } else {
                     if !pair.key_data.is_empty() {
                         return Err(PsbtError::NonEmptyKeyData(
@@ -336,7 +343,7 @@ impl KeyMap for Psbt {
             GlobalKey::Xpub => {
                 let xpub = Xpub::deserialize(key_data)?;
                 let origin = XpubOrigin::deserialize(value_data)?;
-                self.push_xpub(xpub, origin);
+                self.xpubs.insert(xpub, origin);
             }
 
             GlobalKey::UnsignedTx
@@ -407,24 +414,44 @@ impl KeyMap for Input {
         value_data: ValueData,
     ) -> Result<(), PsbtError> {
         match key_type {
-            InputKey::NonWitnessUtxo => {}
-            InputKey::WitnessUtxo => {}
-            InputKey::SighashType => {}
-            InputKey::RedeemScript => {}
-            InputKey::WitnessScript => {}
-            InputKey::FinalScriptSig => {}
-            InputKey::FinalWitness => {}
-            InputKey::PorCommitment => {}
+            InputKey::NonWitnessUtxo => self.non_witness_tx = Some(Tx::deserialize(value_data)?),
+            InputKey::WitnessUtxo => self.witness_utxo = Some(TxOut::deserialize(value_data)?),
+            InputKey::SighashType => {
+                self.sighash_type = Some(SighashType::deserialize(value_data)?)
+            }
+            InputKey::RedeemScript => {
+                self.redeem_script = Some(RedeemScript::deserialize(value_data)?)
+            }
+            InputKey::WitnessScript => {
+                self.witness_script = Some(WitnessScript::deserialize(value_data)?)
+            }
+            InputKey::FinalScriptSig => {
+                self.final_script_sig = Some(SigScript::deserialize(value_data)?)
+            }
+            InputKey::FinalWitness => self.final_witness = Some(Witness::deserialize(value_data)?),
+            InputKey::PorCommitment => {
+                let bytes = RawBytes::<Vec<u8>>::deserialize(value_data)?;
+                let por = String::from_utf8(bytes.0).map_err(PsbtError::InvalidPorString)?;
+                self.proof_of_reserves = Some(por)
+            }
 
-            InputKey::PreviousTxid => {}
-            InputKey::OutputIndex => {}
-            InputKey::Sequence => {}
-            InputKey::RequiredTimeLock => {}
-            InputKey::RequiredHeighLock => {}
+            InputKey::PreviousTxid => self.previous_outpoint.txid = Txid::deserialize(value_data)?,
+            InputKey::OutputIndex => self.previous_outpoint.vout = Vout::deserialize(value_data)?,
+            InputKey::Sequence => self.sequence_number = Some(SeqNo::deserialize(value_data)?),
+            InputKey::RequiredTimeLock => {
+                self.required_time_lock = Some(LockTimestamp::deserialize(value_data)?)
+            }
+            InputKey::RequiredHeighLock => {
+                self.required_height_lock = Some(LockHeight::deserialize(value_data)?)
+            }
 
-            InputKey::TapKeySig => {}
-            InputKey::TapInternalKey => {}
-            InputKey::TapMerkleRoot => {}
+            InputKey::TapKeySig => self.tap_key_sig = Some(Bip340Sig::deserialize(value_data)?),
+            InputKey::TapInternalKey => {
+                self.tap_internal_key = Some(InternalPk::deserialize(value_data)?)
+            }
+            InputKey::TapMerkleRoot => {
+                self.tap_merkle_root = Some(Bytes32::deserialize(value_data)?)
+            }
 
             InputKey::PartialSig
             | InputKey::Bip32Derivation
@@ -466,15 +493,43 @@ impl KeyMap for Input {
             | InputKey::RequiredTimeLock
             | InputKey::RequiredHeighLock => unreachable!(),
 
-            InputKey::PartialSig => {}
-            InputKey::Bip32Derivation => {}
-            InputKey::Ripemd160 => {}
-            InputKey::Sha256 => {}
-            InputKey::Hash160 => {}
-            InputKey::Hash256 => {}
-            InputKey::TapScriptSig => {}
-            InputKey::TapLeafScript => {}
-            InputKey::TapBip32Derivation => {}
+            InputKey::PartialSig => {
+                let pk = LegacyPk::deserialize(key_data)?;
+                let sig = LegacySig::deserialize(value_data)?;
+                self.partial_sigs.insert(pk, sig);
+            }
+            InputKey::Bip32Derivation => {
+                let pk = CompressedPk::deserialize(key_data)?;
+                let origin = KeyOrigin::deserialize(value_data)?;
+                self.bip32_derivation.insert(pk, origin);
+            }
+            InputKey::Ripemd160 => {
+                let hash = Bytes20::deserialize(key_data)?;
+                self.ripemd160.insert(hash, value_data);
+            }
+            InputKey::Sha256 => {
+                let hash = Bytes32::deserialize(key_data)?;
+                self.sha256.insert(hash, value_data);
+            }
+            InputKey::Hash160 => {
+                let hash = Bytes20::deserialize(key_data)?;
+                self.hash160.insert(hash, value_data);
+            }
+            InputKey::Hash256 => {
+                let hash = Bytes32::deserialize(key_data)?;
+                self.hash256.insert(hash, value_data);
+            }
+            InputKey::TapScriptSig => {
+                let sig = Bip340Sig::deserialize(value_data)?;
+                self.tap_script_sig.insert(key_data, sig);
+            }
+            InputKey::TapLeafScript => {
+                self.tap_leaf_script.insert(key_data, value_data);
+            }
+            InputKey::TapBip32Derivation => {
+                let pk = TaprootPk::deserialize(key_data)?;
+                self.tap_bip32_derivation.insert(pk, value_data);
+            }
 
             InputKey::Proprietary | InputKey::Unknown(_) => unreachable!(),
         }
@@ -518,7 +573,25 @@ impl KeyMap for Output {
         key_type: Self::Keys,
         value_data: ValueData,
     ) -> Result<(), PsbtError> {
-        todo!()
+        match key_type {
+            OutputKey::RedeemScript => {
+                self.redeem_script = Some(RedeemScript::deserialize(value_data)?)
+            }
+            OutputKey::WitnessScript => {
+                self.witness_script = Some(WitnessScript::deserialize(value_data)?)
+            }
+            OutputKey::Amount => self.amount = Sats::deserialize(value_data)?,
+            OutputKey::Script => self.script = ScriptPubkey::deserialize(value_data)?,
+            OutputKey::TapInternalKey => {
+                self.tap_internal_key = Some(InternalPk::deserialize(value_data)?)
+            }
+            OutputKey::TapTree => self.tap_tree = Some(value_data),
+
+            OutputKey::Bip32Derivation | OutputKey::TapBip32Derivation => unreachable!(),
+
+            OutputKey::Proprietary | OutputKey::Unknown(_) => unreachable!(),
+        }
+        Ok(())
     }
 
     fn insert_plural(
@@ -527,6 +600,26 @@ impl KeyMap for Output {
         key_data: KeyData,
         value_data: ValueData,
     ) -> Result<(), PsbtError> {
-        todo!()
+        match key_type {
+            OutputKey::RedeemScript
+            | OutputKey::WitnessScript
+            | OutputKey::Amount
+            | OutputKey::Script
+            | OutputKey::TapInternalKey
+            | OutputKey::TapTree => unreachable!(),
+
+            OutputKey::Bip32Derivation => {
+                let pk = CompressedPk::deserialize(key_data)?;
+                let origin = KeyOrigin::deserialize(value_data)?;
+                self.bip32_derivation.insert(pk, origin);
+            }
+            OutputKey::TapBip32Derivation => {
+                let pk = TaprootPk::deserialize(key_data)?;
+                self.tap_bip32_derivation.insert(pk, value_data);
+            }
+
+            OutputKey::Proprietary | OutputKey::Unknown(_) => unreachable!(),
+        }
+        Ok(())
     }
 }
