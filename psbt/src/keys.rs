@@ -22,14 +22,16 @@
 
 use std::fmt::Debug;
 use std::hash::Hash;
-use std::io::Sink;
 
-use bp::VarInt;
+use crate::{KeyData, PsbtVer, ValueData};
 
-use crate::{Decode, Encode, KeyData, PsbtVer, ValueData};
-
-pub trait KeyType: Copy + Ord + Eq + Hash + Debug + Encode + Decode + 'static {
+pub trait KeyType: Copy + Ord + Eq + Hash + Debug + 'static {
     const STANDARD: &'static [Self];
+    fn unknown(val: u8) -> Self {
+        debug_assert!(!Self::STANDARD.into_iter().map(Self::to_u8).any(|x| x == val));
+        Self::unknown_unchecked(val)
+    }
+    fn unknown_unchecked(val: u8) -> Self;
     fn from_u8(val: u8) -> Self;
     fn into_u8(self) -> u8;
     fn to_u8(&self) -> u8 { self.into_u8() }
@@ -99,6 +101,9 @@ impl KeyType for GlobalKey {
         Self::TxModifiable,
         Self::Version,
     ];
+
+    #[inline]
+    fn unknown_unchecked(val: u8) -> Self { Self::Unknown(val) }
 
     fn from_u8(val: u8) -> Self {
         match val {
@@ -334,6 +339,9 @@ impl KeyType for InputKey {
         Self::TapInternalKey,
         Self::TapMerkleRoot,
     ];
+
+    #[inline]
+    fn unknown_unchecked(val: u8) -> Self { Self::Unknown(val) }
 
     fn from_u8(val: u8) -> Self {
         match val {
@@ -595,6 +603,9 @@ impl KeyType for OutputKey {
         Self::TapBip32Derivation,
     ];
 
+    #[inline]
+    fn unknown_unchecked(val: u8) -> Self { Self::Unknown(val) }
+
     fn from_u8(val: u8) -> Self {
         match val {
             x if x == Self::RedeemScript.into_u8() => Self::RedeemScript,
@@ -705,21 +716,6 @@ impl<T: KeyType, K, V> KeyPair<T, K, V> {
             key_data,
             value_data,
         }
-    }
-
-    pub fn key_len(&self) -> VarInt
-    where K: Encode {
-        let mut sink = Sink::default();
-        let count = self.key_data.encode(&mut sink).expect("sink write doesn't fail");
-        let len = count + 1 /* key type byte */;
-        VarInt::with(len)
-    }
-
-    pub fn value_len(&self) -> VarInt
-    where V: Encode {
-        let mut sink = Sink::default();
-        let len = self.value_data.encode(&mut sink).expect("sink write doesn't fail");
-        VarInt::with(len)
     }
 }
 

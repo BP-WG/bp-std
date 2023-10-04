@@ -172,11 +172,11 @@ impl From<DecodeError> for PsbtError {
 }
 
 pub trait Encode {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError>;
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError>;
 }
 
 impl<'a, T: Encode> Encode for &'a T {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> { (*self).encode(writer) }
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> { (*self).encode(writer) }
 }
 
 pub trait Decode
@@ -198,7 +198,7 @@ impl Psbt {
     const MAGIC: [u8; 5] = *b"psbt\xFF";
     pub(crate) const SEPARATOR: [u8; 1] = [0x0];
 
-    pub fn encode(&self, ver: PsbtVer, writer: &mut impl Write) -> Result<usize, IoError> {
+    pub fn encode(&self, ver: PsbtVer, writer: &mut dyn Write) -> Result<usize, IoError> {
         let mut counter = Self::MAGIC.len();
         writer.write_all(&Self::MAGIC)?;
 
@@ -224,7 +224,7 @@ impl Psbt {
         vec
     }
 
-    fn encode_global(&self, ver: PsbtVer, writer: &mut impl Write) -> Result<usize, IoError> {
+    fn encode_global(&self, ver: PsbtVer, writer: &mut dyn Write) -> Result<usize, IoError> {
         let mut counter = 0;
 
         for (xpub, source) in &self.xpubs {
@@ -275,16 +275,16 @@ impl Psbt {
             .ok_or(PsbtError::RequiredKeyAbsent(GlobalKey::Version.to_u8(), PsbtVer::V0))
             .and_then(PsbtVer::deserialize)?;
         let mut psbt = Psbt::create();
-        psbt.populate(map, version)?;
+        psbt.parse_map(map, version)?;
 
         for input in &mut psbt.inputs {
             let map = Map::<InputKey>::parse(reader)?;
-            input.populate(map, version)?;
+            input.parse_map(map, version)?;
         }
 
         for output in &mut psbt.outputs {
             let map = Map::<OutputKey>::parse(reader)?;
-            output.populate(map, version)?;
+            output.parse_map(map, version)?;
         }
 
         Ok(psbt)
@@ -301,7 +301,7 @@ impl Psbt {
 }
 
 impl Input {
-    fn encode(&self, ver: PsbtVer, writer: &mut impl Write) -> Result<usize, IoError> {
+    fn encode(&self, ver: PsbtVer, writer: &mut dyn Write) -> Result<usize, IoError> {
         let mut counter = 0;
 
         counter += KeyPair::new(InputKey::WitnessUtxo, &(), &self.witness_utxo).encode(writer)?;
@@ -351,7 +351,7 @@ impl Input {
 }
 
 impl Output {
-    fn encode(&self, ver: PsbtVer, writer: &mut impl Write) -> Result<usize, IoError> {
+    fn encode(&self, ver: PsbtVer, writer: &mut dyn Write) -> Result<usize, IoError> {
         let mut counter = 0;
 
         counter +=
@@ -378,7 +378,7 @@ impl Output {
 }
 
 impl Encode for GlobalKey {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
         self.to_u8().encode(writer)
     }
 }
@@ -390,7 +390,7 @@ impl Decode for GlobalKey {
 }
 
 impl Encode for InputKey {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
         self.to_u8().encode(writer)
     }
 }
@@ -402,7 +402,7 @@ impl Decode for InputKey {
 }
 
 impl Encode for OutputKey {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
         self.to_u8().encode(writer)
     }
 }
@@ -414,14 +414,22 @@ impl Decode for OutputKey {
 }
 
 impl<T: KeyType, K: Encode, V: Encode> Encode for KeyPair<T, K, V> {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
         let mut counter = 0;
 
-        counter += self.key_len().encode(writer)?;
-        counter += self.key_type.encode(writer)?;
+        let key_len = {
+            let mut sink = io::Sink::default();
+            self.key_data.encode(&mut sink).expect("sink write doesn't fail")
+        } + 1;
+        counter += VarInt::with(key_len).encode(writer)?;
+        counter += self.key_type.into_u8().encode(writer)?;
         counter += self.key_data.encode(writer)?;
 
-        counter += self.value_len().encode(writer)?;
+        let value_len = {
+            let mut sink = io::Sink::default();
+            self.value_data.encode(&mut sink).expect("sink write doesn't fail")
+        };
+        counter += VarInt::with(value_len).encode(writer)?;
         counter += self.value_data.encode(writer)?;
 
         Ok(counter)
@@ -435,7 +443,7 @@ impl<T: KeyType> Decode for KeyValue<T> {
             return Ok(KeyValue::Separator);
         }
 
-        let key_type = T::decode(reader)?;
+        let key_type = T::from_u8(u8::decode(reader)?);
         let mut key_data = vec![0u8; key_len.to_usize() - 1];
         reader.read_exact(key_data.as_mut_slice())?;
 
@@ -452,7 +460,7 @@ impl<T: KeyType> Decode for KeyValue<T> {
 }
 
 impl Encode for PropKey {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
         let mut counter = self.identifier.len();
         let len = VarInt::with(counter);
         counter += len.encode(writer)?;
@@ -487,7 +495,7 @@ impl Decode for PropKey {
 }
 
 impl Encode for ModifiableFlags {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
         self.to_standard_u8().encode(writer)
     }
 }
@@ -500,7 +508,7 @@ impl Decode for ModifiableFlags {
 }
 
 impl Encode for PsbtVer {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
         self.to_standard_u32().encode(writer)
     }
 }
@@ -513,7 +521,7 @@ impl Decode for PsbtVer {
 }
 
 impl Encode for Xpub {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
         writer.write_all(&self.encode())?;
         Ok(78)
     }
@@ -528,7 +536,7 @@ impl Decode for Xpub {
 }
 
 impl Encode for XpubOrigin {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
         writer.write_all(self.master_fp().as_ref())?;
         for index in self.derivation() {
             index.index().encode(writer)?;
@@ -554,7 +562,7 @@ impl Decode for XpubOrigin {
 }
 
 impl Encode for ComprPubkey {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
         writer.write_all(&self.to_byte_array())?;
         Ok(33)
     }
@@ -570,7 +578,7 @@ impl Decode for ComprPubkey {
 }
 
 impl Encode for UncomprPubkey {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
         writer.write_all(&self.to_byte_array())?;
         Ok(65)
     }
@@ -586,7 +594,7 @@ impl Decode for UncomprPubkey {
 }
 
 impl Encode for LegacyPubkey {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
         if self.compressed {
             ComprPubkey::from(self.pubkey).encode(writer)
         } else {
@@ -607,7 +615,7 @@ impl Decode for LegacyPubkey {
 }
 
 impl Encode for KeyOrigin {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
         writer.write_all(self.master_fp().as_ref())?;
         for index in self.derivation() {
             index.index().encode(writer)?;
@@ -630,7 +638,7 @@ impl Decode for KeyOrigin {
 }
 
 impl Encode for LegacySig {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
         let sig = self.sig.serialize_der();
         writer.write_all(sig.as_ref())?;
         self.sighash_type.into_u8().encode(writer)?;
@@ -650,7 +658,7 @@ impl Decode for LegacySig {
 }
 
 impl Encode for SighashType {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
         self.into_u32().encode(writer)
     }
 }
@@ -668,11 +676,18 @@ macro_rules! psbt_code_using_consensus {
     };
 }
 
+struct WriteWrap<'a>(&'a mut dyn Write);
+impl<'a> Write for WriteWrap<'a> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> { self.0.write(buf) }
+    fn flush(&mut self) -> io::Result<()> { self.0.flush() }
+}
+
 macro_rules! psbt_encode_from_consensus {
     ($ty:ty) => {
         impl Encode for $ty {
-            fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
-                self.consensus_encode(writer)
+            fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
+                let mut wrap = WriteWrap(writer);
+                self.consensus_encode(&mut wrap)
             }
         }
     };
@@ -697,7 +712,7 @@ psbt_code_using_consensus!(SeqNo);
 psbt_code_using_consensus!(LockTime);
 
 impl Encode for LockTimestamp {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
         self.to_consensus_u32().encode(writer)
     }
 }
@@ -710,7 +725,7 @@ impl Decode for LockTimestamp {
 }
 
 impl Encode for LockHeight {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
         self.to_consensus_u32().encode(writer)
     }
 }
@@ -728,7 +743,7 @@ psbt_code_using_consensus!(ScriptPubkey);
 psbt_code_using_consensus!(Witness);
 
 impl Encode for WitnessScript {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
         self.as_script_bytes().encode(writer)
     }
 }
@@ -740,7 +755,7 @@ impl Decode for WitnessScript {
 }
 
 impl Encode for RedeemScript {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
         self.as_script_bytes().encode(writer)
     }
 }
@@ -756,8 +771,18 @@ psbt_code_using_consensus!(u8);
 psbt_code_using_consensus!(u32);
 psbt_code_using_consensus!(VarInt);
 
+pub(crate) struct RawBytes<T: AsRef<[u8]>>(pub T);
+
+impl<T: AsRef<[u8]>> Encode for RawBytes<T> {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
+        let bytes = self.0.as_ref();
+        writer.write_all(bytes)?;
+        Ok(bytes.len())
+    }
+}
+
 impl<T: Encode> Encode for Option<T> {
-    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
         Ok(match self {
             Some(data) => data.encode(writer)?,
             None => 0,
@@ -765,8 +790,12 @@ impl<T: Encode> Encode for Option<T> {
     }
 }
 
+impl Encode for &dyn Encode {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> { (*self).encode(writer) }
+}
+
 impl Encode for () {
-    fn encode(&self, _writer: &mut impl Write) -> Result<usize, IoError> { Ok(0) }
+    fn encode(&self, _writer: &mut dyn Write) -> Result<usize, IoError> { Ok(0) }
 }
 
 impl Decode for () {
