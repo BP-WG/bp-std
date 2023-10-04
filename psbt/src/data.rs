@@ -284,6 +284,10 @@ impl Psbt {
             redeem_script: scripts.to_redeem_script(),
             witness_script: scripts.to_witness_script(),
             bip32_derivation: descriptor.compr_keyset(Terminal::change(index)),
+            // TODO: Fill taproot data from descriptor
+            tap_internal_key: None,
+            tap_tree: None,
+            tap_bip32_derivation: none!(),
             proprietary: none!(),
             unknown: none!(),
         };
@@ -554,11 +558,31 @@ pub struct Output {
     /// The witness script for this output.
     pub witness_script: Option<WitnessScript>,
 
-    /// A map from public keys needed to spend this output to their
-    /// corresponding master key fingerprints and derivation paths.
+    /// A map from public keys needed to spend this output to their corresponding master key
+    /// fingerprints and derivation paths.
     pub bip32_derivation: IndexMap<ComprPubkey, KeyOrigin>,
 
-    // TODO: Add taproot
+    /// The X-only pubkey used as the internal key in this output.
+    // TODO: Add taproot data structures: TapTree and derivation info
+    pub tap_internal_key: Option<InternalPk>,
+
+    /// One or more tuples representing the depth, leaf version, and script for a leaf in the
+    /// Taproot tree, allowing the entire tree to be reconstructed. The tuples must be in depth
+    /// first search order so that the tree is correctly reconstructed. Each tuple is an 8-bit
+    /// unsigned integer representing the depth in the Taproot tree for this script, an 8-bit
+    /// unsigned integer representing the leaf version, the length of the script as a compact size
+    /// unsigned integer, and the script itself.
+    pub tap_tree: Option<ValueData>,
+
+    /// A compact size unsigned integer representing the number of leaf hashes, followed by a list
+    /// of leaf hashes, followed by the 4 byte master key fingerprint concatenated with the
+    /// derivation path of the public key. The derivation path is represented as 32-bit little
+    /// endian unsigned integer indexes concatenated with each other. Public keys are those needed
+    /// to spend this output. The leaf hashes are of the leaves which involve this public key. The
+    /// internal key does not have leaf hashes, so can be indicated with a hashes len of 0.
+    /// Finalizers should remove this field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
+    pub tap_bip32_derivation: IndexMap<TaprootPubkey, ValueData>,
+
     /// Proprietary keys
     pub proprietary: IndexMap<PropKey, ValueData>,
 
@@ -575,6 +599,9 @@ impl Output {
             redeem_script: None,
             witness_script: None,
             bip32_derivation: none!(),
+            tap_internal_key: None,
+            tap_tree: None,
+            tap_bip32_derivation: none!(),
             proprietary: none!(),
             unknown: none!(),
         }
