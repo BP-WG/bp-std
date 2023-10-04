@@ -40,7 +40,8 @@ pub trait KeyType: Copy + Ord + Eq + Hash + Debug + 'static {
     fn deprecated_since(self) -> Option<PsbtVer>;
     #[inline]
     fn is_allowed(self, version: PsbtVer) -> bool {
-        version >= self.present_since() && Some(version) < self.deprecated_since()
+        version >= self.present_since()
+            && !matches!(self.deprecated_since(), Some(depr) if version >= depr)
     }
     fn is_required(self) -> bool;
     fn is_proprietary(self) -> bool;
@@ -167,7 +168,7 @@ impl KeyType for GlobalKey {
 
     fn deprecated_since(self) -> Option<PsbtVer> {
         match self {
-            GlobalKey::UnsignedTx => Some(PsbtVer::V0),
+            GlobalKey::UnsignedTx => Some(PsbtVer::V2),
 
             GlobalKey::Xpub
             | GlobalKey::TxVersion

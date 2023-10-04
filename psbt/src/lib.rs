@@ -36,7 +36,7 @@ mod coders;
 pub use coders::{Decode, DecodeError, Encode, PsbtError};
 pub use data::{Input, ModifiableFlags, Output, Prevout, Psbt, PsbtParseError};
 pub use keys::{GlobalKey, InputKey, KeyPair, KeyType, OutputKey, PropKey};
-pub use maps::{KeyData, KeyMap, Map, ValueData};
+pub use maps::{KeyData, KeyMap, Map, MapName, ValueData};
 pub use sigtypes::{
     Bip340Sig, LegacySig, NonStandardSighashType, SigError, SighashFlag, SighashType,
 };

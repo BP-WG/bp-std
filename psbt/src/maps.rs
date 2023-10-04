@@ -42,48 +42,57 @@ use crate::{
 pub type KeyData = VarIntArray<u8>;
 pub type ValueData = VarIntArray<u8>;
 
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display)]
+#[display(lowercase)]
+pub enum MapName {
+    Global,
+    Input,
+    Output,
+}
+
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Map<K: KeyType> {
+    pub name: MapName,
     pub singular: BTreeMap<K, ValueData>,
     pub plural: BTreeMap<K, BTreeMap<KeyData, ValueData>>,
     pub proprietary: IndexMap<PropKey, ValueData>,
     pub unknown: IndexMap<u8, IndexMap<KeyData, ValueData>>,
 }
 
-impl<K: KeyType> Default for Map<K> {
-    fn default() -> Self {
+impl<K: KeyType> Map<K> {
+    fn new(name: MapName) -> Self {
         Map {
+            name,
             singular: empty!(),
             plural: empty!(),
             proprietary: empty!(),
             unknown: empty!(),
         }
     }
-}
 
-impl<K: KeyType> Map<K> {
-    pub fn parse(stream: &mut impl Read) -> Result<Self, DecodeError> {
-        let mut map = Map::<K>::default();
+    pub fn parse(name: MapName, stream: &mut impl Read) -> Result<Self, DecodeError> {
+        let mut map = Map::<K>::new(name);
 
         while let KeyValue::<K>::Pair(pair) = KeyValue::<K>::decode(stream)? {
             if map.singular.contains_key(&pair.key_type) {
-                return Err(PsbtError::RepeatedKey(pair.key_type.to_u8()).into());
+                return Err(PsbtError::RepeatedKey(name, pair.key_type.to_u8()).into());
             }
             if pair.key_type.is_proprietary() {
                 let prop_key = PropKey::deserialize(pair.key_data)?;
                 if map.proprietary.contains_key(&prop_key) {
-                    return Err(PsbtError::RepeatedPropKey(prop_key).into());
+                    return Err(PsbtError::RepeatedPropKey(name, prop_key).into());
                 }
                 map.proprietary.insert(prop_key, pair.value_data);
             } else if K::STANDARD.contains(&pair.key_type) {
                 if pair.key_type.has_key_data() {
                     let submap = map.plural.entry(pair.key_type).or_default();
                     if submap.insert(pair.key_data, pair.value_data).is_some() {
-                        return Err(PsbtError::RepeatedKey(pair.key_type.to_u8()).into());
+                        return Err(PsbtError::RepeatedKey(name, pair.key_type.to_u8()).into());
                     }
                 } else {
                     if !pair.key_data.is_empty() {
                         return Err(PsbtError::NonEmptyKeyData(
+                            name,
                             pair.key_type.to_u8(),
                             pair.key_data,
                         )
@@ -94,7 +103,7 @@ impl<K: KeyType> Map<K> {
             } else {
                 let submap = map.unknown.entry(pair.key_type.to_u8()).or_default();
                 if submap.contains_key(&pair.key_data) {
-                    return Err(PsbtError::RepeatedUnknownKey(pair.key_type.to_u8()).into());
+                    return Err(PsbtError::RepeatedUnknownKey(name, pair.key_type.to_u8()).into());
                 }
                 submap.insert(pair.key_data, pair.value_data);
             }
@@ -106,18 +115,18 @@ impl<K: KeyType> Map<K> {
     pub fn check(&self, version: PsbtVer) -> Result<(), PsbtError> {
         for key_type in self.singular.keys().chain(self.plural.keys()) {
             if version < key_type.present_since() {
-                return Err(PsbtError::UnexpectedKey(key_type.to_u8(), version));
+                return Err(PsbtError::UnexpectedKey(self.name, key_type.to_u8(), version));
             }
-            if Some(version) >= key_type.deprecated_since() {
-                return Err(PsbtError::DeprecatedKey(key_type.to_u8(), version));
+            if matches!(key_type.deprecated_since(), Some(depr) if version >= depr) {
+                return Err(PsbtError::DeprecatedKey(self.name, key_type.to_u8(), version));
             }
         }
         for key_type in K::STANDARD {
-            if key_type.is_required() {
+            if key_type.is_required() && version >= key_type.present_since() {
                 if (key_type.has_key_data() && !self.plural.contains_key(&key_type))
                     || (!key_type.has_key_data() && !self.singular.contains_key(&key_type))
                 {
-                    return Err(PsbtError::RequiredKeyAbsent(key_type.to_u8(), version));
+                    return Err(PsbtError::RequiredKeyAbsent(self.name, key_type.to_u8(), version));
                 }
             }
         }

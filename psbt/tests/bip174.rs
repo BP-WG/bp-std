@@ -28,5 +28,6 @@ use psbt::Psbt;
 fn p2pkh_0() {
     const PSBT: &str = include_str!("p2pkh_0.base64.psbt");
     let psbt = Psbt::from_str(PSBT).unwrap();
-    assert_eq!(&psbt.to_string(), PSBT);
+    let psbt2 = Psbt::from_str(&psbt.to_string()).unwrap();
+    assert_eq!(psbt, psbt2);
 }

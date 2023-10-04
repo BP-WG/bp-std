@@ -20,7 +20,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::fmt::Display;
 use std::io::{self, Cursor, Read, Write};
 use std::string::FromUtf8Error;
 
@@ -36,7 +35,7 @@ use bpstd::{
 use crate::keys::KeyValue;
 use crate::{
     Bip340Sig, GlobalKey, InputKey, KeyData, KeyMap, KeyPair, KeyType, LegacySig, LockHeight,
-    LockTimestamp, Map, ModifiableFlags, NonStandardSighashType, OutputKey, PropKey, Psbt,
+    LockTimestamp, Map, MapName, ModifiableFlags, NonStandardSighashType, OutputKey, PropKey, Psbt,
     PsbtUnsupportedVer, PsbtVer, SigError, SighashType, ValueData,
 };
 
@@ -78,26 +77,26 @@ pub enum PsbtError {
     /// invalid magic bytes {0}.
     InvalidMagic(Bytes<5>),
 
-    /// key {0:#02x} must not be present in PSBT {1}.
-    UnexpectedKey(u8, PsbtVer),
+    /// {0} key {1:#02x} must not be present in PSBT {2}.
+    UnexpectedKey(MapName, u8, PsbtVer),
 
-    /// key {0:#02x} is deprecated not be present in PSBT {1}.
-    DeprecatedKey(u8, PsbtVer),
+    /// {0} key {1:#02x} is deprecated not be present in PSBT {2}.
+    DeprecatedKey(MapName, u8, PsbtVer),
 
-    /// key {0:#02x} required for PSBT {1} is not present.
-    RequiredKeyAbsent(u8, PsbtVer),
+    /// {0} key {1:#02x} required for PSBT {2} is not present.
+    RequiredKeyAbsent(MapName, u8, PsbtVer),
 
-    /// repeated key {0:#02x}.
-    RepeatedKey(u8),
+    /// repeated {0} key {1:#02x}.
+    RepeatedKey(MapName, u8),
 
-    /// repeated proprietary key {0}.
-    RepeatedPropKey(PropKey),
+    /// repeated proprietary {0} key {1}.
+    RepeatedPropKey(MapName, PropKey),
 
-    /// repeated unknown key {0:#02x}.
-    RepeatedUnknownKey(u8),
+    /// repeated unknown {0} key {1:#02x}.
+    RepeatedUnknownKey(MapName, u8),
 
-    /// key {0:#02x} must not contain additional key data.
-    NonEmptyKeyData(u8, KeyData),
+    /// {0} key {1:#02x} must not contain additional key data.
+    NonEmptyKeyData(MapName, u8, KeyData),
 
     #[from]
     #[display(inner)]
@@ -217,22 +216,23 @@ impl Psbt {
             return Err(PsbtError::InvalidMagic(magic.into()).into());
         }
 
-        let map = Map::<GlobalKey>::parse(reader)?;
+        let map = Map::<GlobalKey>::parse(MapName::Global, reader)?;
         let version = map
             .singular
             .get(&GlobalKey::Version)
-            .ok_or(PsbtError::RequiredKeyAbsent(GlobalKey::Version.to_u8(), PsbtVer::V0))
-            .and_then(PsbtVer::deserialize)?;
+            .map(PsbtVer::deserialize)
+            .transpose()?
+            .unwrap_or(PsbtVer::V0);
         let mut psbt = Psbt::create();
         psbt.parse_map(version, map)?;
 
         for input in &mut psbt.inputs {
-            let map = Map::<InputKey>::parse(reader)?;
+            let map = Map::<InputKey>::parse(MapName::Input, reader)?;
             input.parse_map(version, map)?;
         }
 
         for output in &mut psbt.outputs {
-            let map = Map::<OutputKey>::parse(reader)?;
+            let map = Map::<OutputKey>::parse(MapName::Output, reader)?;
             output.parse_map(version, map)?;
         }
 
