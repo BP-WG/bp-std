@@ -23,22 +23,21 @@
 use std::fmt::{self, Display, Formatter};
 use std::io::{self, Cursor, Read, Write};
 
-use amplify::{confinement, Bytes, IoError, RawArray, Wrapper};
+use amplify::{confinement, Array, Bytes, IoError, RawArray, Wrapper};
 use base64::Engine;
-use bp::secp256k1::ecdsa;
 use bp::{
-    secp256k1, ComprPubkey, ConsensusDataError, ConsensusDecode, ConsensusDecodeError,
-    ConsensusEncode, DerivationIndex, DerivationPath, HardenedIndex, Idx, KeyOrigin, LegacyPubkey,
-    LockTime, RedeemScript, Sats, ScriptBytes, ScriptPubkey, SeqNo, SigScript, Tx, TxOut, TxVer,
-    Txid, UncomprPubkey, VarInt, Vout, Witness, WitnessScript, Xpub, XpubDecodeError, XpubFp,
-    XpubOrigin,
+    ComprPubkey, ConsensusDataError, ConsensusDecode, ConsensusDecodeError, ConsensusEncode,
+    DerivationIndex, DerivationPath, HardenedIndex, Idx, InternalPk, KeyOrigin, LegacyPubkey,
+    LockTime, RedeemScript, Sats, ScriptBytes, ScriptPubkey, SeqNo, SigScript, TaprootPubkey, Tx,
+    TxOut, TxVer, Txid, UncomprPubkey, VarInt, Vout, Witness, WitnessScript, Xpub, XpubDecodeError,
+    XpubFp, XpubOrigin,
 };
 
 use crate::keys::KeyValue;
 use crate::{
-    GlobalKey, InputKey, KeyData, KeyMap, KeyPair, KeyType, LegacySig, LockHeight, LockTimestamp,
-    Map, ModifiableFlags, NonStandardSighashType, OutputKey, PropKey, Psbt, PsbtUnsupportedVer,
-    PsbtVer, SighashType, ValueData,
+    Bip340Sig, GlobalKey, InputKey, KeyData, KeyMap, KeyPair, KeyType, LegacySig, LockHeight,
+    LockTimestamp, Map, ModifiableFlags, NonStandardSighashType, OutputKey, PropKey, Psbt,
+    PsbtUnsupportedVer, PsbtVer, SigError, SighashType, ValueData,
 };
 
 impl Display for Psbt {
@@ -67,6 +66,7 @@ pub enum DecodeError {
     Io(IoError),
 
     #[from]
+    #[from(SigError)]
     #[from(ConsensusDataError)]
     #[from(PsbtUnsupportedVer)]
     #[from(XpubDecodeError)]
@@ -133,11 +133,12 @@ pub enum PsbtError {
     /// invalid compressed pubkey data.
     InvalidUncomprPubkey(Bytes<65>),
 
-    /// empty signature data.
-    EmptySig,
+    /// invalid BIP340 (x-only) pubkey data.
+    InvalidXonlyPubkey(Bytes<32>),
 
-    /// invalid signature data.
-    InvalidSig(secp256k1::Error),
+    #[from]
+    #[display(inner)]
+    InvalidSig(SigError),
 
     #[from]
     #[display(inner)]
@@ -465,6 +466,38 @@ impl Decode for LegacyPubkey {
     }
 }
 
+impl Encode for TaprootPubkey {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
+        writer.write_all(&self.to_byte_array())?;
+        Ok(32)
+    }
+}
+
+impl Decode for TaprootPubkey {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        let mut buf = [0u8; 32];
+        reader.read_exact(&mut buf)?;
+        TaprootPubkey::from_byte_array(buf)
+            .map_err(|_| PsbtError::InvalidXonlyPubkey(buf.into()).into())
+    }
+}
+
+impl Encode for InternalPk {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
+        writer.write_all(&self.to_byte_array())?;
+        Ok(32)
+    }
+}
+
+impl Decode for InternalPk {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        let mut buf = [0u8; 32];
+        reader.read_exact(&mut buf)?;
+        InternalPk::from_byte_array(buf)
+            .map_err(|_| PsbtError::InvalidXonlyPubkey(buf.into()).into())
+    }
+}
+
 impl Encode for KeyOrigin {
     fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
         writer.write_all(self.master_fp().as_ref())?;
@@ -501,10 +534,26 @@ impl Decode for LegacySig {
     fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
         let mut buf = Vec::with_capacity(78);
         reader.read_to_end(&mut buf)?;
-        let (sighash, sig) = buf.split_last().ok_or(PsbtError::EmptySig)?;
-        let sig = ecdsa::Signature::from_der(&sig).map_err(PsbtError::InvalidSig)?;
-        let sighash_type = SighashType::from_psbt_u8(*sighash)?;
-        Ok(LegacySig { sig, sighash_type })
+        LegacySig::from_bytes(&buf).map_err(DecodeError::from)
+    }
+}
+
+impl Encode for Bip340Sig {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
+        let mut counter = 64;
+        writer.write_all(&self.sig[..])?;
+        if let Some(sighash_type) = self.sighash_type {
+            counter += sighash_type.into_u8().encode(writer)?;
+        }
+        Ok(counter)
+    }
+}
+
+impl Decode for Bip340Sig {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        let mut buf = Vec::with_capacity(65);
+        reader.read_to_end(&mut buf)?;
+        Bip340Sig::from_bytes(&buf).map_err(DecodeError::from)
     }
 }
 
@@ -629,6 +678,21 @@ impl<T: AsRef<[u8]>> Encode for RawBytes<T> {
         let bytes = self.0.as_ref();
         writer.write_all(bytes)?;
         Ok(bytes.len())
+    }
+}
+
+impl<const LEN: usize> Encode for Array<u8, LEN> {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
+        writer.write_all(self.as_inner())?;
+        Ok(LEN)
+    }
+}
+
+impl<const LEN: usize> Decode for Array<u8, LEN> {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        let mut buf = [0u8; LEN];
+        reader.read_exact(&mut buf)?;
+        Ok(Self::from_inner(buf))
     }
 }
 

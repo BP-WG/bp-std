@@ -238,9 +238,36 @@ macro_rules! option {
         $expr.as_ref().map(|e| KeyPair::boxed(Self::Keys::$key, (), e)).into_iter().collect()
     };
 }
+macro_rules! option_raw {
+    ($key:ident, $expr:expr) => {
+        $expr
+            .as_ref()
+            .map(|e| KeyPair::boxed(Self::Keys::$key, (), RawBytes(e)))
+            .into_iter()
+            .collect()
+    };
+}
 macro_rules! iter {
     ($key:ident, $expr:expr) => {
         $expr.iter().map(|(k, v)| KeyPair::boxed(Self::Keys::$key, k, v)).collect()
+    };
+}
+macro_rules! iter_raw {
+    ($key:ident, $expr:expr) => {
+        $expr.iter().map(|(k, v)| KeyPair::boxed(Self::Keys::$key, k, RawBytes(v))).collect()
+    };
+}
+macro_rules! iter_raw_key {
+    ($key:ident, $expr:expr) => {
+        $expr.iter().map(|(k, v)| KeyPair::boxed(Self::Keys::$key, RawBytes(k), v)).collect()
+    };
+}
+macro_rules! iter_raw_all {
+    ($key:ident, $expr:expr) => {
+        $expr
+            .iter()
+            .map(|(k, v)| KeyPair::boxed(Self::Keys::$key, RawBytes(k), RawBytes(v)))
+            .collect()
     };
 }
 
@@ -351,22 +378,24 @@ impl KeyMap for Input {
             InputKey::Bip32Derivation => iter!(Bip32Derivation, self.bip32_derivation),
             InputKey::FinalScriptSig => option!(FinalScriptSig, self.final_script_sig),
             InputKey::FinalWitness => option!(FinalWitness, self.final_witness),
-            InputKey::PorCommitment => option!(PorCommitment, self.proof_of_reserves),
-            InputKey::Ripemd160 => iter!(Ripemd160, self.ripemd160),
-            InputKey::Sha256 => iter!(Sha256, self.sha256),
-            InputKey::Hash160 => iter!(Hash160, self.hash160),
-            InputKey::Hash256 => iter!(Hash256, self.hash256),
+            InputKey::PorCommitment => option_raw!(PorCommitment, self.proof_of_reserves),
+            InputKey::Ripemd160 => iter_raw!(Ripemd160, self.ripemd160),
+            InputKey::Sha256 => iter_raw!(Sha256, self.sha256),
+            InputKey::Hash160 => iter_raw!(Hash160, self.hash160),
+            InputKey::Hash256 => iter_raw!(Hash256, self.hash256),
             InputKey::PreviousTxid => once!(PreviousTxid, self.previous_outpoint.txid),
             InputKey::OutputIndex => once!(OutputIndex, self.previous_outpoint.vout),
             InputKey::Sequence => option!(OutputIndex, self.sequence_number),
             InputKey::RequiredTimeLock => option!(RequiredTimeLock, self.required_time_lock),
             InputKey::RequiredHeighLock => option!(RequiredHeighLock, self.required_height_lock),
             InputKey::TapKeySig => option!(TapKeySig, self.tap_key_sig),
-            InputKey::TapScriptSig => iter!(TapScriptSig, self.tap_script_sig),
-            InputKey::TapLeafScript => iter!(TapLeafScript, self.tap_leaf_script),
-            InputKey::TapBip32Derivation => iter!(TapBip32Derivation, self.tap_bip32_derivation),
+            InputKey::TapScriptSig => iter_raw_key!(TapScriptSig, self.tap_script_sig),
+            InputKey::TapLeafScript => iter_raw_all!(TapLeafScript, self.tap_leaf_script),
+            InputKey::TapBip32Derivation => {
+                iter_raw!(TapBip32Derivation, self.tap_bip32_derivation)
+            }
             InputKey::TapInternalKey => option!(TapInternalKey, self.tap_internal_key),
-            InputKey::TapMerkleRoot => option!(TapMerkleRoot, self.tap_merkle_root),
+            InputKey::TapMerkleRoot => option_raw!(TapMerkleRoot, self.tap_merkle_root),
 
             InputKey::Proprietary | InputKey::Unknown(_) => unreachable!(),
         }
@@ -473,10 +502,12 @@ impl KeyMap for Output {
             OutputKey::WitnessScript => option!(WitnessScript, self.witness_script),
             OutputKey::Bip32Derivation => iter!(Bip32Derivation, self.bip32_derivation),
             OutputKey::Amount => once!(Amount, self.amount),
-            OutputKey::Script => once!(Script, self.script),
+            OutputKey::Script => once!(Script, &self.script),
             OutputKey::TapInternalKey => option!(TapInternalKey, self.tap_internal_key),
-            OutputKey::TapTree => option!(TapTree, self.tap_tree),
-            OutputKey::TapBip32Derivation => iter!(TapBip32Derivation, self.tap_bip32_derivation),
+            OutputKey::TapTree => option_raw!(TapTree, self.tap_tree),
+            OutputKey::TapBip32Derivation => {
+                iter_raw!(TapBip32Derivation, self.tap_bip32_derivation)
+            }
 
             OutputKey::Proprietary | OutputKey::Unknown(_) => unreachable!(),
         }

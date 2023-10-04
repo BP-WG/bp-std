@@ -24,7 +24,7 @@ use std::str::FromStr;
 
 use amplify::hex;
 use bc::secp256k1::{PublicKey, XOnlyPublicKey};
-use bp::secp256k1;
+use bc::InvalidPubkey;
 
 use crate::xpub::XpubParseError;
 use crate::{DerivationIndex, DerivationParseError, DerivationPath, Terminal, XpubFp, XpubOrigin};
@@ -39,8 +39,8 @@ use crate::{DerivationIndex, DerivationParseError, DerivationPath, Terminal, Xpu
 pub struct TaprootPubkey(pub XOnlyPublicKey);
 
 impl TaprootPubkey {
-    pub fn from_slice(data: impl AsRef<[u8]>) -> Result<Self, bc::secp256k1::Error> {
-        XOnlyPublicKey::from_slice(data.as_ref()).map(Self)
+    pub fn from_byte_array(data: [u8; 32]) -> Result<Self, InvalidPubkey> {
+        XOnlyPublicKey::from_slice(data.as_ref()).map(Self).map_err(|_| InvalidPubkey)
     }
 
     pub fn to_byte_array(&self) -> [u8; 32] { self.0.serialize() }
@@ -60,8 +60,8 @@ impl From<TaprootPubkey> for [u8; 32] {
 pub struct ComprPubkey(pub PublicKey);
 
 impl ComprPubkey {
-    pub fn from_byte_array(data: [u8; 33]) -> Result<Self, secp256k1::Error> {
-        PublicKey::from_slice(&data).map(Self)
+    pub fn from_byte_array(data: [u8; 33]) -> Result<Self, InvalidPubkey> {
+        PublicKey::from_slice(&data).map(Self).map_err(|_| InvalidPubkey)
     }
     pub fn to_byte_array(&self) -> [u8; 33] { self.0.serialize() }
 }
@@ -76,8 +76,8 @@ impl ComprPubkey {
 pub struct UncomprPubkey(pub PublicKey);
 
 impl UncomprPubkey {
-    pub fn from_byte_array(data: [u8; 65]) -> Result<Self, secp256k1::Error> {
-        PublicKey::from_slice(&data).map(Self)
+    pub fn from_byte_array(data: [u8; 65]) -> Result<Self, InvalidPubkey> {
+        PublicKey::from_slice(&data).map(Self).map_err(|_| InvalidPubkey)
     }
     pub fn to_byte_array(&self) -> [u8; 65] { self.0.serialize_uncompressed() }
 }

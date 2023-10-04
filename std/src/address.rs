@@ -32,7 +32,7 @@ use bc::{Chain, ScriptPubkey, WitnessVer};
 use bech32::u5;
 use hashes::{hash160, Hash};
 
-use crate::{base58, ComprPubkey, TaprootPubkey};
+use crate::{base58, ComprPubkey, InvalidPubkey, TaprootPubkey};
 
 /// Mainnet (bitcoin) pubkey address prefix.
 pub const PUBKEY_ADDRESS_PREFIX_MAIN: u8 = 0; // 0x00
@@ -84,7 +84,7 @@ pub enum AddressParseError {
     UnrecognizableFormat(String),
 
     /// wrong BIP340 public key
-    #[from(bc::secp256k1::Error)]
+    #[from(InvalidPubkey)]
     WrongPublicKeyData,
 
     /// unrecognized address format string; must be one of `P2PKH`, `P2SH`,
@@ -245,7 +245,9 @@ impl FromStr for Address {
                     AddressPayload::Wsh(hash.into())
                 }
                 (WitnessVer::V1, bech32::Variant::Bech32m) if program.len() == 32 => {
-                    let pk = TaprootPubkey::from_slice(&program)?;
+                    let mut key = [0u8; 32];
+                    key.copy_from_slice(&program);
+                    let pk = TaprootPubkey::from_byte_array(key)?;
                     AddressPayload::Tr(pk)
                 }
 
@@ -442,8 +444,10 @@ impl AddressPayload {
             bytes.copy_from_slice(&script[2..]);
             AddressPayload::Wsh(WScriptHash::from(bytes))
         } else if script.is_p2tr() {
+            let mut bytes = [0u8; 32];
+            bytes.copy_from_slice(&script[2..]);
             AddressPayload::Tr(
-                TaprootPubkey::from_slice(&script[2..])
+                TaprootPubkey::from_byte_array(bytes)
                     .map_err(|_| AddressError::InvalidTaprootKey)?,
             )
         } else {
