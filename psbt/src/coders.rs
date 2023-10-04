@@ -20,12 +20,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::fmt::{self, Display, Formatter};
+use std::fmt::Display;
 use std::io::{self, Cursor, Read, Write};
 use std::string::FromUtf8Error;
 
 use amplify::{confinement, Array, Bytes, IoError, RawArray, Wrapper};
-use base64::Engine;
 use bpstd::{
     CompressedPk, ConsensusDataError, ConsensusDecode, ConsensusDecodeError, ConsensusEncode,
     DerivationIndex, DerivationPath, HardenedIndex, Idx, InternalPk, KeyOrigin, LegacyPk, LockTime,
@@ -40,24 +39,6 @@ use crate::{
     LockTimestamp, Map, ModifiableFlags, NonStandardSighashType, OutputKey, PropKey, Psbt,
     PsbtUnsupportedVer, PsbtVer, SigError, SighashType, ValueData,
 };
-
-impl Display for Psbt {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let engine = base64::engine::GeneralPurpose::new(
-            &base64::alphabet::STANDARD,
-            base64::engine::GeneralPurposeConfig::new(),
-        );
-        let mut ver = match f.width().unwrap_or(0) {
-            0 => PsbtVer::V0,
-            2 => PsbtVer::V2,
-            _ => return Err(fmt::Error),
-        };
-        if f.alternate() {
-            ver = PsbtVer::V2;
-        }
-        f.write_str(&engine.encode(self.serialize(ver)))
-    }
-}
 
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
 #[display(inner)]
@@ -229,7 +210,7 @@ impl Psbt {
         vec
     }
 
-    pub fn decode(&self, reader: &mut impl Read) -> Result<Self, DecodeError> {
+    pub fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
         let mut magic = Self::MAGIC;
         reader.read_exact(&mut magic)?;
         if magic != Self::MAGIC {
@@ -258,10 +239,10 @@ impl Psbt {
         Ok(psbt)
     }
 
-    pub fn deserialize(&self, data: impl AsRef<[u8]>) -> Result<Self, PsbtError> {
+    pub fn deserialize(data: impl AsRef<[u8]>) -> Result<Self, PsbtError> {
         let data = data.as_ref();
         let mut cursor = Cursor::new(data);
-        let psbt = self.decode(&mut cursor)?;
+        let psbt = Psbt::decode(&mut cursor)?;
         if cursor.position() != data.len() as u64 {
             return Err(PsbtError::DataNotConsumed);
         }
