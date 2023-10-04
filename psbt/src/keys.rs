@@ -26,16 +26,18 @@ use std::io::Sink;
 
 use bp::VarInt;
 
-use crate::{Decode, Encode, PsbtVer};
+use crate::{Decode, Encode, KeyData, PsbtVer, ValueData};
 
 pub trait KeyType: Copy + Ord + Eq + Hash + Debug + Encode + Decode + 'static {
-    const ALL: &'static [Self];
+    const STANDARD: &'static [Self];
     fn from_u8(val: u8) -> Self;
     fn into_u8(self) -> u8;
+    fn to_u8(&self) -> u8 { self.into_u8() }
     fn has_key_data(self) -> bool;
     fn present_since(self) -> PsbtVer;
     fn deprecated_since(self) -> Option<PsbtVer>;
     fn is_required(self) -> bool;
+    fn is_proprietary(self) -> bool;
 }
 
 const PSBT_GLOBAL_UNSIGNED_TX: u8 = 0x00;
@@ -83,7 +85,7 @@ pub enum GlobalKey {
 }
 
 impl KeyType for GlobalKey {
-    const ALL: &'static [Self] = &[
+    const STANDARD: &'static [Self] = &[
         Self::UnsignedTx,
         Self::Xpub,
         Self::TxVersion,
@@ -92,7 +94,6 @@ impl KeyType for GlobalKey {
         Self::OutputCount,
         Self::TxModifiable,
         Self::Version,
-        Self::Proprietary,
     ];
 
     fn from_u8(val: u8) -> Self {
@@ -185,6 +186,8 @@ impl KeyType for GlobalKey {
             GlobalKey::Unknown(_) => false,
         }
     }
+
+    fn is_proprietary(self) -> bool { self == Self::Proprietary }
 }
 
 const PSBT_IN_NON_WITNESS_UTXO: u8 = 0x00;
@@ -300,7 +303,7 @@ pub enum InputKey {
 }
 
 impl KeyType for InputKey {
-    const ALL: &'static [Self] = &[
+    const STANDARD: &'static [Self] = &[
         Self::NonWitnessUtxo,
         Self::WitnessUtxo,
         Self::PartialSig,
@@ -326,7 +329,6 @@ impl KeyType for InputKey {
         Self::TapBip32Derivation,
         Self::TapInternalKey,
         Self::TapMerkleRoot,
-        Self::Proprietary,
     ];
 
     fn from_u8(val: u8) -> Self {
@@ -529,6 +531,8 @@ impl KeyType for InputKey {
             InputKey::Unknown(_) => false,
         }
     }
+
+    fn is_proprietary(self) -> bool { self == Self::Proprietary }
 }
 
 const PSBT_OUT_REDEEM_SCRIPT: u8 = 0x00;
@@ -576,7 +580,7 @@ pub enum OutputKey {
 }
 
 impl KeyType for OutputKey {
-    const ALL: &'static [Self] = &[
+    const STANDARD: &'static [Self] = &[
         Self::RedeemScript,
         Self::WitnessScript,
         Self::Bip32Derivation,
@@ -585,7 +589,6 @@ impl KeyType for OutputKey {
         Self::TapInternalKey,
         Self::TapTree,
         Self::TapBip32Derivation,
-        Self::Proprietary,
     ];
 
     fn from_u8(val: u8) -> Self {
@@ -676,10 +679,12 @@ impl KeyType for OutputKey {
             OutputKey::Unknown(_) => false,
         }
     }
+
+    fn is_proprietary(self) -> bool { self == Self::Proprietary }
 }
 
-pub(crate) enum MaybeKeyPair<T: KeyType, K, V> {
-    Pair(KeyPair<T, K, V>),
+pub enum KeyValue<T: KeyType> {
+    Pair(KeyPair<T, KeyData, ValueData>),
     Separator,
 }
 
@@ -712,4 +717,17 @@ impl<T: KeyType, K, V> KeyPair<T, K, V> {
         let len = self.value_data.encode(&mut sink).expect("sink write doesn't fail");
         VarInt::with(len)
     }
+}
+
+#[derive(Clone, PartialOrd, Ord, Eq, PartialEq, Hash, Debug, Display)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+#[display("{identifier} {subtype:#x}")]
+pub struct PropKey {
+    pub identifier: String,
+    pub subtype: u64,
+    pub data: Vec<u8>,
 }

@@ -26,15 +26,17 @@ extern crate amplify;
 #[macro_use]
 extern crate serde_crate as serde;
 
-mod maps;
 mod timelocks;
 mod sigtypes;
+mod data;
 mod keys;
+mod maps;
 mod coders;
 
 pub use coders::{Decode, DecodeError, Encode, PsbtError};
-pub use keys::{GlobalKey, InputKey, KeyPair, KeyType, OutputKey};
-pub use maps::{Input, ModifiableFlags, Output, Prevout, Psbt};
+pub use data::{Input, ModifiableFlags, Output, Prevout, Psbt};
+pub use keys::{GlobalKey, InputKey, KeyPair, KeyType, OutputKey, PropKey};
+pub use maps::{KeyData, KeyMap, Map, ValueData};
 pub use sigtypes::{EcdsaSig, EcdsaSigError, NonStandardSighashType, SighashFlag, SighashType};
 pub use timelocks::{InvalidTimelock, LockHeight, LockTimestamp, TimelockParseError};
 
@@ -42,9 +44,11 @@ pub use timelocks::{InvalidTimelock, LockHeight, LockTimestamp, TimelockParseErr
 #[display("unsupported version of PSBT v{0}")]
 pub struct PsbtUnsupportedVer(u32);
 
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
 pub enum PsbtVer {
+    #[display("v0")]
     V0 = 0,
+    #[display("v2")]
     V2 = 2,
 }
 

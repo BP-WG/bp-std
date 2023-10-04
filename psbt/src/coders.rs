@@ -23,7 +23,7 @@
 use std::fmt::{self, Display, Formatter};
 use std::io::{self, Cursor, Read, Write};
 
-use amplify::{Bytes, IoError, RawArray, Wrapper};
+use amplify::{confinement, Bytes, IoError, RawArray, Wrapper};
 use base64::Engine;
 use bp::secp256k1::ecdsa;
 use bp::{
@@ -34,10 +34,11 @@ use bp::{
     XpubOrigin,
 };
 
+use crate::keys::KeyValue;
 use crate::{
-    EcdsaSig, GlobalKey, Input, InputKey, KeyPair, KeyType, LockHeight, LockTimestamp,
-    ModifiableFlags, NonStandardSighashType, Output, OutputKey, Psbt, PsbtUnsupportedVer, PsbtVer,
-    SighashType,
+    EcdsaSig, GlobalKey, Input, InputKey, KeyData, KeyMap, KeyPair, KeyType, LockHeight,
+    LockTimestamp, Map, ModifiableFlags, NonStandardSighashType, Output, OutputKey, PropKey, Psbt,
+    PsbtUnsupportedVer, PsbtVer, SighashType, ValueData,
 };
 
 impl Display for Psbt {
@@ -70,6 +71,7 @@ pub enum DecodeError {
     #[from(PsbtUnsupportedVer)]
     #[from(XpubDecodeError)]
     #[from(NonStandardSighashType)]
+    #[from(confinement::Error)]
     Psbt(PsbtError),
 }
 
@@ -85,21 +87,39 @@ impl From<ConsensusDecodeError> for DecodeError {
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum PsbtError {
-    /// invalid magic bytes {0}.
-    InvalidMagic(Bytes<5>),
-
-    #[from]
-    #[display(inner)]
-    UnsupportedVersion(PsbtUnsupportedVer),
-
-    /// unknown PSBT key type {0:#02x}.
-    UnknownKeyType(u8),
-
     /// unexpected end of data.
     UnexpectedEod,
 
     /// PSBT data are followed by some excessive bytes.
     DataNotConsumed,
+
+    /// invalid magic bytes {0}.
+    InvalidMagic(Bytes<5>),
+
+    /// key {0:#02x} must not be present in PSBT {1}.
+    UnexpectedKey(u8, PsbtVer),
+
+    /// key {0:#02x} is deprecated not be present in PSBT {1}.
+    DeprecatedKey(u8, PsbtVer),
+
+    /// key {0:#02x} required for PSBT {1} is not present.
+    RequiredKeyAbsent(u8, PsbtVer),
+
+    /// repeated key {0:#02x}.
+    RepeatedKey(u8),
+
+    /// repeated proprietary key {0}.
+    RepeatedPropKey(PropKey),
+
+    /// repeated unknown key {0:#02x}.
+    RepeatedUnknownKey(u8),
+
+    /// key {0:#02x} must not contain additional key data.
+    NonEmptyKeyData(u8, KeyData),
+
+    #[from]
+    #[display(inner)]
+    UnsupportedVersion(PsbtUnsupportedVer),
 
     /// invalid lock height value {0}.
     InvalidLockHeight(u32),
@@ -136,6 +156,10 @@ pub enum PsbtError {
     #[from]
     #[display(inner)]
     Consensus(ConsensusDataError),
+
+    #[from]
+    #[display(inner)]
+    Confinement(confinement::Error),
 }
 
 impl From<DecodeError> for PsbtError {
@@ -160,7 +184,8 @@ where Self: Sized
 {
     fn decode(reader: &mut impl Read) -> Result<Self, DecodeError>;
     fn deserialize(bytes: impl AsRef<[u8]>) -> Result<Self, PsbtError> {
-        let mut cursor = Cursor::new(bytes.as_ref());
+        let bytes = bytes.as_ref();
+        let mut cursor = Cursor::new(bytes);
         let me = Self::decode(&mut cursor)?;
         if cursor.position() != bytes.len() as u64 {
             return Err(PsbtError::DataNotConsumed);
@@ -234,6 +259,44 @@ impl Psbt {
         counter += KeyPair::new(GlobalKey::Version, &(), &ver).encode(writer)?;
 
         Ok(counter)
+    }
+
+    pub fn decode(&self, reader: &mut impl Read) -> Result<Self, DecodeError> {
+        let mut magic = Self::MAGIC;
+        reader.read_exact(&mut magic)?;
+        if magic != Self::MAGIC {
+            return Err(PsbtError::InvalidMagic(magic.into()).into());
+        }
+
+        let map = Map::<GlobalKey>::parse(reader)?;
+        let version = map
+            .singular
+            .get(&GlobalKey::Version)
+            .ok_or(PsbtError::RequiredKeyAbsent(GlobalKey::Version.to_u8(), PsbtVer::V0))
+            .and_then(PsbtVer::deserialize)?;
+        let mut psbt = Psbt::create();
+        psbt.populate(map, version)?;
+
+        for input in &mut psbt.inputs {
+            let map = Map::<InputKey>::parse(reader)?;
+            input.populate(map, version)?;
+        }
+
+        for output in &mut psbt.outputs {
+            let map = Map::<OutputKey>::parse(reader)?;
+            output.populate(map, version)?;
+        }
+
+        Ok(psbt)
+    }
+    pub fn deserialize(&self, data: impl AsRef<[u8]>) -> Result<Self, PsbtError> {
+        let data = data.as_ref();
+        let mut cursor = Cursor::new(data);
+        let psbt = self.decode(&mut cursor)?;
+        if cursor.position() != data.len() as u64 {
+            return Err(PsbtError::DataNotConsumed);
+        }
+        Ok(psbt)
     }
 }
 
@@ -316,40 +379,37 @@ impl Output {
 
 impl Encode for GlobalKey {
     fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
-        (*self as u8).encode(writer)
+        self.to_u8().encode(writer)
     }
 }
 
 impl Decode for GlobalKey {
     fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
-        let k = u8::decode(reader)?;
-        Self::try_from_u8(k).map_err(PsbtError::UnknownKeyType).map_err(DecodeError::from)
+        u8::decode(reader).map(Self::from_u8)
     }
 }
 
 impl Encode for InputKey {
     fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
-        (*self as u8).encode(writer)
+        self.to_u8().encode(writer)
     }
 }
 
 impl Decode for InputKey {
     fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
-        let k = u8::decode(reader)?;
-        Self::try_from_u8(k).map_err(PsbtError::UnknownKeyType).map_err(DecodeError::from)
+        u8::decode(reader).map(Self::from_u8)
     }
 }
 
 impl Encode for OutputKey {
     fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
-        (*self as u8).encode(writer)
+        self.to_u8().encode(writer)
     }
 }
 
 impl Decode for OutputKey {
     fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
-        let k = u8::decode(reader)?;
-        Self::try_from_u8(k).map_err(PsbtError::UnknownKeyType).map_err(DecodeError::from)
+        u8::decode(reader).map(Self::from_u8)
     }
 }
 
@@ -368,21 +428,60 @@ impl<T: KeyType, K: Encode, V: Encode> Encode for KeyPair<T, K, V> {
     }
 }
 
-impl<T: KeyType, K: Decode, V: Decode> Decode for KeyPair<T, K, V> {
+impl<T: KeyType> Decode for KeyValue<T> {
     fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
         let key_len = VarInt::decode(reader)?;
+        if key_len == 0u64 {
+            return Ok(KeyValue::Separator);
+        }
+
         let key_type = T::decode(reader)?;
-        let mut key_data = Vec::<u8>::with_capacity(key_len.to_usize() - key_type.byte_len());
+        let mut key_data = vec![0u8; key_len.to_usize() - 1];
         reader.read_exact(key_data.as_mut_slice())?;
 
         let value_len = VarInt::decode(reader)?;
-        let mut value_data = Vec::<u8>::with_capacity(value_len.to_usize());
+        let mut value_data = vec![0u8; value_len.to_usize()];
         reader.read_exact(value_data.as_mut_slice())?;
 
-        Ok(KeyPair {
+        Ok(KeyValue::Pair(KeyPair {
             key_type,
-            key_data: K::deserialize(key_data)?,
-            value_data: V::deserialize(value_data)?,
+            key_data: KeyData::try_from(key_data)?,
+            value_data: ValueData::try_from(value_data)?,
+        }))
+    }
+}
+
+impl Encode for PropKey {
+    fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
+        let mut counter = self.identifier.len();
+        let len = VarInt::with(counter);
+        counter += len.encode(writer)?;
+
+        writer.write_all(self.identifier.as_bytes())?;
+        counter += VarInt::new(self.subtype).encode(writer)?;
+        counter += self.data.len();
+        writer.write_all(&self.data)?;
+
+        Ok(counter)
+    }
+}
+
+impl Decode for PropKey {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        let len = VarInt::decode(reader)?;
+        let mut identifier = vec![0u8; len.to_usize()];
+        reader.read_exact(&mut identifier)?;
+        let identifier = String::from_utf8_lossy(&identifier).to_string();
+
+        let subtype = VarInt::decode(reader)?.to_u64();
+
+        let mut data = Vec::<u8>::new();
+        reader.read_to_end(&mut data)?;
+
+        Ok(PropKey {
+            identifier,
+            subtype,
+            data,
         })
     }
 }
