@@ -242,7 +242,39 @@ impl KeyMap for Input {
         key_type: Self::Keys,
         value_data: ValueData,
     ) -> Result<(), PsbtError> {
-        todo!()
+        match key_type {
+            InputKey::NonWitnessUtxo => {}
+            InputKey::WitnessUtxo => {}
+            InputKey::SighashType => {}
+            InputKey::RedeemScript => {}
+            InputKey::WitnessScript => {}
+            InputKey::FinalScriptSig => {}
+            InputKey::FinalWitness => {}
+            InputKey::PorCommitment => {}
+
+            InputKey::PreviousTxid => {}
+            InputKey::OutputIndex => {}
+            InputKey::Sequence => {}
+            InputKey::RequiredTimeLock => {}
+            InputKey::RequiredHeighLock => {}
+
+            InputKey::TapKeySig => {}
+            InputKey::TapInternalKey => {}
+            InputKey::TapMerkleRoot => {}
+
+            InputKey::PartialSig
+            | InputKey::Bip32Derivation
+            | InputKey::Ripemd160
+            | InputKey::Sha256
+            | InputKey::Hash160
+            | InputKey::Hash256
+            | InputKey::TapScriptSig
+            | InputKey::TapLeafScript
+            | InputKey::TapBip32Derivation => unreachable!(),
+
+            InputKey::Proprietary | InputKey::Unknown(_) => unreachable!(),
+        }
+        Ok(())
     }
 
     fn insert_plural(
@@ -251,7 +283,38 @@ impl KeyMap for Input {
         key_data: KeyData,
         value_data: ValueData,
     ) -> Result<(), PsbtError> {
-        todo!()
+        match key_type {
+            InputKey::NonWitnessUtxo
+            | InputKey::WitnessUtxo
+            | InputKey::SighashType
+            | InputKey::RedeemScript
+            | InputKey::WitnessScript
+            | InputKey::FinalScriptSig
+            | InputKey::FinalWitness
+            | InputKey::PorCommitment
+            | InputKey::TapKeySig
+            | InputKey::TapInternalKey
+            | InputKey::TapMerkleRoot => unreachable!(),
+
+            InputKey::PreviousTxid
+            | InputKey::OutputIndex
+            | InputKey::Sequence
+            | InputKey::RequiredTimeLock
+            | InputKey::RequiredHeighLock => unreachable!(),
+
+            InputKey::PartialSig => {}
+            InputKey::Bip32Derivation => {}
+            InputKey::Ripemd160 => {}
+            InputKey::Sha256 => {}
+            InputKey::Hash160 => {}
+            InputKey::Hash256 => {}
+            InputKey::TapScriptSig => {}
+            InputKey::TapLeafScript => {}
+            InputKey::TapBip32Derivation => {}
+
+            InputKey::Proprietary | InputKey::Unknown(_) => unreachable!(),
+        }
+        Ok(())
     }
 }
 

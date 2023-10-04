@@ -20,12 +20,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::BTreeMap;
+
 use amplify::confinement::Confined;
 use amplify::num::u5;
+use amplify::{Bytes20, Bytes32};
 use bp::{
-    ComprPubkey, Descriptor, KeyOrigin, LegacyPubkey, LockTime, NormalIndex, Outpoint,
-    RedeemScript, Sats, ScriptPubkey, SeqNo, SigScript, Terminal, Tx, TxIn, TxOut, TxVer, Txid,
-    Vout, Witness, WitnessScript, Xpub, XpubOrigin,
+    ComprPubkey, Descriptor, InternalPk, KeyOrigin, LegacyPubkey, LockTime, NormalIndex, Outpoint,
+    RedeemScript, Sats, ScriptPubkey, SeqNo, SigScript, TaprootPubkey, Terminal, Tx, TxIn, TxOut,
+    TxVer, Txid, Vout, Witness, WitnessScript, Xpub, XpubOrigin,
 };
 use indexmap::IndexMap;
 
@@ -197,14 +200,28 @@ impl Psbt {
             sequence_number: Some(sequence),
             required_time_lock: None,
             required_height_lock: None,
+            non_witness_tx: None,
             witness_utxo: Some(TxOut::new(scripts.to_script_pubkey(), prevout.value)),
             partial_sigs: none!(),
             sighash_type: None,
             redeem_script: scripts.to_redeem_script(),
             witness_script: scripts.to_witness_script(),
             bip32_derivation: descriptor.compr_keyset(terminal),
+            // TODO: Fill hash preimages from descriptor
+            // TODO: Fill taproot information from descriptor
             final_script_sig: None,
             final_witness: None,
+            proof_of_reserves: None,
+            ripemd160: none!(),
+            sha256: none!(),
+            hash160: none!(),
+            hash360: none!(),
+            tap_key_sig: None,
+            tap_script_sig: none!(),
+            tap_leaf_script: none!(),
+            tap_bip32_derivation: none!(),
+            tap_internal_key: None,
+            tap_merkle_root: None,
             proprietary: none!(),
             unknown: none!(),
         };
@@ -233,14 +250,9 @@ impl Psbt {
         }
 
         let output = Output {
-            index: self.outputs.len(),
             amount: value,
             script: script_pubkey,
-            redeem_script: None,
-            witness_script: None,
-            bip32_derivation: none!(),
-            proprietary: none!(),
-            unknown: none!(),
+            ..Output::new(self.outputs.len())
         };
         self.outputs.push(output);
         Ok(self.outputs.last_mut().expect("just inserted"))
@@ -324,10 +336,6 @@ impl Weight for Psbt {
     derive(Serialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-// TODO: Enusure than on serde deserialization:
-//       - all unknown fields go into unknown fields map
-//       - input always contains either witness UTXO or non-witness Tx
-//       - index is constructed in a correct way
 pub struct Input {
     /// The index of this input. Used in error reporting.
     #[cfg_attr(feature = "serde", serde(skip))]
@@ -350,12 +358,11 @@ pub struct Input {
     /// transaction's lock time.
     pub required_height_lock: Option<LockHeight>,
 
-    /* TODO: Add non_witness_utxo
     /// The non-witness transaction this input spends from. Should only be
     /// `Some` for inputs which spend non-segwit outputs or if it is unknown
     /// whether an input spends a segwit output.
-    pub non_witness_utxo: Option<Transaction>,
-     */
+    pub non_witness_tx: Option<Tx>,
+
     /// The transaction output this input spends from. Should only be `Some` for
     /// inputs which spend segwit outputs, including P2SH embedded ones.
     pub witness_utxo: Option<TxOut>,
@@ -375,20 +382,70 @@ pub struct Input {
     /// The witness script for this input.
     pub witness_script: Option<WitnessScript>,
 
-    /// A map from public keys needed to sign this input to their corresponding
-    /// master key fingerprints and derivation paths.
+    /// A map from public keys needed to sign this input to their corresponding master key
+    /// fingerprints and derivation paths.
     pub bip32_derivation: IndexMap<ComprPubkey, KeyOrigin>,
 
-    /// The finalized, fully-constructed scriptSig with signatures and any other
-    /// scripts necessary for this input to pass validation.
+    /// The finalized, fully-constructed scriptSig with signatures and any other scripts necessary
+    /// for this input to pass validation.
     pub final_script_sig: Option<SigScript>,
 
-    /// The finalized, fully-constructed scriptWitness with signatures and any
-    /// other scripts necessary for this input to pass validation.
+    /// The finalized, fully-constructed scriptWitness with signatures and any other scripts
+    /// necessary for this input to pass validation.
     pub final_witness: Option<Witness>,
-    // TODO: Add taproot
-    // TODO: Add proof of reserves
-    // TODO: Add hashes
+
+    /// The UTF-8 encoded commitment message string for the proof-of-reserves. See BIP 127 for more
+    /// information.
+    pub proof_of_reserves: Option<String>,
+
+    ///  The hash preimage, encoded as a byte vector, which must equal the key when run through the
+    /// RIPEMD160 algorithm.
+    pub ripemd160: IndexMap<Bytes20, ValueData>,
+
+    ///  The hash preimage, encoded as a byte vector, which must equal the key when run through the
+    /// SHA256 algorithm.
+    pub sha256: IndexMap<Bytes32, ValueData>,
+
+    /// The hash preimage, encoded as a byte vector, which must equal the key when run through the
+    /// SHA256 algorithm followed by the RIPEMD160 algorithm .
+    pub hash160: IndexMap<Bytes20, ValueData>,
+
+    /// The hash preimage, encoded as a byte vector, which must equal the key when run through the
+    /// SHA256 algorithm twice.
+    pub hash360: IndexMap<Bytes32, ValueData>,
+
+    // TODO: Add taproot data structures
+    /// The 64 or 65 byte Schnorr signature for key path spending a Taproot output. Finalizers
+    /// should remove this field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
+    pub tap_key_sig: Option<ValueData>,
+
+    /// The 64 or 65 byte Schnorr signature for this pubkey and leaf combination. Finalizers
+    /// should remove this field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
+    pub tap_script_sig: IndexMap<KeyData, ValueData>,
+
+    ///  The script for this leaf as would be provided in the witness stack followed by the single
+    /// byte leaf version. Note that the leaves included in this field should be those that the
+    /// signers of this input are expected to be able to sign for. Finalizers should remove this
+    /// field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
+    pub tap_leaf_script: IndexMap<KeyData, ValueData>,
+
+    /// A compact size unsigned integer representing the number of leaf hashes, followed by a list
+    /// of leaf hashes, followed by the 4 byte master key fingerprint concatenated with the
+    /// derivation path of the public key. The derivation path is represented as 32-bit little
+    /// endian unsigned integer indexes concatenated with each other. Public keys are those needed
+    /// to spend this output. The leaf hashes are of the leaves which involve this public key. The
+    /// internal key does not have leaf hashes, so can be indicated with a hashes len of 0.
+    /// Finalizers should remove this field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
+    pub tap_bip32_derivation: IndexMap<TaprootPubkey, ValueData>,
+
+    /// The X-only pubkey used as the internal key in this output. Finalizers should remove this
+    /// field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
+    pub tap_internal_key: Option<InternalPk>,
+
+    ///  The 32 byte Merkle root hash. Finalizers should remove this field after
+    /// PSBT_IN_FINAL_SCRIPTWITNESS is constructed.
+    pub tap_merkle_root: Option<Bytes32>,
+
     /// Proprietary keys
     pub proprietary: IndexMap<PropKey, ValueData>,
 
@@ -404,6 +461,7 @@ impl Input {
             sequence_number: None,
             required_time_lock: None,
             required_height_lock: None,
+            non_witness_tx: None,
             witness_utxo: None,
             partial_sigs: none!(),
             sighash_type: None,
@@ -412,6 +470,17 @@ impl Input {
             bip32_derivation: none!(),
             final_script_sig: None,
             final_witness: None,
+            proof_of_reserves: None,
+            ripemd160: none!(),
+            sha256: none!(),
+            hash160: none!(),
+            hash360: none!(),
+            tap_key_sig: None,
+            tap_script_sig: none!(),
+            tap_leaf_script: none!(),
+            tap_bip32_derivation: none!(),
+            tap_internal_key: None,
+            tap_merkle_root: None,
             proprietary: none!(),
             unknown: none!(),
         }
