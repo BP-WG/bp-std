@@ -22,6 +22,7 @@
 
 use std::collections::BTreeMap;
 use std::io::{Read, Write};
+use std::iter;
 
 use amplify::IoError;
 use bp::{LockTime, Tx, TxVer, VarInt, VarIntArray, Xpub, XpubOrigin};
@@ -122,12 +123,31 @@ pub trait KeyMap: Sized {
     type Keys: KeyType;
     const PROPRIETARY_TYPE: Self::Keys;
 
-    fn encode_map(&self, writer: &mut dyn Write, version: PsbtVer) -> Result<usize, IoError> {
+    fn encode_map<'enc>(
+        &'enc self,
+        version: PsbtVer,
+        writer: &mut dyn Write,
+    ) -> Result<usize, IoError> {
         let mut counter = 0;
 
         for key_type in Self::Keys::STANDARD {
             if key_type.is_allowed(version) {
-                if let Some(pair) = self.retrieve_key_pair(*key_type) {
+                let mut iter = unsafe {
+                    // We need this hack since Rust borrower checker can't see that the
+                    // reference actually doesn't escape the scope
+                    ::core::mem::transmute::<
+                        _,
+                        Vec<
+                            KeyPair<
+                                Self::Keys,
+                                Box<dyn Encode + 'static>,
+                                Box<dyn Encode + 'static>,
+                            >,
+                        >,
+                    >(self.retrieve_key_pair(*key_type))
+                }
+                .into_iter();
+                while let Some(pair) = iter.next() {
                     counter += pair.encode(writer)?;
                 }
             }
@@ -155,7 +175,7 @@ pub trait KeyMap: Sized {
         Ok(counter)
     }
 
-    fn parse_map(&mut self, map: Map<Self::Keys>, version: PsbtVer) -> Result<(), PsbtError> {
+    fn parse_map(&mut self, version: PsbtVer, map: Map<Self::Keys>) -> Result<(), PsbtError> {
         map.check(version)?;
 
         for (k, v) in map.singular {
@@ -182,10 +202,10 @@ pub trait KeyMap: Sized {
     fn proprietary_mut(&mut self) -> &mut IndexMap<PropKey, ValueData>;
     fn unknown_mut(&mut self) -> &mut IndexMap<u8, IndexMap<KeyData, ValueData>>;
 
-    fn retrieve_key_pair(
-        &self,
+    fn retrieve_key_pair<'enc>(
+        &'enc self,
         key_type: Self::Keys,
-    ) -> Option<KeyPair<Self::Keys, &'_ dyn Encode, &'_ dyn Encode>>;
+    ) -> Vec<KeyPair<Self::Keys, Box<dyn Encode + 'enc>, Box<dyn Encode + 'enc>>>;
 
     fn insert_singular(
         &mut self,
@@ -209,6 +229,22 @@ pub trait KeyMap: Sized {
     }
 }
 
+macro_rules! once {
+    ($key:ident, $expr:expr) => {
+        vec![KeyPair::boxed(Self::Keys::$key, (), $expr)]
+    };
+}
+macro_rules! option {
+    ($key:ident, $expr:expr) => {
+        $expr.as_ref().map(|e| KeyPair::boxed(Self::Keys::$key, (), e)).into_iter().collect()
+    };
+}
+macro_rules! iter {
+    ($key:ident, $expr:expr) => {
+        $expr.iter().map(|(k, v)| KeyPair::boxed(Self::Keys::$key, k, v)).collect()
+    };
+}
+
 impl KeyMap for Psbt {
     type Keys = GlobalKey;
     const PROPRIETARY_TYPE: Self::Keys = GlobalKey::Proprietary;
@@ -220,11 +256,22 @@ impl KeyMap for Psbt {
         &mut self.unknown
     }
 
-    fn retrieve_key_pair(
-        &self,
+    fn retrieve_key_pair<'enc>(
+        &'enc self,
         key_type: Self::Keys,
-    ) -> Option<KeyPair<Self::Keys, &'_ dyn Encode, &'_ dyn Encode>> {
-        todo!()
+    ) -> Vec<KeyPair<Self::Keys, Box<dyn Encode + 'enc>, Box<dyn Encode + 'enc>>> {
+        match key_type {
+            GlobalKey::UnsignedTx => once!(UnsignedTx, self.to_unsigned_tx()),
+            GlobalKey::Xpub => iter!(Xpub, self.xpubs),
+            GlobalKey::TxVersion => once!(TxVersion, &self.tx_version),
+            GlobalKey::FallbackLocktime => option!(FallbackLocktime, self.fallback_locktime),
+            GlobalKey::InputCount => once!(InputCount, VarInt::with(self.inputs.len())),
+            GlobalKey::OutputCount => once!(OutputCount, VarInt::with(self.inputs.len())),
+            GlobalKey::TxModifiable => option!(FallbackLocktime, self.tx_modifiable),
+            GlobalKey::Version => once!(OutputCount, &self.version),
+
+            GlobalKey::Proprietary | GlobalKey::Unknown(_) => unreachable!(),
+        }
     }
 
     fn insert_singular(
@@ -291,10 +338,10 @@ impl KeyMap for Input {
         &mut self.unknown
     }
 
-    fn retrieve_key_pair(
-        &self,
+    fn retrieve_key_pair<'enc>(
+        &'enc self,
         key_type: Self::Keys,
-    ) -> Option<KeyPair<Self::Keys, &'_ dyn Encode, &'_ dyn Encode>> {
+    ) -> Vec<KeyPair<Self::Keys, Box<dyn Encode + 'enc>, Box<dyn Encode + 'enc>>> {
         todo!()
     }
 
@@ -390,10 +437,10 @@ impl KeyMap for Output {
         &mut self.unknown
     }
 
-    fn retrieve_key_pair(
-        &self,
+    fn retrieve_key_pair<'enc>(
+        &'enc self,
         key_type: Self::Keys,
-    ) -> Option<KeyPair<Self::Keys, &'_ dyn Encode, &'_ dyn Encode>> {
+    ) -> Vec<KeyPair<Self::Keys, Box<dyn Encode + 'enc>, Box<dyn Encode + 'enc>>> {
         todo!()
     }
 

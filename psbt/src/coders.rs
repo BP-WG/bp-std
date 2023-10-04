@@ -202,7 +202,7 @@ impl Psbt {
         let mut counter = Self::MAGIC.len();
         writer.write_all(&Self::MAGIC)?;
 
-        counter += self.encode_global(ver, writer)? + Self::SEPARATOR.len();
+        counter += self.encode_map(ver, writer)? + Self::SEPARATOR.len();
         writer.write_all(&Self::SEPARATOR)?;
 
         for input in &self.inputs {
@@ -224,43 +224,6 @@ impl Psbt {
         vec
     }
 
-    fn encode_global(&self, ver: PsbtVer, writer: &mut dyn Write) -> Result<usize, IoError> {
-        let mut counter = 0;
-
-        for (xpub, source) in &self.xpubs {
-            counter += KeyPair::new(GlobalKey::Xpub, xpub, source).encode(writer)?;
-        }
-
-        match ver {
-            PsbtVer::V0 => {
-                counter += KeyPair::new(GlobalKey::UnsignedTx, &(), &self.to_unsigned_tx())
-                    .encode(writer)?;
-            }
-            PsbtVer::V2 => {
-                counter +=
-                    KeyPair::new(GlobalKey::TxVersion, &(), &self.tx_version).encode(writer)?;
-
-                counter += KeyPair::new(GlobalKey::FallbackLocktime, &(), &self.fallback_locktime)
-                    .encode(writer)?;
-
-                counter +=
-                    KeyPair::new(GlobalKey::InputCount, &(), &VarInt::with(self.inputs.len()))
-                        .encode(writer)?;
-
-                counter +=
-                    KeyPair::new(GlobalKey::OutputCount, &(), &VarInt::with(self.outputs.len()))
-                        .encode(writer)?;
-
-                counter += KeyPair::new(GlobalKey::TxModifiable, &(), &self.tx_modifiable)
-                    .encode(writer)?;
-            }
-        }
-
-        counter += KeyPair::new(GlobalKey::Version, &(), &ver).encode(writer)?;
-
-        Ok(counter)
-    }
-
     pub fn decode(&self, reader: &mut impl Read) -> Result<Self, DecodeError> {
         let mut magic = Self::MAGIC;
         reader.read_exact(&mut magic)?;
@@ -275,16 +238,16 @@ impl Psbt {
             .ok_or(PsbtError::RequiredKeyAbsent(GlobalKey::Version.to_u8(), PsbtVer::V0))
             .and_then(PsbtVer::deserialize)?;
         let mut psbt = Psbt::create();
-        psbt.parse_map(map, version)?;
+        psbt.parse_map(version, map)?;
 
         for input in &mut psbt.inputs {
             let map = Map::<InputKey>::parse(reader)?;
-            input.parse_map(map, version)?;
+            input.parse_map(version, map)?;
         }
 
         for output in &mut psbt.outputs {
             let map = Map::<OutputKey>::parse(reader)?;
-            output.parse_map(map, version)?;
+            output.parse_map(version, map)?;
         }
 
         Ok(psbt)
@@ -790,8 +753,10 @@ impl<T: Encode> Encode for Option<T> {
     }
 }
 
-impl Encode for &dyn Encode {
-    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> { (*self).encode(writer) }
+impl Encode for Box<dyn Encode> {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
+        self.as_ref().encode(writer)
+    }
 }
 
 impl Encode for () {

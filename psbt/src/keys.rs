@@ -23,7 +23,7 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use crate::{KeyData, PsbtVer, ValueData};
+use crate::{Encode, KeyData, PsbtVer, ValueData};
 
 pub trait KeyType: Copy + Ord + Eq + Hash + Debug + 'static {
     const STANDARD: &'static [Self];
@@ -716,6 +716,12 @@ impl<T: KeyType, K, V> KeyPair<T, K, V> {
             key_data,
             value_data,
         }
+    }
+}
+
+impl<'a, T: KeyType> KeyPair<T, Box<dyn Encode + 'a>, Box<dyn Encode + 'a>> {
+    pub fn boxed<K: Encode + 'a, V: Encode + 'a>(key_type: T, key_data: K, value_data: V) -> Self {
+        Self::new(key_type, Box::new(key_data), Box::new(value_data))
     }
 }
 
