@@ -152,7 +152,7 @@ pub trait KeyMap: Sized {
                 ::core::mem::transmute::<
                     _,
                     Vec<KeyPair<Self::Keys, Box<dyn Encode + 'static>, Box<dyn Encode + 'static>>>,
-                >(self.retrieve_key_pair(*key_type))
+                >(self.retrieve_key_pair(version, *key_type))
             }
             .into_iter();
             while let Some(pair) = iter.next() {
@@ -211,6 +211,7 @@ pub trait KeyMap: Sized {
 
     fn retrieve_key_pair<'enc>(
         &'enc self,
+        version: PsbtVer,
         key_type: Self::Keys,
     ) -> Vec<KeyPair<Self::Keys, Box<dyn Encode + 'enc>, Box<dyn Encode + 'enc>>>;
 
@@ -292,6 +293,7 @@ impl KeyMap for Psbt {
 
     fn retrieve_key_pair<'enc>(
         &'enc self,
+        version: PsbtVer,
         key_type: Self::Keys,
     ) -> Vec<KeyPair<Self::Keys, Box<dyn Encode + 'enc>, Box<dyn Encode + 'enc>>> {
         let mut pairs = match key_type {
@@ -302,7 +304,7 @@ impl KeyMap for Psbt {
             GlobalKey::InputCount => once!(VarInt::with(self.inputs.len())),
             GlobalKey::OutputCount => once!(VarInt::with(self.outputs.len())),
             GlobalKey::TxModifiable => option!(self.tx_modifiable),
-            GlobalKey::Version => once!(self.version),
+            GlobalKey::Version => once!(version),
 
             GlobalKey::Proprietary | GlobalKey::Unknown(_) => unreachable!(),
         };
@@ -376,6 +378,7 @@ impl KeyMap for Input {
 
     fn retrieve_key_pair<'enc>(
         &'enc self,
+        _: PsbtVer,
         key_type: Self::Keys,
     ) -> Vec<KeyPair<Self::Keys, Box<dyn Encode + 'enc>, Box<dyn Encode + 'enc>>> {
         let mut pairs = match key_type {
@@ -555,6 +558,7 @@ impl KeyMap for Output {
 
     fn retrieve_key_pair<'enc>(
         &'enc self,
+        _: PsbtVer,
         key_type: Self::Keys,
     ) -> Vec<KeyPair<Self::Keys, Box<dyn Encode + 'enc>, Box<dyn Encode + 'enc>>> {
         let mut pairs = match key_type {
