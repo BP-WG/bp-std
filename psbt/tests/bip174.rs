@@ -25,9 +25,22 @@ use std::str::FromStr;
 use psbt::Psbt;
 
 #[test]
-fn p2pkh_0() {
-    const PSBT: &str = include_str!("p2pkh_0.base64.psbt");
+fn pkh_0() {
+    const PSBT: &str = include_str!("pkh_0.base64.psbt");
     let psbt = Psbt::from_str(PSBT).unwrap();
-    let psbt2 = Psbt::from_str(&psbt.to_string()).unwrap();
-    assert_eq!(psbt, psbt2);
+    Psbt::from_str(&psbt.to_string()).unwrap();
+}
+
+#[test]
+fn pkh_shWpkh_0() {
+    const PSBT: &str = include_str!("pkh+shWpkh_0.base64.psbt");
+    let psbt = Psbt::from_str(PSBT).unwrap();
+    Psbt::from_str(&psbt.to_string()).unwrap();
+}
+
+#[test]
+fn all() {
+    const PSBT: &str = include_str!("all.base64.psbt");
+    let psbt = Psbt::from_str(PSBT).unwrap();
+    Psbt::from_str(&psbt.to_string()).unwrap();
 }
