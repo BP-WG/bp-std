@@ -37,7 +37,9 @@ pub use coders::{Decode, DecodeError, Encode, PsbtError};
 pub use data::{Input, ModifiableFlags, Output, Prevout, Psbt};
 pub use keys::{GlobalKey, InputKey, KeyPair, KeyType, OutputKey, PropKey};
 pub use maps::{KeyData, KeyMap, Map, ValueData};
-pub use sigtypes::{EcdsaSig, EcdsaSigError, NonStandardSighashType, SighashFlag, SighashType};
+pub use sigtypes::{
+    Bip340Sig, LegacySig, NonStandardSighashType, SigError, SighashFlag, SighashType,
+};
 pub use timelocks::{InvalidTimelock, LockHeight, LockTimestamp, TimelockParseError};
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error)]

@@ -22,8 +22,7 @@
 
 use std::iter;
 
-use bp::secp256k1;
-use bp::secp256k1::ecdsa;
+use bp::secp256k1::{ecdsa, schnorr};
 
 /// This type is consensus valid but an input including it would prevent the transaction from
 /// being relayed on today's Bitcoin network.
@@ -175,7 +174,7 @@ impl SighashType {
 /// An ECDSA signature-related error.
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
 #[display(doc_comments)]
-pub enum EcdsaSigError {
+pub enum SigError {
     /// Non-standard sighash type.
     #[display(inner)]
     #[from]
@@ -185,8 +184,13 @@ pub enum EcdsaSigError {
     EmptySignature,
 
     /// invalid signature DER encoding.
-    #[from(secp256k1::Error)]
     DerEncoding,
+
+    /// invalid BIP340 signature length ({0}).
+    Bip340Encoding(usize),
+
+    /// invalid BIP340 signature.
+    InvalidSignature,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
@@ -195,38 +199,85 @@ pub enum EcdsaSigError {
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-pub struct EcdsaSig {
+pub struct LegacySig {
     /// The underlying ECDSA Signature
     pub sig: ecdsa::Signature,
     /// The corresponding hash type
     pub sighash_type: SighashType,
 }
 
-impl EcdsaSig {
+impl LegacySig {
     /// Constructs an ECDSA bitcoin signature for [`SighashType::All`].
-    pub fn sighash_all(sig: ecdsa::Signature) -> EcdsaSig {
-        EcdsaSig {
+    pub fn sighash_all(sig: ecdsa::Signature) -> LegacySig {
+        LegacySig {
             sig,
             sighash_type: SighashType::all(),
         }
     }
 
     /// Deserializes from slice following the standardness rules for [`SighashType`].
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, EcdsaSigError> {
-        let (hash_ty, sig) = bytes.split_last().ok_or(EcdsaSigError::EmptySignature)?;
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, SigError> {
+        let (hash_ty, sig) = bytes.split_last().ok_or(SigError::EmptySignature)?;
         let sighash_type = SighashType::from_standard(*hash_ty as u32)?;
-        let sig = ecdsa::Signature::from_der(sig)?;
-        Ok(EcdsaSig { sig, sighash_type })
+        let sig = ecdsa::Signature::from_der(sig).map_err(|_| SigError::DerEncoding)?;
+        Ok(LegacySig { sig, sighash_type })
     }
 
-    /// Serializes an ECDSA signature (inner secp256k1 signature in DER format) into `Vec`.
+    /// Serializes an Legacy signature (inner secp256k1 signature in DER format) into `Vec`.
+    // TODO: add support to serialize to a writer to SerializedSig
     pub fn to_vec(self) -> Vec<u8> {
-        // TODO: add support to serialize to a writer to SerializedSig
         self.sig
             .serialize_der()
             .iter()
             .copied()
             .chain(iter::once(self.sighash_type.into_u8()))
             .collect()
+    }
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct Bip340Sig {
+    /// The underlying ECDSA Signature
+    pub sig: schnorr::Signature,
+    /// The corresponding hash type
+    pub sighash_type: Option<SighashType>,
+}
+
+impl Bip340Sig {
+    /// Constructs an ECDSA bitcoin signature for [`SighashType::All`].
+    pub fn sighash_default(sig: schnorr::Signature) -> Self {
+        Bip340Sig {
+            sig,
+            sighash_type: None,
+        }
+    }
+
+    /// Deserializes from slice following the standardness rules for [`SighashType`].
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, SigError> {
+        let (hash_ty, sig) = match bytes.len() {
+            0 => return Err(SigError::EmptySignature),
+            64 => (None, bytes),
+            65 => (Some(bytes[64] as u32), &bytes[..64]),
+            invalid => return Err(SigError::Bip340Encoding(invalid)),
+        };
+        let sighash_type = hash_ty.map(SighashType::from_standard).transpose()?;
+        let sig = schnorr::Signature::from_slice(sig).map_err(|_| SigError::InvalidSignature)?;
+        Ok(Bip340Sig { sig, sighash_type })
+    }
+
+    /// Serializes an ECDSA signature (inner secp256k1 signature in DER format) into `Vec`.
+    // TODO: add support to serialize to a writer to SerializedSig
+    pub fn to_vec(self) -> Vec<u8> {
+        let mut ser = Vec::<u8>::with_capacity(65);
+        ser.extend_from_slice(&self.sig[..]);
+        if let Some(sighash_type) = self.sighash_type {
+            ser.push(sighash_type.into_u8())
+        }
+        ser
     }
 }

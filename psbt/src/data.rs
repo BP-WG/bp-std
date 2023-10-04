@@ -20,8 +20,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::BTreeMap;
-
 use amplify::confinement::Confined;
 use amplify::num::u5;
 use amplify::{Bytes20, Bytes32};
@@ -33,7 +31,8 @@ use bp::{
 use indexmap::IndexMap;
 
 use crate::{
-    EcdsaSig, KeyData, LockHeight, LockTimestamp, PropKey, PsbtVer, SighashType, ValueData,
+    Bip340Sig, KeyData, LegacySig, LockHeight, LockTimestamp, PropKey, PsbtVer, SighashType,
+    ValueData,
 };
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error)]
@@ -370,7 +369,7 @@ pub struct Input {
     /// A map from public keys to their corresponding signature as would be
     /// pushed to the stack from a scriptSig or witness for a non-taproot
     /// inputs.
-    pub partial_sigs: IndexMap<LegacyPubkey, EcdsaSig>,
+    pub partial_sigs: IndexMap<LegacyPubkey, LegacySig>,
 
     /// The sighash type to be used for this input. Signatures for this input
     /// must use the sighash type.
@@ -414,14 +413,14 @@ pub struct Input {
     /// SHA256 algorithm twice.
     pub hash360: IndexMap<Bytes32, ValueData>,
 
-    // TODO: Add taproot data structures
     /// The 64 or 65 byte Schnorr signature for key path spending a Taproot output. Finalizers
     /// should remove this field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
-    pub tap_key_sig: Option<ValueData>,
+    pub tap_key_sig: Option<Bip340Sig>,
 
+    // TODO: Add taproot data structures: ControlBlock etc
     /// The 64 or 65 byte Schnorr signature for this pubkey and leaf combination. Finalizers
     /// should remove this field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
-    pub tap_script_sig: IndexMap<KeyData, ValueData>,
+    pub tap_script_sig: IndexMap<KeyData, Bip340Sig>,
 
     ///  The script for this leaf as would be provided in the witness stack followed by the single
     /// byte leaf version. Note that the leaves included in this field should be those that the

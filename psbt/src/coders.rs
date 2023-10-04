@@ -36,7 +36,7 @@ use bp::{
 
 use crate::keys::KeyValue;
 use crate::{
-    EcdsaSig, GlobalKey, Input, InputKey, KeyData, KeyMap, KeyPair, KeyType, LockHeight,
+    GlobalKey, Input, InputKey, KeyData, KeyMap, KeyPair, KeyType, LegacySig, LockHeight,
     LockTimestamp, Map, ModifiableFlags, NonStandardSighashType, Output, OutputKey, PropKey, Psbt,
     PsbtUnsupportedVer, PsbtVer, SighashType, ValueData,
 };
@@ -629,7 +629,7 @@ impl Decode for KeyOrigin {
     }
 }
 
-impl Encode for EcdsaSig {
+impl Encode for LegacySig {
     fn encode(&self, writer: &mut impl Write) -> Result<usize, IoError> {
         let sig = self.sig.serialize_der();
         writer.write_all(sig.as_ref())?;
@@ -638,14 +638,14 @@ impl Encode for EcdsaSig {
     }
 }
 
-impl Decode for EcdsaSig {
+impl Decode for LegacySig {
     fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
         let mut buf = Vec::with_capacity(78);
         reader.read_to_end(&mut buf)?;
         let (sighash, sig) = buf.split_last().ok_or(PsbtError::EmptySig)?;
         let sig = ecdsa::Signature::from_der(&sig).map_err(PsbtError::InvalidSig)?;
         let sighash_type = SighashType::from_psbt_u8(*sighash)?;
-        Ok(EcdsaSig { sig, sighash_type })
+        Ok(LegacySig { sig, sighash_type })
     }
 }
 
