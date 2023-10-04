@@ -45,6 +45,11 @@ pub use timelocks::{InvalidTimelock, LockHeight, LockTimestamp, TimelockParseErr
 pub struct PsbtUnsupportedVer(u32);
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
 pub enum PsbtVer {
     #[display("v0")]
     V0 = 0,

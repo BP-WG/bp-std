@@ -23,13 +23,13 @@
 use std::collections::BTreeMap;
 use std::io::Read;
 
-use bp::VarIntArray;
+use bp::{LockTime, Tx, TxVer, VarInt, VarIntArray, Xpub, XpubOrigin};
 use indexmap::IndexMap;
 
 use crate::keys::KeyValue;
 use crate::{
-    Decode, DecodeError, GlobalKey, Input, InputKey, KeyType, Output, OutputKey, PropKey, Psbt,
-    PsbtError, PsbtVer,
+    Decode, DecodeError, GlobalKey, Input, InputKey, KeyType, ModifiableFlags, Output, OutputKey,
+    PropKey, Psbt, PsbtError, PsbtVer,
 };
 
 pub type KeyData = VarIntArray<u8>;
@@ -181,13 +181,19 @@ impl KeyMap for Psbt {
         value_data: ValueData,
     ) -> Result<(), PsbtError> {
         match key_type {
-            GlobalKey::UnsignedTx => todo!(),
-            GlobalKey::TxVersion => todo!(),
-            GlobalKey::FallbackLocktime => todo!(),
-            GlobalKey::InputCount => todo!(),
-            GlobalKey::OutputCount => todo!(),
-            GlobalKey::TxModifiable => todo!(),
-            GlobalKey::Version => todo!(),
+            GlobalKey::UnsignedTx => self.reset_from_unsigned_tx(Tx::deserialize(value_data)?),
+            GlobalKey::TxVersion => self.tx_version = TxVer::deserialize(value_data)?,
+            GlobalKey::FallbackLocktime => {
+                self.fallback_locktime = Some(LockTime::deserialize(value_data)?)
+            }
+            GlobalKey::InputCount => self.reset_inputs(VarInt::deserialize(value_data)?.to_usize()),
+            GlobalKey::OutputCount => {
+                self.reset_outputs(VarInt::deserialize(value_data)?.to_usize())
+            }
+            GlobalKey::TxModifiable => {
+                self.tx_modifiable = Some(ModifiableFlags::deserialize(value_data)?)
+            }
+            GlobalKey::Version => self.version = PsbtVer::deserialize(value_data)?,
 
             GlobalKey::Xpub => unreachable!(),
             GlobalKey::Proprietary | GlobalKey::Unknown(_) => unreachable!(),
@@ -202,7 +208,11 @@ impl KeyMap for Psbt {
         value_data: ValueData,
     ) -> Result<(), PsbtError> {
         match key_type {
-            GlobalKey::Xpub => todo!(),
+            GlobalKey::Xpub => {
+                let xpub = Xpub::deserialize(key_data)?;
+                let origin = XpubOrigin::deserialize(value_data)?;
+                self.push_xpub(xpub, origin);
+            }
 
             GlobalKey::UnsignedTx
             | GlobalKey::TxVersion

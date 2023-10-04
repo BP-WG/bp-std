@@ -29,7 +29,9 @@ use bp::{
 };
 use indexmap::IndexMap;
 
-use crate::{EcdsaSig, KeyData, LockHeight, LockTimestamp, PropKey, SighashType, ValueData};
+use crate::{
+    EcdsaSig, KeyData, LockHeight, LockTimestamp, PropKey, PsbtVer, SighashType, ValueData,
+};
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error)]
 #[display("PSBT can't be modified")]
@@ -63,6 +65,9 @@ impl Prevout {
 // TODO: Serde deserialize must correctly initialzie inputs and outputs with their indexes and
 //       account for unknown fields
 pub struct Psbt {
+    /// PSBT version
+    pub version: PsbtVer,
+
     /// Transaction version.
     pub tx_version: TxVer,
 
@@ -96,6 +101,7 @@ impl Default for Psbt {
 impl Psbt {
     pub fn create() -> Psbt {
         Psbt {
+            version: PsbtVer::V2,
             tx_version: TxVer::V2,
             fallback_locktime: None,
             inputs: vec![],
@@ -105,6 +111,27 @@ impl Psbt {
             proprietary: none!(),
             unknown: none!(),
         }
+    }
+
+    pub fn from_unsigned_tx(unsigned_tx: Tx) -> Self {
+        let mut psbt = Psbt::create();
+        psbt.reset_from_unsigned_tx(unsigned_tx);
+        psbt
+    }
+
+    pub(crate) fn reset_from_unsigned_tx(&mut self, tx: Tx) {
+        self.tx_version = tx.version;
+        self.fallback_locktime = Some(tx.lock_time);
+        self.inputs = tx.inputs.into_iter().enumerate().map(Input::from_unsigned_txin).collect();
+        self.outputs = tx.outputs.into_iter().enumerate().map(Output::from_txout).collect();
+    }
+
+    pub(crate) fn reset_inputs(&mut self, input_count: usize) {
+        self.inputs = (0..input_count).map(Input::new).collect();
+    }
+
+    pub(crate) fn reset_outputs(&mut self, output_count: usize) {
+        self.outputs = (0..output_count).map(Output::new).collect();
     }
 
     pub fn to_unsigned_tx(&self) -> Tx {
@@ -267,6 +294,10 @@ impl Psbt {
         // TODO: Check all inputs have witness_utxo or non_witness_tx
         self.tx_modifiable = Some(ModifiableFlags::unmodifiable())
     }
+
+    pub fn push_xpub(&mut self, xpub: Xpub, origin: XpubOrigin) -> Option<XpubOrigin> {
+        self.xpubs.insert(xpub, origin)
+    }
 }
 
 /* TODO: Complete weight implementation
@@ -366,6 +397,37 @@ pub struct Input {
 }
 
 impl Input {
+    pub fn new(index: usize) -> Input {
+        Input {
+            index,
+            previous_outpoint: Outpoint::coinbse(),
+            sequence_number: None,
+            required_time_lock: None,
+            required_height_lock: None,
+            witness_utxo: None,
+            partial_sigs: none!(),
+            sighash_type: None,
+            redeem_script: None,
+            witness_script: None,
+            bip32_derivation: none!(),
+            final_script_sig: None,
+            final_witness: None,
+            proprietary: none!(),
+            unknown: none!(),
+        }
+    }
+
+    pub fn with_unsigned_txin(txin: TxIn, index: usize) -> Input {
+        let mut input = Input::new(index);
+        input.previous_outpoint = txin.prev_output;
+        input.sequence_number = Some(txin.sequence);
+        input
+    }
+
+    pub fn from_unsigned_txin((index, txin): (usize, TxIn)) -> Input {
+        Input::with_unsigned_txin(txin, index)
+    }
+
     pub fn to_unsigned_txin(&self) -> TxIn {
         TxIn {
             prev_output: self.previous_outpoint,
@@ -401,7 +463,7 @@ impl Input {
     pub fn value(&self) -> Sats { self.prev_txout().value }
 }
 
-#[derive(Clone, Eq, PartialEq, Debug, Default)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize),
@@ -437,6 +499,28 @@ pub struct Output {
 }
 
 impl Output {
+    pub fn new(index: usize) -> Self {
+        Output {
+            index,
+            amount: Sats::ZERO,
+            script: ScriptPubkey::new(),
+            redeem_script: None,
+            witness_script: None,
+            bip32_derivation: none!(),
+            proprietary: none!(),
+            unknown: none!(),
+        }
+    }
+
+    pub fn with_txout(txout: TxOut, index: usize) -> Self {
+        let mut output = Output::new(index);
+        output.amount = txout.value;
+        output.script = txout.script_pubkey;
+        output
+    }
+
+    pub fn from_txout((index, txout): (usize, TxOut)) -> Self { Output::with_txout(txout, index) }
+
     pub fn to_txout(&self) -> TxOut {
         TxOut {
             value: self.amount,
