@@ -19,3 +19,62 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+#[macro_use]
+extern crate amplify;
+#[cfg(feature = "serde")]
+#[macro_use]
+extern crate serde_crate as serde;
+
+mod timelocks;
+mod sigtypes;
+mod data;
+mod keys;
+mod maps;
+mod coders;
+
+pub use coders::{Decode, DecodeError, Encode, PsbtError};
+pub use data::{Input, ModifiableFlags, Output, Prevout, Psbt, PsbtParseError};
+pub use keys::{GlobalKey, InputKey, KeyPair, KeyType, OutputKey, PropKey};
+pub use maps::{KeyData, KeyMap, Map, MapName, ValueData};
+pub use sigtypes::{
+    Bip340Sig, LegacySig, NonStandardSighashType, SigError, SighashFlag, SighashType,
+};
+pub use timelocks::{InvalidTimelock, LockHeight, LockTimestamp, TimelockParseError};
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error)]
+#[display("unsupported version of PSBT v{0}")]
+pub struct PsbtUnsupportedVer(u32);
+
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub enum PsbtVer {
+    #[display("v0")]
+    V0 = 0,
+    #[display("v2")]
+    V2 = 2,
+}
+
+impl PsbtVer {
+    pub const fn try_from_standard_u32(v: u32) -> Result<Self, PsbtUnsupportedVer> {
+        Ok(match v {
+            0 => Self::V0,
+            2 => Self::V2,
+            wrong => return Err(PsbtUnsupportedVer(wrong)),
+        })
+    }
+
+    pub const fn to_standard_u32(&self) -> u32 { *self as u32 }
+
+    pub const fn max() -> Self {
+        // this is a special syntax construct to get compiler error each time we add a new version
+        // and not to forget upgrade the result of this method
+        match Self::V0 {
+            PsbtVer::V0 | PsbtVer::V2 => PsbtVer::V2,
+        }
+    }
+}

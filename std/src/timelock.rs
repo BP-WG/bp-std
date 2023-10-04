@@ -20,29 +20,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use bpstd::{Address, AddressError, AddressNetwork, DeriveScripts, Idx, NormalIndex};
+pub const LOCKTIME_THRESHOLD: u32 = 500000000;
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub struct AddressFactory<D: DeriveScripts> {
-    pub descriptor: D,
-    pub network: AddressNetwork,
-    pub keychain: u8,
-    pub unused_tip: NormalIndex,
-}
+/// Time lock interval describing both relative (OP_CHECKSEQUENCEVERIFY) and
+/// absolute (OP_CHECKTIMELOCKVERIFY) timelocks.
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
+#[derive(StrictEncode, StrictDecode)]
+pub enum TimeLockInterval {
+    /// Describes number of blocks for the timelock
+    #[display("height({0})")]
+    Height(u16),
 
-impl<D: DeriveScripts> Iterator for AddressFactory<D> {
-    type Item = Address;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let addr =
-            self.descriptor.derive_address(self.network, self.keychain, self.unused_tip).ok()?;
-        self.unused_tip.wrapping_inc_assign();
-        Some(addr)
-    }
-}
-
-impl<D: DeriveScripts> AddressFactory<D> {
-    pub fn address(&self, index: NormalIndex) -> Result<Address, AddressError> {
-        self.descriptor.derive_address(self.network, self.keychain, index)
-    }
+    /// Describes number of 512-second intervals for the timelock
+    #[display("time({0})")]
+    Time(u16),
 }

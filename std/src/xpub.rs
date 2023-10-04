@@ -30,8 +30,8 @@ use bc::secp256k1::{PublicKey, XOnlyPublicKey, SECP256K1};
 use hashes::{hash160, sha512, Hash, HashEngine, Hmac, HmacEngine};
 
 use crate::{
-    base58, ComprPubkey, DerivationIndex, DerivationParseError, DerivationPath, DerivationSeg,
-    HardenedIndex, Idx, IndexParseError, NormalIndex, SegParseError,
+    base58, CompressedPk, DerivationIndex, DerivationParseError, DerivationPath, DerivationSeg,
+    HardenedIndex, Idx, IndexParseError, NormalIndex, OriginParseError, SegParseError,
 };
 
 pub const XPUB_MAINNET_MAGIC: [u8; 4] = [0x04u8, 0x88, 0xB2, 0x1E];
@@ -97,6 +97,15 @@ pub enum XpubParseError {
     ParentMismatch,
 }
 
+impl From<OriginParseError> for XpubParseError {
+    fn from(err: OriginParseError) -> Self {
+        match err {
+            OriginParseError::DerivationPath(e) => XpubParseError::DerivationPath(e),
+            OriginParseError::InvalidMasterFp(e) => XpubParseError::InvalidMasterFp(e),
+        }
+    }
+}
+
 /// BIP32 chain code used for hierarchical derivation
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
 #[wrapper(Deref, RangeOps)]
@@ -126,6 +135,11 @@ pub struct XpubCore {
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default, Debug, Display, From)]
 #[wrapper(RangeOps, Hex, FromStr)]
 #[display(LowerHex)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", transparent)
+)]
 pub struct XpubFp(
     #[from]
     #[from([u8; 4])]
@@ -143,6 +157,11 @@ impl From<XpubFp> for [u8; 4] {
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default, Debug, Display, From)]
 #[wrapper(RangeOps, Hex, FromStr)]
 #[display(LowerHex)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", transparent)
+)]
 pub struct XpubId(
     #[from]
     #[from([u8; 20])]
@@ -243,7 +262,7 @@ impl Xpub {
     }
 
     /// Constructs ECDSA public key matching internal public key representation.
-    pub fn to_compr_pub(&self) -> ComprPubkey { ComprPubkey(self.core.public_key) }
+    pub fn to_compr_pub(&self) -> CompressedPk { CompressedPk(self.core.public_key) }
 
     /// Constructs BIP340 public key matching internal public key representation.
     pub fn to_xonly_pub(&self) -> XOnlyPublicKey { XOnlyPublicKey::from(self.core.public_key) }
@@ -316,15 +335,30 @@ impl FromStr for Xpub {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
+#[derive(Getters, Clone, Eq, PartialEq, Hash, Debug, Display)]
 #[display("{master_fp}{derivation}", alt = "{master_fp}{derivation:#}")]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
 pub struct XpubOrigin {
+    #[getter(as_copy)]
     master_fp: XpubFp,
-    derivation: DerivationPath,
+    derivation: DerivationPath<HardenedIndex>,
+}
+
+impl XpubOrigin {
+    pub fn new(master_fp: XpubFp, derivation: DerivationPath<HardenedIndex>) -> Self {
+        XpubOrigin {
+            master_fp,
+            derivation,
+        }
+    }
 }
 
 impl FromStr for XpubOrigin {
-    type Err = XpubParseError;
+    type Err = OriginParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let (master_fp, path) = match s.split_once('/') {
@@ -340,46 +374,34 @@ impl FromStr for XpubOrigin {
 }
 
 #[derive(Getters, Clone, Eq, PartialEq, Hash, Debug)]
-pub struct XpubDescriptor {
+pub struct XpubSpec {
     origin: XpubOrigin,
     xpub: Xpub,
-    variant: Option<NormalIndex>,
-    pub(crate) keychains: DerivationSeg,
 }
 
-impl Display for XpubDescriptor {
+impl XpubSpec {
+    pub fn new(xpub: Xpub, origin: XpubOrigin) -> Self { XpubSpec { xpub, origin } }
+}
+
+impl Display for XpubSpec {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str("[")?;
         Display::fmt(&self.origin, f)?;
         f.write_str("]")?;
-
-        write!(f, "{}/", self.xpub)?;
-
-        if let Some(variant) = self.variant {
-            write!(f, "{variant}/")?;
-        }
-
-        Display::fmt(&self.keychains, f)?;
-
-        f.write_str("/*")
+        write!(f, "{}/", self.xpub)
     }
 }
 
-impl FromStr for XpubDescriptor {
+impl FromStr for XpubSpec {
     type Err = XpubParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if !s.starts_with('[') {
             return Err(XpubParseError::NoOrigin);
         }
-        let (origin, remains) =
+        let (origin, xpub) =
             s.trim_start_matches('[').split_once(']').ok_or(XpubParseError::NoOrigin)?;
         let origin = XpubOrigin::from_str(origin)?;
-
-        let mut segs = remains.split('/');
-        let Some(xpub) = segs.next() else {
-            return Err(XpubParseError::NoXpub);
-        };
         let xpub = Xpub::from_str(xpub)?;
 
         if origin.derivation.len() != xpub.meta.depth as usize {
@@ -390,10 +412,57 @@ impl FromStr for XpubDescriptor {
             if origin.derivation.get(1) != Some(&network.into()) {
                 return Err(XpubParseError::NetworkMismatch);
             }
-            if origin.derivation.last() != Some(&xpub.meta.child_number) {
+            if origin.derivation.last().copied().map(DerivationIndex::Hardened)
+                != Some(xpub.meta.child_number)
+            {
                 return Err(XpubParseError::ParentMismatch);
             }
         }
+
+        Ok(XpubSpec { origin, xpub })
+    }
+}
+
+#[derive(Getters, Clone, Eq, PartialEq, Hash, Debug)]
+pub struct XpubDerivable {
+    spec: XpubSpec,
+    variant: Option<NormalIndex>,
+    pub(crate) keychains: DerivationSeg,
+}
+
+impl XpubDerivable {
+    pub fn xpub(&self) -> Xpub { self.spec.xpub }
+
+    pub fn origin(&self) -> &XpubOrigin { &self.spec.origin }
+}
+
+impl Display for XpubDerivable {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        Display::fmt(&self.spec, f)?;
+        if let Some(variant) = self.variant {
+            write!(f, "{variant}/")?;
+        }
+        Display::fmt(&self.keychains, f)?;
+        f.write_str("/*")
+    }
+}
+
+impl FromStr for XpubDerivable {
+    type Err = XpubParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if !s.starts_with('[') {
+            return Err(XpubParseError::NoOrigin);
+        }
+        let (origin, remains) =
+            s.trim_start_matches('[').split_once(']').ok_or(XpubParseError::NoOrigin)?;
+
+        let origin = XpubOrigin::from_str(origin)?;
+        let mut segs = remains.split('/');
+        let Some(xpub) = segs.next() else {
+            return Err(XpubParseError::NoXpub);
+        };
+        let xpub = Xpub::from_str(xpub)?;
 
         let (variant, keychains) = match (segs.next(), segs.next(), segs.next(), segs.next()) {
             (Some(var), Some(keychains), Some("*"), None) => {
@@ -403,13 +472,45 @@ impl FromStr for XpubDescriptor {
             _ => return Err(XpubParseError::InvalidTerminal),
         };
 
-        let d = XpubDescriptor {
-            origin,
-            xpub,
+        Ok(XpubDerivable {
+            spec: XpubSpec::new(xpub, origin),
             variant,
             keychains,
-        };
-        Ok(d)
+        })
+    }
+}
+
+#[cfg(feature = "serde")]
+mod _serde {
+    use serde_crate::{de, Deserialize, Deserializer, Serialize, Serializer};
+
+    use super::*;
+
+    impl Serialize for Xpub {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: Serializer {
+            if serializer.is_human_readable() {
+                serializer.serialize_str(&self.to_string())
+            } else {
+                serializer.serialize_bytes(&self.encode())
+            }
+        }
+    }
+
+    impl<'de> Deserialize<'de> for Xpub {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where D: Deserializer<'de> {
+            if deserializer.is_human_readable() {
+                let s = String::deserialize(deserializer)?;
+                Xpub::from_str(&s).map_err(|err| {
+                    de::Error::custom(format!("invalid xpub string representation; {err}"))
+                })
+            } else {
+                let v = Vec::<u8>::deserialize(deserializer)?;
+                Xpub::decode(v)
+                    .map_err(|err| de::Error::custom(format!("invalid xpub bytes; {err}")))
+            }
+        }
     }
 }
 
@@ -420,7 +521,7 @@ mod test {
     #[test]
     fn display_from_str() {
         let s = "[643a7adc/86h/1h/0h]tpubDCNiWHaiSkgnQjuhsg9kjwaUzaxQjUcmhagvYzqQ3TYJTgFGJstVaqnu4yhtFktBhCVFmBNLQ5sN53qKzZbMksm3XEyGJsEhQPfVZdWmTE2/<0;1>/*";
-        let xpub = XpubDescriptor::from_str(s).unwrap();
+        let xpub = XpubDerivable::from_str(s).unwrap();
         assert_eq!(s, xpub.to_string());
     }
 }

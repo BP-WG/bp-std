@@ -29,8 +29,8 @@ use bc::{InternalPk, ScriptPubkey};
 
 use crate::address::AddressError;
 use crate::{
-    Address, AddressNetwork, AddressParseError, ComprPubkey, Idx, IndexParseError, NormalIndex,
-    XpubDescriptor,
+    Address, AddressNetwork, AddressParseError, CompressedPk, Idx, IndexParseError, NormalIndex,
+    RedeemScript, WitnessScript, XpubDerivable, XpubSpec,
 };
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
@@ -41,7 +41,13 @@ pub struct Terminal {
 }
 
 impl Terminal {
-    pub fn new(keychain: u8, index: NormalIndex) -> Self { Terminal { keychain, index } }
+    pub fn new(keychain: u8, index: NormalIndex) -> Self {
+        Terminal {
+            keychain,
+            index: index.into(),
+        }
+    }
+    pub fn change(index: NormalIndex) -> Self { Self::new(1, index) }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
@@ -77,6 +83,65 @@ impl FromStr for Terminal {
             _ => Err(TerminalParseError::InvalidComponents(s.to_owned())),
         }
     }
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[non_exhaustive]
+pub enum DerivedScript {
+    Bare(ScriptPubkey),
+    Bip13(RedeemScript),
+    Segwit(WitnessScript),
+    Nested(WitnessScript),
+    TaprootKeyOnly(InternalPk),
+    //Taproot(XOnlyPublicKey, TapTree)
+}
+
+impl DerivedScript {
+    pub fn to_script_pubkey(&self) -> ScriptPubkey {
+        match self {
+            DerivedScript::Bare(script_pubkey) => script_pubkey.clone(),
+            DerivedScript::Bip13(_) => todo!(),
+            DerivedScript::Segwit(_) => todo!(),
+            DerivedScript::Nested(_) => todo!(),
+            DerivedScript::TaprootKeyOnly(internal_key) => {
+                ScriptPubkey::p2tr_key_only(*internal_key)
+            }
+        }
+    }
+
+    pub fn as_redeem_script(&self) -> Option<&RedeemScript> {
+        match self {
+            DerivedScript::Bare(_) => None,
+            DerivedScript::Bip13(redeem_script) => Some(redeem_script),
+            DerivedScript::Segwit(_) => todo!(),
+            DerivedScript::Nested(_) => todo!(),
+            DerivedScript::TaprootKeyOnly(_) => None,
+        }
+    }
+    pub fn as_witness_script(&self) -> Option<&WitnessScript> {
+        match self {
+            DerivedScript::Bare(_) => None,
+            DerivedScript::Bip13(_) => None,
+            DerivedScript::Segwit(witness_script) | DerivedScript::Nested(witness_script) => {
+                Some(witness_script)
+            }
+            DerivedScript::TaprootKeyOnly(_) => None,
+        }
+    }
+    pub fn to_redeem_script(&self) -> Option<RedeemScript> { self.as_redeem_script().cloned() }
+    pub fn to_witness_script(&self) -> Option<WitnessScript> { self.as_witness_script().cloned() }
+
+    pub fn to_internal_key(&self) -> Option<InternalPk> {
+        match self {
+            DerivedScript::Bare(_)
+            | DerivedScript::Bip13(_)
+            | DerivedScript::Segwit(_)
+            | DerivedScript::Nested(_) => None,
+            DerivedScript::TaprootKeyOnly(internal_key) => Some(*internal_key),
+        }
+    }
+
+    // pub fn to_tap_tree(&self) -> Option<TapTree> {}
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display)]
@@ -149,20 +214,24 @@ pub trait Derive<D> {
     }
 }
 
-pub trait DeriveCompr: Derive<ComprPubkey> {}
-impl<T: Derive<ComprPubkey>> DeriveCompr for T {}
+pub trait DeriveKey<D>: Derive<D> {
+    fn xpub_spec(&self) -> &XpubSpec;
+}
 
-pub trait DeriveXOnly: Derive<InternalPk> {}
-impl<T: Derive<InternalPk>> DeriveXOnly for T {}
+pub trait DeriveCompr: DeriveKey<CompressedPk> {}
+impl<T: DeriveKey<CompressedPk>> DeriveCompr for T {}
 
-pub trait DeriveSpk: Derive<ScriptPubkey> {
+pub trait DeriveXOnly: DeriveKey<InternalPk> {}
+impl<T: DeriveKey<InternalPk>> DeriveXOnly for T {}
+
+pub trait DeriveScripts: Derive<DerivedScript> {
     fn derive_address(
         &self,
         network: AddressNetwork,
         keychain: u8,
         index: impl Into<NormalIndex>,
     ) -> Result<Address, AddressError> {
-        let spk = self.derive(keychain, index);
+        let spk = self.derive(keychain, index).to_script_pubkey();
         Address::with(&spk, network)
     }
 
@@ -174,23 +243,32 @@ pub trait DeriveSpk: Derive<ScriptPubkey> {
         max_count: u8,
     ) -> Result<Vec<Address>, AddressError> {
         self.derive_batch(keychain, from, max_count)
-            .into_iter()
+            .iter()
+            .map(DerivedScript::to_script_pubkey)
             .map(|spk| Address::with(&spk, network))
             .collect()
     }
 }
-impl<T: Derive<ScriptPubkey>> DeriveSpk for T {}
+impl<T: Derive<DerivedScript>> DeriveScripts for T {}
 
-impl Derive<ComprPubkey> for XpubDescriptor {
+impl DeriveKey<CompressedPk> for XpubDerivable {
+    fn xpub_spec(&self) -> &XpubSpec { self.spec() }
+}
+
+impl DeriveKey<InternalPk> for XpubDerivable {
+    fn xpub_spec(&self) -> &XpubSpec { self.spec() }
+}
+
+impl Derive<CompressedPk> for XpubDerivable {
     #[inline]
     fn keychains(&self) -> Range<u8> { 0..self.keychains.count() }
 
-    fn derive(&self, keychain: u8, index: impl Into<NormalIndex>) -> ComprPubkey {
+    fn derive(&self, keychain: u8, index: impl Into<NormalIndex>) -> CompressedPk {
         self.xpub().derive_pub([keychain.into(), index.into()]).to_compr_pub()
     }
 }
 
-impl Derive<InternalPk> for XpubDescriptor {
+impl Derive<InternalPk> for XpubDerivable {
     #[inline]
     fn keychains(&self) -> Range<u8> { 0..self.keychains.count() }
 
@@ -204,7 +282,7 @@ pub trait DeriveSet {
     type XOnly: DeriveXOnly;
 }
 
-impl DeriveSet for XpubDescriptor {
-    type Compr = XpubDescriptor;
-    type XOnly = XpubDescriptor;
+impl DeriveSet for XpubDerivable {
+    type Compr = XpubDerivable;
+    type XOnly = XpubDerivable;
 }

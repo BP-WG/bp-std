@@ -347,6 +347,11 @@ impl FromStr for NormalIndex {
 /// Index for hardened children derivation; ensures that the index always >=
 /// 2^31.
 #[derive(Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default, Display, From)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
 #[display("{0}h", alt = "{0}'")]
 pub struct HardenedIndex(
     /// The inner index value; always reduced by [`HARDENED_INDEX_BOUNDARY`]
@@ -400,7 +405,7 @@ impl Idx for HardenedIndex {
         }
     }
 
-    /// Returns hardened index number offset by [`HARDENED_INDEX_BOUNDARY`]
+    /// Returns hardened index number not offset by [`HARDENED_INDEX_BOUNDARY`]
     /// (i.e. zero-based).
     #[inline]
     fn child_number(&self) -> u32 { self.0 }
@@ -418,6 +423,8 @@ impl Idx for HardenedIndex {
         })
     }
 
+    /// Returns hardened index number offset by [`HARDENED_INDEX_BOUNDARY`]
+    /// (i.e. zero-based).
     #[inline]
     fn index(&self) -> u32 { self.0 + HARDENED_INDEX_BOUNDARY }
 
@@ -447,6 +454,11 @@ impl FromStr for HardenedIndex {
 }
 
 #[derive(Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, From)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
 #[display(inner)]
 pub enum DerivationIndex {
     #[from]

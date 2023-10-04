@@ -132,6 +132,11 @@ where
 #[derive(Wrapper, WrapperMut, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default, Debug, From)]
 #[wrapper(Deref)]
 #[wrapper_mut(DerefMut)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
 pub struct DerivationPath<I = DerivationIndex>(Vec<I>);
 
 impl<I: Clone> From<&[I]> for DerivationPath<I> {

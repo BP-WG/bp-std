@@ -37,6 +37,7 @@ mod base58;
 mod index;
 mod path;
 mod key;
+mod scripts;
 mod xpub;
 mod descriptors;
 mod address;
@@ -50,14 +51,17 @@ pub use address::{
 };
 pub use bc::{secp256k1, *};
 pub use derive::{
-    Derive, DeriveCompr, DeriveSet, DeriveSpk, DeriveXOnly, DerivedAddr, DerivedAddrParseError,
-    Terminal, TerminalParseError,
+    Derive, DeriveCompr, DeriveKey, DeriveScripts, DeriveSet, DeriveXOnly, DerivedAddr,
+    DerivedAddrParseError, Terminal, TerminalParseError,
 };
-pub use descriptors::{Descriptor, DescriptorStd, KeyTranslate, TrKey, VarResolve};
+pub use descriptors::{Descriptor, DescriptorStd, TrKey, Wpkh};
 pub use index::{
     DerivationIndex, HardenedIndex, Idx, IndexError, IndexParseError, NormalIndex,
     HARDENED_INDEX_BOUNDARY,
 };
-pub use key::{ComprPubkey, LegacyPubkey, TaprootPubkey, UncomprPubkey};
+pub use key::{CompressedPk, KeyOrigin, LegacyPk, OriginParseError, TaprootPk, UncompressedPk};
 pub use path::{DerivationParseError, DerivationPath, DerivationSeg, SegParseError};
-pub use xpub::{Xpub, XpubDescriptor, XpubFp, XpubId, XpubMeta, XpubOrigin};
+pub use scripts::{RedeemScript, WitnessScript};
+pub use xpub::{
+    Xpub, XpubDecodeError, XpubDerivable, XpubFp, XpubId, XpubMeta, XpubOrigin, XpubSpec,
+};

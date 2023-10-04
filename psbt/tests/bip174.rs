@@ -20,29 +20,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use bpstd::{Address, AddressError, AddressNetwork, DeriveScripts, Idx, NormalIndex};
+use std::str::FromStr;
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub struct AddressFactory<D: DeriveScripts> {
-    pub descriptor: D,
-    pub network: AddressNetwork,
-    pub keychain: u8,
-    pub unused_tip: NormalIndex,
+use psbt::Psbt;
+
+#[test]
+fn pkh_0() {
+    const PSBT: &str = include_str!("pkh_0.base64.psbt");
+    let psbt = Psbt::from_str(PSBT).unwrap();
+    Psbt::from_str(&psbt.to_string()).unwrap();
 }
 
-impl<D: DeriveScripts> Iterator for AddressFactory<D> {
-    type Item = Address;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let addr =
-            self.descriptor.derive_address(self.network, self.keychain, self.unused_tip).ok()?;
-        self.unused_tip.wrapping_inc_assign();
-        Some(addr)
-    }
+#[test]
+fn pkh_shWpkh_0() {
+    const PSBT: &str = include_str!("pkh+shWpkh_0.base64.psbt");
+    let psbt = Psbt::from_str(PSBT).unwrap();
+    Psbt::from_str(&psbt.to_string()).unwrap();
 }
 
-impl<D: DeriveScripts> AddressFactory<D> {
-    pub fn address(&self, index: NormalIndex) -> Result<Address, AddressError> {
-        self.descriptor.derive_address(self.network, self.keychain, index)
-    }
+#[test]
+fn all() {
+    const PSBT: &str = include_str!("all.base64.psbt");
+    let psbt = Psbt::from_str(PSBT).unwrap();
+    Psbt::from_str(&psbt.to_string()).unwrap();
 }

@@ -30,8 +30,9 @@ use amplify::hex::ToHex;
 use amplify::{Array, Wrapper};
 use bc::{Chain, ScriptPubkey, WitnessVer};
 use bech32::u5;
+use hashes::{hash160, Hash};
 
-use crate::{base58, TaprootPubkey};
+use crate::{base58, CompressedPk, InvalidPubkey, TaprootPk};
 
 /// Mainnet (bitcoin) pubkey address prefix.
 pub const PUBKEY_ADDRESS_PREFIX_MAIN: u8 = 0; // 0x00
@@ -64,7 +65,7 @@ pub enum AddressParseError {
     #[from]
     Bech32(bech32::Error),
 
-    /// legacy address has an invalid version code {0:#02x}.
+    /// proprietary address has an invalid version code {0:#02x}.
     InvalidAddressVersion(u8),
 
     /// segwit address has an invalid witness version {0:#02x}.
@@ -83,7 +84,7 @@ pub enum AddressParseError {
     UnrecognizableFormat(String),
 
     /// wrong BIP340 public key
-    #[from(bc::secp256k1::Error)]
+    #[from(InvalidPubkey)]
     WrongPublicKeyData,
 
     /// unrecognized address format string; must be one of `P2PKH`, `P2SH`,
@@ -244,7 +245,9 @@ impl FromStr for Address {
                     AddressPayload::Wsh(hash.into())
                 }
                 (WitnessVer::V1, bech32::Variant::Bech32m) if program.len() == 32 => {
-                    let pk = TaprootPubkey::from_slice(&program)?;
+                    let mut key = [0u8; 32];
+                    key.copy_from_slice(&program);
+                    let pk = TaprootPk::from_byte_array(key)?;
                     AddressPayload::Tr(pk)
                 }
 
@@ -354,6 +357,13 @@ impl Debug for WPubkeyHash {
     }
 }
 
+impl WPubkeyHash {
+    pub fn with(key: CompressedPk) -> Self {
+        let hash = hash160::Hash::hash(&key.to_byte_array());
+        Self(hash.to_byte_array().into())
+    }
+}
+
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Display, From)]
 #[wrapper(BorrowSlice, Index, RangeOps, FromStr, Hex)]
 #[display(LowerHex)]
@@ -388,7 +398,7 @@ pub enum AddressPayload {
     #[from]
     Pkh(PubkeyHash),
 
-    /// P2SH and SegWit nested (legacy) P2WPKH/WSH-in-P2SH payloads.
+    /// P2SH and SegWit nested (proprietary) P2WPKH/WSH-in-P2SH payloads.
     #[from]
     Sh(ScriptHash),
 
@@ -402,7 +412,7 @@ pub enum AddressPayload {
 
     /// P2TR payload.
     #[from]
-    Tr(TaprootPubkey),
+    Tr(TaprootPk),
 }
 
 impl AddressPayload {
@@ -434,9 +444,10 @@ impl AddressPayload {
             bytes.copy_from_slice(&script[2..]);
             AddressPayload::Wsh(WScriptHash::from(bytes))
         } else if script.is_p2tr() {
+            let mut bytes = [0u8; 32];
+            bytes.copy_from_slice(&script[2..]);
             AddressPayload::Tr(
-                TaprootPubkey::from_slice(&script[2..])
-                    .map_err(|_| AddressError::InvalidTaprootKey)?,
+                TaprootPk::from_byte_array(bytes).map_err(|_| AddressError::InvalidTaprootKey)?,
             )
         } else {
             return Err(AddressError::UnsupportedScriptPubkey);
