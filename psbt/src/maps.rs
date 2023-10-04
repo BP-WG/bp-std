@@ -145,26 +145,18 @@ pub trait KeyMap: Sized {
     ) -> Result<usize, IoError> {
         let mut counter = 0;
 
-        for key_type in Self::Keys::STANDARD {
-            if key_type.is_allowed(version) {
-                let mut iter = unsafe {
-                    // We need this hack since Rust borrower checker can't see that the
-                    // reference actually doesn't escape the scope
-                    ::core::mem::transmute::<
-                        _,
-                        Vec<
-                            KeyPair<
-                                Self::Keys,
-                                Box<dyn Encode + 'static>,
-                                Box<dyn Encode + 'static>,
-                            >,
-                        >,
-                    >(self.retrieve_key_pair(*key_type))
-                }
-                .into_iter();
-                while let Some(pair) = iter.next() {
-                    counter += pair.encode(writer)?;
-                }
+        for key_type in Self::Keys::STANDARD.iter().filter(|kt| kt.is_allowed(version)) {
+            let mut iter = unsafe {
+                // We need this hack since Rust borrower checker can't see that the
+                // reference actually doesn't escape the scope
+                ::core::mem::transmute::<
+                    _,
+                    Vec<KeyPair<Self::Keys, Box<dyn Encode + 'static>, Box<dyn Encode + 'static>>>,
+                >(self.retrieve_key_pair(*key_type))
+            }
+            .into_iter();
+            while let Some(pair) = iter.next() {
+                counter += pair.encode(writer)?;
             }
         }
 
@@ -245,44 +237,44 @@ pub trait KeyMap: Sized {
 }
 
 macro_rules! once {
-    ($key:ident, $expr:expr) => {
-        vec![KeyPair::boxed(Self::Keys::$key, (), $expr)]
+    ($expr:expr) => {
+        vec![KeyPair::boxed(Self::PROPRIETARY_TYPE, (), $expr)]
     };
 }
 macro_rules! option {
-    ($key:ident, $expr:expr) => {
-        $expr.as_ref().map(|e| KeyPair::boxed(Self::Keys::$key, (), e)).into_iter().collect()
+    ($expr:expr) => {
+        $expr.as_ref().map(|e| KeyPair::boxed(Self::PROPRIETARY_TYPE, (), e)).into_iter().collect()
     };
 }
 macro_rules! option_raw {
-    ($key:ident, $expr:expr) => {
+    ($expr:expr) => {
         $expr
             .as_ref()
-            .map(|e| KeyPair::boxed(Self::Keys::$key, (), RawBytes(e)))
+            .map(|e| KeyPair::boxed(Self::PROPRIETARY_TYPE, (), RawBytes(e)))
             .into_iter()
             .collect()
     };
 }
 macro_rules! iter {
-    ($key:ident, $expr:expr) => {
-        $expr.iter().map(|(k, v)| KeyPair::boxed(Self::Keys::$key, k, v)).collect()
+    ($expr:expr) => {
+        $expr.iter().map(|(k, v)| KeyPair::boxed(Self::PROPRIETARY_TYPE, k, v)).collect()
     };
 }
 macro_rules! iter_raw {
-    ($key:ident, $expr:expr) => {
-        $expr.iter().map(|(k, v)| KeyPair::boxed(Self::Keys::$key, k, RawBytes(v))).collect()
+    ($expr:expr) => {
+        $expr.iter().map(|(k, v)| KeyPair::boxed(Self::PROPRIETARY_TYPE, k, RawBytes(v))).collect()
     };
 }
 macro_rules! iter_raw_key {
-    ($key:ident, $expr:expr) => {
-        $expr.iter().map(|(k, v)| KeyPair::boxed(Self::Keys::$key, RawBytes(k), v)).collect()
+    ($expr:expr) => {
+        $expr.iter().map(|(k, v)| KeyPair::boxed(Self::PROPRIETARY_TYPE, RawBytes(k), v)).collect()
     };
 }
 macro_rules! iter_raw_all {
-    ($key:ident, $expr:expr) => {
+    ($expr:expr) => {
         $expr
             .iter()
-            .map(|(k, v)| KeyPair::boxed(Self::Keys::$key, RawBytes(k), RawBytes(v)))
+            .map(|(k, v)| KeyPair::boxed(Self::PROPRIETARY_TYPE, RawBytes(k), RawBytes(v)))
             .collect()
     };
 }
@@ -302,18 +294,20 @@ impl KeyMap for Psbt {
         &'enc self,
         key_type: Self::Keys,
     ) -> Vec<KeyPair<Self::Keys, Box<dyn Encode + 'enc>, Box<dyn Encode + 'enc>>> {
-        match key_type {
-            GlobalKey::UnsignedTx => once!(UnsignedTx, self.to_unsigned_tx()),
-            GlobalKey::Xpub => iter!(Xpub, self.xpubs),
-            GlobalKey::TxVersion => once!(TxVersion, self.tx_version),
-            GlobalKey::FallbackLocktime => option!(FallbackLocktime, self.fallback_locktime),
-            GlobalKey::InputCount => once!(InputCount, VarInt::with(self.inputs.len())),
-            GlobalKey::OutputCount => once!(OutputCount, VarInt::with(self.inputs.len())),
-            GlobalKey::TxModifiable => option!(FallbackLocktime, self.tx_modifiable),
-            GlobalKey::Version => once!(OutputCount, self.version),
+        let mut pairs = match key_type {
+            GlobalKey::UnsignedTx => once!(self.to_unsigned_tx()),
+            GlobalKey::Xpub => iter!(self.xpubs),
+            GlobalKey::TxVersion => once!(self.tx_version),
+            GlobalKey::FallbackLocktime => option!(self.fallback_locktime),
+            GlobalKey::InputCount => once!(VarInt::with(self.inputs.len())),
+            GlobalKey::OutputCount => once!(VarInt::with(self.outputs.len())),
+            GlobalKey::TxModifiable => option!(self.tx_modifiable),
+            GlobalKey::Version => once!(self.version),
 
             GlobalKey::Proprietary | GlobalKey::Unknown(_) => unreachable!(),
-        }
+        };
+        pairs.iter_mut().for_each(|pair| pair.key_type = key_type);
+        pairs
     }
 
     fn insert_singular(
@@ -384,37 +378,39 @@ impl KeyMap for Input {
         &'enc self,
         key_type: Self::Keys,
     ) -> Vec<KeyPair<Self::Keys, Box<dyn Encode + 'enc>, Box<dyn Encode + 'enc>>> {
-        match key_type {
-            InputKey::NonWitnessUtxo => option!(NonWitnessUtxo, self.non_witness_tx),
-            InputKey::WitnessUtxo => option!(WitnessUtxo, self.witness_utxo),
-            InputKey::PartialSig => iter!(PartialSig, self.partial_sigs),
-            InputKey::SighashType => option!(SighashType, self.sighash_type),
-            InputKey::RedeemScript => option!(RedeemScript, self.redeem_script),
-            InputKey::WitnessScript => option!(WitnessScript, self.witness_script),
-            InputKey::Bip32Derivation => iter!(Bip32Derivation, self.bip32_derivation),
-            InputKey::FinalScriptSig => option!(FinalScriptSig, self.final_script_sig),
-            InputKey::FinalWitness => option!(FinalWitness, self.final_witness),
-            InputKey::PorCommitment => option_raw!(PorCommitment, self.proof_of_reserves),
-            InputKey::Ripemd160 => iter_raw!(Ripemd160, self.ripemd160),
-            InputKey::Sha256 => iter_raw!(Sha256, self.sha256),
-            InputKey::Hash160 => iter_raw!(Hash160, self.hash160),
-            InputKey::Hash256 => iter_raw!(Hash256, self.hash256),
-            InputKey::PreviousTxid => once!(PreviousTxid, self.previous_outpoint.txid),
-            InputKey::OutputIndex => once!(OutputIndex, self.previous_outpoint.vout),
-            InputKey::Sequence => option!(OutputIndex, self.sequence_number),
-            InputKey::RequiredTimeLock => option!(RequiredTimeLock, self.required_time_lock),
-            InputKey::RequiredHeighLock => option!(RequiredHeighLock, self.required_height_lock),
-            InputKey::TapKeySig => option!(TapKeySig, self.tap_key_sig),
-            InputKey::TapScriptSig => iter_raw_key!(TapScriptSig, self.tap_script_sig),
-            InputKey::TapLeafScript => iter_raw_all!(TapLeafScript, self.tap_leaf_script),
+        let mut pairs = match key_type {
+            InputKey::NonWitnessUtxo => option!(self.non_witness_tx),
+            InputKey::WitnessUtxo => option!(self.witness_utxo),
+            InputKey::PartialSig => iter!(self.partial_sigs),
+            InputKey::SighashType => option!(self.sighash_type),
+            InputKey::RedeemScript => option!(self.redeem_script),
+            InputKey::WitnessScript => option!(self.witness_script),
+            InputKey::Bip32Derivation => iter!(self.bip32_derivation),
+            InputKey::FinalScriptSig => option!(self.final_script_sig),
+            InputKey::FinalWitness => option!(self.final_witness),
+            InputKey::PorCommitment => option_raw!(self.proof_of_reserves),
+            InputKey::Ripemd160 => iter_raw!(self.ripemd160),
+            InputKey::Sha256 => iter_raw!(self.sha256),
+            InputKey::Hash160 => iter_raw!(self.hash160),
+            InputKey::Hash256 => iter_raw!(self.hash256),
+            InputKey::PreviousTxid => once!(self.previous_outpoint.txid),
+            InputKey::OutputIndex => once!(self.previous_outpoint.vout),
+            InputKey::Sequence => option!(self.sequence_number),
+            InputKey::RequiredTimeLock => option!(self.required_time_lock),
+            InputKey::RequiredHeighLock => option!(self.required_height_lock),
+            InputKey::TapKeySig => option!(self.tap_key_sig),
+            InputKey::TapScriptSig => iter_raw_key!(self.tap_script_sig),
+            InputKey::TapLeafScript => iter_raw_all!(self.tap_leaf_script),
             InputKey::TapBip32Derivation => {
-                iter_raw!(TapBip32Derivation, self.tap_bip32_derivation)
+                iter_raw!(self.tap_bip32_derivation)
             }
-            InputKey::TapInternalKey => option!(TapInternalKey, self.tap_internal_key),
-            InputKey::TapMerkleRoot => option_raw!(TapMerkleRoot, self.tap_merkle_root),
+            InputKey::TapInternalKey => option!(self.tap_internal_key),
+            InputKey::TapMerkleRoot => option_raw!(self.tap_merkle_root),
 
             InputKey::Proprietary | InputKey::Unknown(_) => unreachable!(),
-        }
+        };
+        pairs.iter_mut().for_each(|pair| pair.key_type = key_type);
+        pairs
     }
 
     fn insert_singular(
@@ -561,20 +557,22 @@ impl KeyMap for Output {
         &'enc self,
         key_type: Self::Keys,
     ) -> Vec<KeyPair<Self::Keys, Box<dyn Encode + 'enc>, Box<dyn Encode + 'enc>>> {
-        match key_type {
-            OutputKey::RedeemScript => option!(RedeemScript, self.redeem_script),
-            OutputKey::WitnessScript => option!(WitnessScript, self.witness_script),
-            OutputKey::Bip32Derivation => iter!(Bip32Derivation, self.bip32_derivation),
-            OutputKey::Amount => once!(Amount, self.amount),
-            OutputKey::Script => once!(Script, &self.script),
-            OutputKey::TapInternalKey => option!(TapInternalKey, self.tap_internal_key),
-            OutputKey::TapTree => option_raw!(TapTree, self.tap_tree),
+        let mut pairs = match key_type {
+            OutputKey::RedeemScript => option!(self.redeem_script),
+            OutputKey::WitnessScript => option!(self.witness_script),
+            OutputKey::Bip32Derivation => iter!(self.bip32_derivation),
+            OutputKey::Amount => once!(self.amount),
+            OutputKey::Script => once!(&self.script),
+            OutputKey::TapInternalKey => option!(self.tap_internal_key),
+            OutputKey::TapTree => option_raw!(self.tap_tree),
             OutputKey::TapBip32Derivation => {
-                iter_raw!(TapBip32Derivation, self.tap_bip32_derivation)
+                iter_raw!(self.tap_bip32_derivation)
             }
 
             OutputKey::Proprietary | OutputKey::Unknown(_) => unreachable!(),
-        }
+        };
+        pairs.iter_mut().for_each(|pair| pair.key_type = key_type);
+        pairs
     }
 
     fn insert_singular(
