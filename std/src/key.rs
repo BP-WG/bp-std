@@ -36,9 +36,9 @@ use crate::{DerivationIndex, DerivationParseError, DerivationPath, Terminal, Xpu
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", transparent)
 )]
-pub struct TaprootPubkey(pub XOnlyPublicKey);
+pub struct TaprootPk(pub XOnlyPublicKey);
 
-impl TaprootPubkey {
+impl TaprootPk {
     pub fn from_byte_array(data: [u8; 32]) -> Result<Self, InvalidPubkey> {
         XOnlyPublicKey::from_slice(data.as_ref()).map(Self).map_err(|_| InvalidPubkey)
     }
@@ -46,8 +46,8 @@ impl TaprootPubkey {
     pub fn to_byte_array(&self) -> [u8; 32] { self.0.serialize() }
 }
 
-impl From<TaprootPubkey> for [u8; 32] {
-    fn from(pk: TaprootPubkey) -> [u8; 32] { pk.to_byte_array() }
+impl From<TaprootPk> for [u8; 32] {
+    fn from(pk: TaprootPk) -> [u8; 32] { pk.to_byte_array() }
 }
 
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
@@ -57,9 +57,9 @@ impl From<TaprootPubkey> for [u8; 32] {
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", transparent)
 )]
-pub struct ComprPubkey(pub PublicKey);
+pub struct CompressedPk(pub PublicKey);
 
-impl ComprPubkey {
+impl CompressedPk {
     pub fn from_byte_array(data: [u8; 33]) -> Result<Self, InvalidPubkey> {
         PublicKey::from_slice(&data).map(Self).map_err(|_| InvalidPubkey)
     }
@@ -73,9 +73,9 @@ impl ComprPubkey {
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", transparent)
 )]
-pub struct UncomprPubkey(pub PublicKey);
+pub struct UncompressedPk(pub PublicKey);
 
-impl UncomprPubkey {
+impl UncompressedPk {
     pub fn from_byte_array(data: [u8; 65]) -> Result<Self, InvalidPubkey> {
         PublicKey::from_slice(&data).map(Self).map_err(|_| InvalidPubkey)
     }
@@ -84,29 +84,29 @@ impl UncomprPubkey {
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate"))]
-pub struct LegacyPubkey {
+pub struct LegacyPk {
     pub compressed: bool,
     pub pubkey: PublicKey,
 }
 
-impl From<ComprPubkey> for LegacyPubkey {
-    fn from(pk: ComprPubkey) -> Self { LegacyPubkey::compressed(pk.0) }
+impl From<CompressedPk> for LegacyPk {
+    fn from(pk: CompressedPk) -> Self { LegacyPk::compressed(pk.0) }
 }
 
-impl From<UncomprPubkey> for LegacyPubkey {
-    fn from(pk: UncomprPubkey) -> Self { LegacyPubkey::uncompressed(pk.0) }
+impl From<UncompressedPk> for LegacyPk {
+    fn from(pk: UncompressedPk) -> Self { LegacyPk::uncompressed(pk.0) }
 }
 
-impl LegacyPubkey {
+impl LegacyPk {
     pub const fn compressed(pubkey: PublicKey) -> Self {
-        LegacyPubkey {
+        LegacyPk {
             compressed: true,
             pubkey,
         }
     }
 
     pub const fn uncompressed(pubkey: PublicKey) -> Self {
-        LegacyPubkey {
+        LegacyPk {
             compressed: false,
             pubkey,
         }

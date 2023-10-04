@@ -29,7 +29,7 @@ use bc::{InternalPk, ScriptPubkey};
 
 use crate::address::AddressError;
 use crate::{
-    Address, AddressNetwork, AddressParseError, ComprPubkey, Idx, IndexParseError, NormalIndex,
+    Address, AddressNetwork, AddressParseError, CompressedPk, Idx, IndexParseError, NormalIndex,
     RedeemScript, WitnessScript, XpubDerivable, XpubSpec,
 };
 
@@ -218,8 +218,8 @@ pub trait DeriveKey<D>: Derive<D> {
     fn xpub_spec(&self) -> &XpubSpec;
 }
 
-pub trait DeriveCompr: DeriveKey<ComprPubkey> {}
-impl<T: DeriveKey<ComprPubkey>> DeriveCompr for T {}
+pub trait DeriveCompr: DeriveKey<CompressedPk> {}
+impl<T: DeriveKey<CompressedPk>> DeriveCompr for T {}
 
 pub trait DeriveXOnly: DeriveKey<InternalPk> {}
 impl<T: DeriveKey<InternalPk>> DeriveXOnly for T {}
@@ -251,7 +251,7 @@ pub trait DeriveScripts: Derive<DerivedScript> {
 }
 impl<T: Derive<DerivedScript>> DeriveScripts for T {}
 
-impl DeriveKey<ComprPubkey> for XpubDerivable {
+impl DeriveKey<CompressedPk> for XpubDerivable {
     fn xpub_spec(&self) -> &XpubSpec { self.spec() }
 }
 
@@ -259,11 +259,11 @@ impl DeriveKey<InternalPk> for XpubDerivable {
     fn xpub_spec(&self) -> &XpubSpec { self.spec() }
 }
 
-impl Derive<ComprPubkey> for XpubDerivable {
+impl Derive<CompressedPk> for XpubDerivable {
     #[inline]
     fn keychains(&self) -> Range<u8> { 0..self.keychains.count() }
 
-    fn derive(&self, keychain: u8, index: impl Into<NormalIndex>) -> ComprPubkey {
+    fn derive(&self, keychain: u8, index: impl Into<NormalIndex>) -> CompressedPk {
         self.xpub().derive_pub([keychain.into(), index.into()]).to_compr_pub()
     }
 }

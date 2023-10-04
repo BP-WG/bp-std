@@ -24,8 +24,8 @@ use amplify::confinement::Confined;
 use amplify::num::u5;
 use amplify::{Bytes20, Bytes32};
 use bp::{
-    ComprPubkey, Descriptor, InternalPk, KeyOrigin, LegacyPubkey, LockTime, NormalIndex, Outpoint,
-    RedeemScript, Sats, ScriptPubkey, SeqNo, SigScript, TaprootPubkey, Terminal, Tx, TxIn, TxOut,
+    CompressedPk, Descriptor, InternalPk, KeyOrigin, LegacyPk, LockTime, NormalIndex, Outpoint,
+    RedeemScript, Sats, ScriptPubkey, SeqNo, SigScript, TaprootPk, Terminal, Tx, TxIn, TxOut,
     TxVer, Txid, Vout, Witness, WitnessScript, Xpub, XpubOrigin,
 };
 use indexmap::IndexMap;
@@ -373,7 +373,7 @@ pub struct Input {
     /// A map from public keys to their corresponding signature as would be
     /// pushed to the stack from a scriptSig or witness for a non-taproot
     /// inputs.
-    pub partial_sigs: IndexMap<LegacyPubkey, LegacySig>,
+    pub partial_sigs: IndexMap<LegacyPk, LegacySig>,
 
     /// The sighash type to be used for this input. Signatures for this input
     /// must use the sighash type.
@@ -387,7 +387,7 @@ pub struct Input {
 
     /// A map from public keys needed to sign this input to their corresponding master key
     /// fingerprints and derivation paths.
-    pub bip32_derivation: IndexMap<ComprPubkey, KeyOrigin>,
+    pub bip32_derivation: IndexMap<CompressedPk, KeyOrigin>,
 
     /// The finalized, fully-constructed scriptSig with signatures and any other scripts necessary
     /// for this input to pass validation.
@@ -439,7 +439,7 @@ pub struct Input {
     /// to spend this output. The leaf hashes are of the leaves which involve this public key. The
     /// internal key does not have leaf hashes, so can be indicated with a hashes len of 0.
     /// Finalizers should remove this field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
-    pub tap_bip32_derivation: IndexMap<TaprootPubkey, ValueData>,
+    pub tap_bip32_derivation: IndexMap<TaprootPk, ValueData>,
 
     /// The X-only pubkey used as the internal key in this output. Finalizers should remove this
     /// field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
@@ -560,7 +560,7 @@ pub struct Output {
 
     /// A map from public keys needed to spend this output to their corresponding master key
     /// fingerprints and derivation paths.
-    pub bip32_derivation: IndexMap<ComprPubkey, KeyOrigin>,
+    pub bip32_derivation: IndexMap<CompressedPk, KeyOrigin>,
 
     /// The X-only pubkey used as the internal key in this output.
     // TODO: Add taproot data structures: TapTree and derivation info
@@ -581,7 +581,7 @@ pub struct Output {
     /// to spend this output. The leaf hashes are of the leaves which involve this public key. The
     /// internal key does not have leaf hashes, so can be indicated with a hashes len of 0.
     /// Finalizers should remove this field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
-    pub tap_bip32_derivation: IndexMap<TaprootPubkey, ValueData>,
+    pub tap_bip32_derivation: IndexMap<TaprootPk, ValueData>,
 
     /// Proprietary keys
     pub proprietary: IndexMap<PropKey, ValueData>,

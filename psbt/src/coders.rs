@@ -26,11 +26,11 @@ use std::io::{self, Cursor, Read, Write};
 use amplify::{confinement, Array, Bytes, IoError, RawArray, Wrapper};
 use base64::Engine;
 use bp::{
-    ComprPubkey, ConsensusDataError, ConsensusDecode, ConsensusDecodeError, ConsensusEncode,
-    DerivationIndex, DerivationPath, HardenedIndex, Idx, InternalPk, KeyOrigin, LegacyPubkey,
-    LockTime, RedeemScript, Sats, ScriptBytes, ScriptPubkey, SeqNo, SigScript, TaprootPubkey, Tx,
-    TxOut, TxVer, Txid, UncomprPubkey, VarInt, Vout, Witness, WitnessScript, Xpub, XpubDecodeError,
-    XpubFp, XpubOrigin,
+    CompressedPk, ConsensusDataError, ConsensusDecode, ConsensusDecodeError, ConsensusEncode,
+    DerivationIndex, DerivationPath, HardenedIndex, Idx, InternalPk, KeyOrigin, LegacyPk, LockTime,
+    RedeemScript, Sats, ScriptBytes, ScriptPubkey, SeqNo, SigScript, TaprootPk, Tx, TxOut, TxVer,
+    Txid, UncompressedPk, VarInt, Vout, Witness, WitnessScript, Xpub, XpubDecodeError, XpubFp,
+    XpubOrigin,
 };
 
 use crate::keys::KeyValue;
@@ -413,71 +413,71 @@ impl Decode for XpubOrigin {
     }
 }
 
-impl Encode for ComprPubkey {
+impl Encode for CompressedPk {
     fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
         writer.write_all(&self.to_byte_array())?;
         Ok(33)
     }
 }
 
-impl Decode for ComprPubkey {
+impl Decode for CompressedPk {
     fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
         let mut buf = [0u8; 33];
         reader.read_exact(&mut buf)?;
-        ComprPubkey::from_byte_array(buf)
+        CompressedPk::from_byte_array(buf)
             .map_err(|_| PsbtError::InvalidComprPubkey(buf.into()).into())
     }
 }
 
-impl Encode for UncomprPubkey {
+impl Encode for UncompressedPk {
     fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
         writer.write_all(&self.to_byte_array())?;
         Ok(65)
     }
 }
 
-impl Decode for UncomprPubkey {
+impl Decode for UncompressedPk {
     fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
         let mut buf = [0u8; 65];
         reader.read_exact(&mut buf)?;
-        UncomprPubkey::from_byte_array(buf)
+        UncompressedPk::from_byte_array(buf)
             .map_err(|_| PsbtError::InvalidUncomprPubkey(buf.into()).into())
     }
 }
 
-impl Encode for LegacyPubkey {
+impl Encode for LegacyPk {
     fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
         if self.compressed {
-            ComprPubkey::from(self.pubkey).encode(writer)
+            CompressedPk::from(self.pubkey).encode(writer)
         } else {
-            UncomprPubkey::from(self.pubkey).encode(writer)
+            UncompressedPk::from(self.pubkey).encode(writer)
         }
     }
 }
 
-impl Decode for LegacyPubkey {
+impl Decode for LegacyPk {
     fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
         let flag = u8::decode(reader)?;
         match flag {
-            02 | 03 => ComprPubkey::decode(reader).map(Self::from),
-            04 => UncomprPubkey::decode(reader).map(Self::from),
+            02 | 03 => CompressedPk::decode(reader).map(Self::from),
+            04 => UncompressedPk::decode(reader).map(Self::from),
             other => Err(PsbtError::UnrecognizedKeyFormat(other).into()),
         }
     }
 }
 
-impl Encode for TaprootPubkey {
+impl Encode for TaprootPk {
     fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
         writer.write_all(&self.to_byte_array())?;
         Ok(32)
     }
 }
 
-impl Decode for TaprootPubkey {
+impl Decode for TaprootPk {
     fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
         let mut buf = [0u8; 32];
         reader.read_exact(&mut buf)?;
-        TaprootPubkey::from_byte_array(buf)
+        TaprootPk::from_byte_array(buf)
             .map_err(|_| PsbtError::InvalidXonlyPubkey(buf.into()).into())
     }
 }

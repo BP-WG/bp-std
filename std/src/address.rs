@@ -32,7 +32,7 @@ use bc::{Chain, ScriptPubkey, WitnessVer};
 use bech32::u5;
 use hashes::{hash160, Hash};
 
-use crate::{base58, ComprPubkey, InvalidPubkey, TaprootPubkey};
+use crate::{base58, CompressedPk, InvalidPubkey, TaprootPk};
 
 /// Mainnet (bitcoin) pubkey address prefix.
 pub const PUBKEY_ADDRESS_PREFIX_MAIN: u8 = 0; // 0x00
@@ -247,7 +247,7 @@ impl FromStr for Address {
                 (WitnessVer::V1, bech32::Variant::Bech32m) if program.len() == 32 => {
                     let mut key = [0u8; 32];
                     key.copy_from_slice(&program);
-                    let pk = TaprootPubkey::from_byte_array(key)?;
+                    let pk = TaprootPk::from_byte_array(key)?;
                     AddressPayload::Tr(pk)
                 }
 
@@ -358,7 +358,7 @@ impl Debug for WPubkeyHash {
 }
 
 impl WPubkeyHash {
-    pub fn with(key: ComprPubkey) -> Self {
+    pub fn with(key: CompressedPk) -> Self {
         let hash = hash160::Hash::hash(&key.to_byte_array());
         Self(hash.to_byte_array().into())
     }
@@ -412,7 +412,7 @@ pub enum AddressPayload {
 
     /// P2TR payload.
     #[from]
-    Tr(TaprootPubkey),
+    Tr(TaprootPk),
 }
 
 impl AddressPayload {
@@ -447,8 +447,7 @@ impl AddressPayload {
             let mut bytes = [0u8; 32];
             bytes.copy_from_slice(&script[2..]);
             AddressPayload::Tr(
-                TaprootPubkey::from_byte_array(bytes)
-                    .map_err(|_| AddressError::InvalidTaprootKey)?,
+                TaprootPk::from_byte_array(bytes).map_err(|_| AddressError::InvalidTaprootKey)?,
             )
         } else {
             return Err(AddressError::UnsupportedScriptPubkey);

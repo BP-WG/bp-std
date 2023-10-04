@@ -28,7 +28,7 @@ use indexmap::IndexMap;
 
 use crate::derive::DerivedScript;
 use crate::{
-    ComprPubkey, Derive, DeriveCompr, DeriveScripts, DeriveSet, DeriveXOnly, KeyOrigin,
+    CompressedPk, Derive, DeriveCompr, DeriveScripts, DeriveSet, DeriveXOnly, KeyOrigin,
     NormalIndex, Terminal, WPubkeyHash, XpubDerivable, XpubSpec,
 };
 
@@ -50,7 +50,7 @@ pub trait Descriptor<K = XpubDerivable, V = ()>: DeriveScripts {
     fn vars(&self) -> Self::VarIter<'_>;
     fn xpubs(&self) -> Self::XpubIter<'_>;
 
-    fn compr_keyset(&self, terminal: Terminal) -> IndexMap<ComprPubkey, KeyOrigin>;
+    fn compr_keyset(&self, terminal: Terminal) -> IndexMap<CompressedPk, KeyOrigin>;
     fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<InternalPk, KeyOrigin>;
 }
 
@@ -108,7 +108,7 @@ impl<K: DeriveCompr> Descriptor<K> for Wpkh<K> {
     fn vars(&self) -> Self::VarIter<'_> { iter::empty() }
     fn xpubs(&self) -> Self::XpubIter<'_> { iter::once(self.0.xpub_spec()) }
 
-    fn compr_keyset(&self, terminal: Terminal) -> IndexMap<ComprPubkey, KeyOrigin> {
+    fn compr_keyset(&self, terminal: Terminal) -> IndexMap<CompressedPk, KeyOrigin> {
         let mut map = IndexMap::with_capacity(1);
         let key = self.0.derive(terminal.keychain, terminal.index);
         map.insert(key, KeyOrigin::with(self.0.xpub_spec().origin().clone(), terminal));
@@ -162,7 +162,7 @@ impl<K: DeriveXOnly> Descriptor<K> for TrKey<K> {
     fn vars(&self) -> Self::VarIter<'_> { iter::empty() }
     fn xpubs(&self) -> Self::XpubIter<'_> { iter::once(self.0.xpub_spec()) }
 
-    fn compr_keyset(&self, _terminal: Terminal) -> IndexMap<ComprPubkey, KeyOrigin> {
+    fn compr_keyset(&self, _terminal: Terminal) -> IndexMap<CompressedPk, KeyOrigin> {
         IndexMap::new()
     }
 
@@ -246,7 +246,7 @@ where Self: Derive<DerivedScript>
         .into_iter()
     }
 
-    fn compr_keyset(&self, terminal: Terminal) -> IndexMap<ComprPubkey, KeyOrigin> {
+    fn compr_keyset(&self, terminal: Terminal) -> IndexMap<CompressedPk, KeyOrigin> {
         match self {
             DescriptorStd::Wpkh(d) => d.compr_keyset(terminal),
             DescriptorStd::TrKey(d) => d.compr_keyset(terminal),

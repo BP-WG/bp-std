@@ -59,9 +59,7 @@ pub use index::{
     DerivationIndex, HardenedIndex, Idx, IndexError, IndexParseError, NormalIndex,
     HARDENED_INDEX_BOUNDARY,
 };
-pub use key::{
-    ComprPubkey, KeyOrigin, LegacyPubkey, OriginParseError, TaprootPubkey, UncomprPubkey,
-};
+pub use key::{CompressedPk, KeyOrigin, LegacyPk, OriginParseError, TaprootPk, UncompressedPk};
 pub use path::{DerivationParseError, DerivationPath, DerivationSeg, SegParseError};
 pub use scripts::{RedeemScript, WitnessScript};
 pub use xpub::{
