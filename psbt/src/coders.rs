@@ -196,7 +196,7 @@ where Self: Sized
 
 impl Psbt {
     const MAGIC: [u8; 5] = *b"psbt\xFF";
-    const SEPARATOR: [u8; 1] = [0x0];
+    pub(crate) const SEPARATOR: [u8; 1] = [0x0];
 
     pub fn encode(&self, ver: PsbtVer, writer: &mut impl Write) -> Result<usize, IoError> {
         let mut counter = Self::MAGIC.len();

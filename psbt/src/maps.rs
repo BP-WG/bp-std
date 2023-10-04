@@ -21,15 +21,16 @@
 // limitations under the License.
 
 use std::collections::BTreeMap;
-use std::io::Read;
+use std::io::{Read, Write};
 
+use amplify::IoError;
 use bp::{LockTime, Tx, TxVer, VarInt, VarIntArray, Xpub, XpubOrigin};
 use indexmap::IndexMap;
 
 use crate::keys::KeyValue;
 use crate::{
-    Decode, DecodeError, GlobalKey, Input, InputKey, KeyType, ModifiableFlags, Output, OutputKey,
-    PropKey, Psbt, PsbtError, PsbtVer,
+    Decode, DecodeError, Encode, GlobalKey, Input, InputKey, KeyPair, KeyType, ModifiableFlags,
+    Output, OutputKey, PropKey, Psbt, PsbtError, PsbtVer,
 };
 
 pub type KeyData = VarIntArray<u8>;
@@ -118,6 +119,36 @@ impl<K: KeyType> Map<K> {
 
 pub trait KeyMap: Sized {
     type Keys: KeyType;
+    const PROPRIETARY_TYPE: u8;
+
+    fn encode(&self, writer: &mut impl Write, version: PsbtVer) -> Result<usize, IoError> {
+        let mut counter = 0;
+
+        for key_type in Self::Keys::STANDARD {
+            if key_type.is_allowed(version) {
+                if let Some(pair) = self.retrieve_key_pair(key_type) {
+                    counter += pair.encode(writer)?;
+                }
+            }
+        }
+
+        for (key_type, submap) in self.unknown() {
+            for (key_data, value_data) in submap {
+                let pair = KeyPair::new(key_type, key_data, value_data);
+                counter += pair.encode(writer)?;
+            }
+        }
+
+        for (key, value) in self.proprietary() {
+            let pair = KeyPair::new(Self::PROPRIETARY_TYPE, key, value);
+            counter += pair.encode(writer)?;
+        }
+
+        counter += Psbt::SEPARATOR.len();
+        writer.write_all(&Psbt::SEPARATOR)?;
+
+        Ok(counter)
+    }
 
     fn populate(&mut self, map: Map<Self::Keys>, version: PsbtVer) -> Result<(), PsbtError> {
         map.check(version)?;
@@ -141,8 +172,15 @@ pub trait KeyMap: Sized {
         Ok(())
     }
 
+    fn proprietary(&self) -> &IndexMap<PropKey, ValueData>;
+    fn unknown(&self) -> &IndexMap<u8, IndexMap<KeyData, ValueData>>;
     fn proprietary_mut(&mut self) -> &mut IndexMap<PropKey, ValueData>;
     fn unknown_mut(&mut self) -> &mut IndexMap<u8, IndexMap<KeyData, ValueData>>;
+
+    fn retrieve_key_pair(
+        &self,
+        key_type: Self::Keys,
+    ) -> Option<KeyPair<Self::Keys, &'_ dyn Encode, &'_ dyn Encode>>;
 
     fn insert_singular(
         &mut self,

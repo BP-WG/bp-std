@@ -36,6 +36,10 @@ pub trait KeyType: Copy + Ord + Eq + Hash + Debug + Encode + Decode + 'static {
     fn has_key_data(self) -> bool;
     fn present_since(self) -> PsbtVer;
     fn deprecated_since(self) -> Option<PsbtVer>;
+    #[inline]
+    fn is_allowed(self, version: PsbtVer) -> bool {
+        version >= self.present_since() && Some(version) < self.deprecated_since()
+    }
     fn is_required(self) -> bool;
     fn is_proprietary(self) -> bool;
 }
