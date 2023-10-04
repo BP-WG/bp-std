@@ -26,7 +26,7 @@ use std::string::FromUtf8Error;
 
 use amplify::{confinement, Array, Bytes, IoError, RawArray, Wrapper};
 use base64::Engine;
-use bp::{
+use bpstd::{
     CompressedPk, ConsensusDataError, ConsensusDecode, ConsensusDecodeError, ConsensusEncode,
     DerivationIndex, DerivationPath, HardenedIndex, Idx, InternalPk, KeyOrigin, LegacyPk, LockTime,
     RedeemScript, Sats, ScriptBytes, ScriptPubkey, SeqNo, SigScript, TaprootPk, Tx, TxOut, TxVer,

@@ -23,7 +23,7 @@
 use amplify::confinement::Confined;
 use amplify::num::u5;
 use amplify::{Bytes20, Bytes32};
-use bp::{
+use bpstd::{
     CompressedPk, Descriptor, InternalPk, KeyOrigin, LegacyPk, LockTime, NormalIndex, Outpoint,
     RedeemScript, Sats, ScriptPubkey, SeqNo, SigScript, TaprootPk, Terminal, Tx, TxIn, TxOut,
     TxVer, Txid, Vout, Witness, WitnessScript, Xpub, XpubOrigin,

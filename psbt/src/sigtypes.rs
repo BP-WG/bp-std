@@ -22,7 +22,7 @@
 
 use std::iter;
 
-use bp::secp256k1::{ecdsa, schnorr};
+use bpstd::secp256k1::{ecdsa, schnorr};
 
 /// This type is consensus valid but an input including it would prevent the transaction from
 /// being relayed on today's Bitcoin network.

@@ -24,7 +24,7 @@ use std::collections::BTreeMap;
 use std::io::{Read, Write};
 
 use amplify::{Bytes20, Bytes32, IoError};
-use bp::{
+use bpstd::{
     CompressedPk, InternalPk, KeyOrigin, LegacyPk, LockTime, RedeemScript, Sats, ScriptPubkey,
     SeqNo, SigScript, TaprootPk, Tx, TxOut, TxVer, Txid, VarInt, VarIntArray, Vout, Witness,
     WitnessScript, Xpub, XpubOrigin,

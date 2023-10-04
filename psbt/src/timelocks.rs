@@ -24,7 +24,7 @@ use std::fmt::{self, Display, Formatter};
 use std::num::ParseIntError;
 use std::str::FromStr;
 
-use bp::{LockTime, LOCKTIME_THRESHOLD};
+use bpstd::{LockTime, LOCKTIME_THRESHOLD};
 use chrono::Utc;
 
 /// Error constructing timelock from the provided value.
