@@ -98,13 +98,13 @@ pub struct Psbt {
 }
 
 impl Default for Psbt {
-    fn default() -> Self { Psbt::create() }
+    fn default() -> Self { Psbt::create(PsbtVer::V2) }
 }
 
 impl Psbt {
-    pub fn create() -> Psbt {
+    pub fn create(version: PsbtVer) -> Psbt {
         Psbt {
-            version: PsbtVer::V2,
+            version,
             tx_version: TxVer::V2,
             fallback_locktime: None,
             inputs: vec![],
@@ -117,12 +117,13 @@ impl Psbt {
     }
 
     pub fn from_unsigned_tx(unsigned_tx: Tx) -> Self {
-        let mut psbt = Psbt::create();
+        let mut psbt = Psbt::create(PsbtVer::V0);
         psbt.reset_from_unsigned_tx(unsigned_tx);
         psbt
     }
 
     pub(crate) fn reset_from_unsigned_tx(&mut self, tx: Tx) {
+        self.version = PsbtVer::V0;
         self.tx_version = tx.version;
         self.fallback_locktime = Some(tx.lock_time);
         self.inputs = tx.inputs.into_iter().enumerate().map(Input::from_unsigned_txin).collect();
