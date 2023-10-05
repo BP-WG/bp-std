@@ -704,6 +704,7 @@ pub enum KeyValue<T: KeyType> {
     Separator,
 }
 
+#[derive(Debug)]
 pub struct KeyPair<T: KeyType, K, V> {
     pub key_type: T,
     pub key_data: K,
