@@ -23,7 +23,7 @@
 use amplify::confinement::Confined;
 use amplify::hex;
 use amplify::hex::FromHex;
-use bp::{OpCode, ScriptBytes};
+use bc::{OpCode, ScriptBytes};
 
 #[derive(Wrapper, WrapperMut, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From, Default)]
 #[wrapper(Deref, Index, RangeOps, BorrowSlice, LowerHex, UpperHex)]
