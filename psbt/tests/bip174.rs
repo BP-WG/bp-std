@@ -24,23 +24,56 @@ use std::str::FromStr;
 
 use psbt::Psbt;
 
-#[test]
-fn pkh_0() {
-    const PSBT: &str = include_str!("pkh_0.base64.psbt");
-    let psbt = Psbt::from_str(PSBT).unwrap();
+fn parse_roundtrip(s: &str) {
+    let psbt = Psbt::from_str(s).unwrap();
     Psbt::from_str(&psbt.to_string()).unwrap();
 }
 
+/// Case: PSBT with one P2PKH input. Outputs are empty.
 #[test]
-fn pkh_shWpkh_0() {
-    const PSBT: &str = include_str!("pkh+shWpkh_0.base64.psbt");
-    let psbt = Psbt::from_str(PSBT).unwrap();
-    Psbt::from_str(&psbt.to_string()).unwrap();
+fn pkh_outputless() { parse_roundtrip(include_str!("valid.v0/pkh_outputless.psbt")); }
+
+/// Case: PSBT with one P2PKH input and one P2SH-P2WPKH input. First input is signed and finalized.
+/// Outputs are empty.
+#[test]
+fn pkh_sh_wpkh_outputless() {
+    parse_roundtrip(include_str!("valid.v0/pkh_sh_wpkh_outputless.psbt"));
 }
 
+/// Case: PSBT with one P2PKH input which has a non-final scriptSig and has a sighash type
+/// specified. Outputs are empty.
 #[test]
-fn all() {
-    const PSBT: &str = include_str!("all.base64.psbt");
-    let psbt = Psbt::from_str(PSBT).unwrap();
-    Psbt::from_str(&psbt.to_string()).unwrap();
-}
+fn pkh_signed() { parse_roundtrip(include_str!("valid.v0/pkh_signed.psbt")); }
+
+/// Case: PSBT with one P2PKH input and one P2SH-P2WPKH input both with non-final scriptSigs.
+/// P2SH-P2WPKH input's redeemScript is available. Outputs filled.
+#[test]
+fn pkh_sh_wpkh() { parse_roundtrip(include_str!("valid.v0/pkh_sh_wpkh.psbt")); }
+
+/// Case: PSBT with one P2SH-P2WSH input of a 2-of-2 multisig, redeemScript, witnessScript, and
+/// keypaths are available. Contains one signature.
+#[test]
+fn sh_wsh() { parse_roundtrip(include_str!("valid.v0/sh_wsh.psbt")); }
+
+/// Case: PSBT with one P2WSH input of a 2-of-2 multisig. witnessScript, keypaths, and global xpubs
+/// are available. Contains no signatures. Outputs filled.
+#[test]
+fn wsh() { parse_roundtrip(include_str!("valid.v0/wsh.psbt")); }
+
+/// Case: PSBT with unknown types in the inputs.
+#[test]
+fn unknown_keys() { parse_roundtrip(include_str!("valid.v0/unknown_keys.psbt")); }
+
+/// Case: PSBT with `PSBT_GLOBAL_XPUB`.
+#[test]
+fn xpubs() { parse_roundtrip(include_str!("valid.v0/xpubs.psbt")); }
+
+/// Case: PSBT with global unsigned tx that has 0 inputs and 0 outputs
+#[test]
+#[should_panic(message = "Psbt(Consensus(UnsupportedSegwitFlag(2)))")]
+fn no_inputs_outputs() { parse_roundtrip(include_str!("valid.v0/no_inputs_outputs.psbt")); }
+
+/// Case: PSBT with 0 inputs
+#[test]
+#[should_panic(message = "Psbt(Consensus(UnsupportedSegwitFlag(2)))")]
+fn no_inputs() { parse_roundtrip(include_str!("valid.v0/no_inputs.psbt")); }
