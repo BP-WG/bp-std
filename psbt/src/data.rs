@@ -547,7 +547,7 @@ impl Input {
     pub fn new(index: usize) -> Input {
         Input {
             index,
-            previous_outpoint: Outpoint::coinbse(),
+            previous_outpoint: Outpoint::coinbase(),
             sequence_number: None,
             required_time_lock: None,
             required_height_lock: None,
