@@ -25,18 +25,17 @@ use std::string::FromUtf8Error;
 
 use amplify::{confinement, Array, Bytes, IoError, RawArray, Wrapper};
 use bpstd::{
-    CompressedPk, ConsensusDataError, ConsensusDecode, ConsensusDecodeError, ConsensusEncode,
-    DerivationIndex, DerivationPath, HardenedIndex, Idx, InternalPk, KeyOrigin, LegacyPk, LockTime,
-    RedeemScript, Sats, ScriptBytes, ScriptPubkey, SeqNo, SigScript, TaprootPk, Tx, TxOut, TxVer,
-    Txid, UncompressedPk, VarInt, VarIntArray, Vout, Witness, WitnessScript, Xpub, XpubDecodeError,
-    XpubFp, XpubOrigin,
+    Bip340Sig, CompressedPk, ConsensusDataError, ConsensusDecode, ConsensusDecodeError,
+    ConsensusEncode, DerivationIndex, DerivationPath, HardenedIndex, Idx, InternalPk, KeyOrigin,
+    LegacyPk, LegacySig, LockTime, NonStandardValue, RedeemScript, Sats, ScriptBytes, ScriptPubkey,
+    SeqNo, SigError, SigScript, SighashType, TaprootPk, Tx, TxOut, TxVer, Txid, UncompressedPk,
+    VarInt, VarIntArray, Vout, Witness, WitnessScript, Xpub, XpubDecodeError, XpubFp, XpubOrigin,
 };
 
 use crate::keys::KeyValue;
 use crate::{
-    Bip340Sig, GlobalKey, InputKey, KeyData, KeyMap, KeyPair, KeyType, LegacySig, LockHeight,
-    LockTimestamp, Map, MapName, ModifiableFlags, NonStandardSighashType, OutputKey, PropKey, Psbt,
-    PsbtUnsupportedVer, PsbtVer, SigError, SighashType, ValueData,
+    GlobalKey, InputKey, KeyData, KeyMap, KeyPair, KeyType, LockHeight, LockTimestamp, Map,
+    MapName, ModifiableFlags, OutputKey, PropKey, Psbt, PsbtUnsupportedVer, PsbtVer, ValueData,
 };
 
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
@@ -51,7 +50,7 @@ pub enum DecodeError {
     #[from(ConsensusDataError)]
     #[from(PsbtUnsupportedVer)]
     #[from(XpubDecodeError)]
-    #[from(NonStandardSighashType)]
+    #[from(NonStandardValue<u8>)]
     #[from(confinement::Error)]
     Psbt(PsbtError),
 }
@@ -123,7 +122,7 @@ pub enum PsbtError {
 
     #[from]
     #[display(inner)]
-    InvalidSighash(NonStandardSighashType),
+    InvalidSighash(NonStandardValue<u8>),
 
     #[from]
     #[display(inner)]
@@ -514,7 +513,7 @@ impl Encode for LegacySig {
     fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
         let sig = self.sig.serialize_der();
         writer.write_all(sig.as_ref())?;
-        self.sighash_type.into_u8().encode(writer)?;
+        self.sighash_type.to_consensus_u8().encode(writer)?;
         Ok(sig.len() + 1)
     }
 }
@@ -532,7 +531,7 @@ impl Encode for Bip340Sig {
         let mut counter = 64;
         writer.write_all(&self.sig[..])?;
         if let Some(sighash_type) = self.sighash_type {
-            counter += sighash_type.into_u8().encode(writer)?;
+            counter += sighash_type.to_consensus_u8().encode(writer)?;
         }
         Ok(counter)
     }
@@ -548,13 +547,13 @@ impl Decode for Bip340Sig {
 
 impl Encode for SighashType {
     fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
-        self.into_u32().encode(writer)
+        self.to_consensus_u32().encode(writer)
     }
 }
 
 impl Decode for SighashType {
     fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
-        u32::decode(reader).map(Self::from_consensus)
+        u32::decode(reader).map(Self::from_consensus_u32)
     }
 }
 

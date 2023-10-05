@@ -24,17 +24,15 @@ use amplify::confinement::Confined;
 use amplify::num::u5;
 use amplify::{Bytes20, Bytes32};
 use bpstd::{
-    CompressedPk, Descriptor, InternalPk, KeyOrigin, LegacyPk, LockTime, NormalIndex, Outpoint,
-    RedeemScript, Sats, ScriptPubkey, SeqNo, SigScript, TaprootPk, Terminal, Tx, TxIn, TxOut,
-    TxVer, Txid, Vout, Witness, WitnessScript, Xpub, XpubOrigin,
+    Bip340Sig, CompressedPk, Descriptor, InternalPk, KeyOrigin, LegacyPk, LegacySig, LockTime,
+    NormalIndex, Outpoint, RedeemScript, Sats, ScriptPubkey, SeqNo, SigScript, SighashType,
+    TaprootPk, Terminal, Tx, TxIn, TxOut, TxVer, Txid, Vout, Witness, WitnessScript, Xpub,
+    XpubOrigin,
 };
 use indexmap::IndexMap;
 
 pub use self::display_from_str::PsbtParseError;
-use crate::{
-    Bip340Sig, KeyData, LegacySig, LockHeight, LockTimestamp, PropKey, PsbtError, PsbtVer,
-    SighashType, ValueData,
-};
+use crate::{KeyData, LockHeight, LockTimestamp, PropKey, PsbtError, PsbtVer, ValueData};
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error)]
 #[display("PSBT can't be modified")]

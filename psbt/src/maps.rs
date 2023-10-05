@@ -25,18 +25,17 @@ use std::io::{Read, Write};
 
 use amplify::{Bytes20, Bytes32, IoError};
 use bpstd::{
-    CompressedPk, InternalPk, KeyOrigin, LegacyPk, LockTime, RedeemScript, Sats, ScriptPubkey,
-    SeqNo, SigScript, TaprootPk, Tx, TxOut, TxVer, Txid, VarInt, VarIntArray, Vout, Witness,
-    WitnessScript, Xpub, XpubOrigin,
+    Bip340Sig, CompressedPk, InternalPk, KeyOrigin, LegacyPk, LegacySig, LockTime, RedeemScript,
+    Sats, ScriptPubkey, SeqNo, SigScript, SighashType, TaprootPk, Tx, TxOut, TxVer, Txid, VarInt,
+    VarIntArray, Vout, Witness, WitnessScript, Xpub, XpubOrigin,
 };
 use indexmap::IndexMap;
 
 use crate::coders::RawBytes;
 use crate::keys::KeyValue;
 use crate::{
-    Bip340Sig, Decode, DecodeError, Encode, GlobalKey, Input, InputKey, KeyPair, KeyType,
-    LegacySig, LockHeight, LockTimestamp, ModifiableFlags, Output, OutputKey, PropKey, Psbt,
-    PsbtError, PsbtVer, SighashType,
+    Decode, DecodeError, Encode, GlobalKey, Input, InputKey, KeyPair, KeyType, LockHeight,
+    LockTimestamp, ModifiableFlags, Output, OutputKey, PropKey, Psbt, PsbtError, PsbtVer,
 };
 
 pub type KeyData = VarIntArray<u8>;
