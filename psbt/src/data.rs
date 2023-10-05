@@ -20,15 +20,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::fmt;
-use std::fmt::{Display, Formatter, LowerHex};
-use std::str::FromStr;
-
 use amplify::confinement::Confined;
-use amplify::hex::{FromHex, ToHex};
 use amplify::num::u5;
-use amplify::{hex, Bytes20, Bytes32};
-use base64::Engine;
+use amplify::{Bytes20, Bytes32};
 use bpstd::{
     CompressedPk, Descriptor, InternalPk, KeyOrigin, LegacyPk, LockTime, NormalIndex, Outpoint,
     RedeemScript, Sats, ScriptPubkey, SeqNo, SigScript, TaprootPk, Terminal, Tx, TxIn, TxOut,
@@ -36,6 +30,7 @@ use bpstd::{
 };
 use indexmap::IndexMap;
 
+pub use self::display_from_str::PsbtParseError;
 use crate::{
     Bip340Sig, KeyData, LegacySig, LockHeight, LockTimestamp, PropKey, PsbtError, PsbtVer,
     SighashType, ValueData,
@@ -317,84 +312,94 @@ impl Psbt {
     }
 }
 
-#[derive(Clone, Debug, Display, Error, From)]
-#[display(inner)]
-pub enum PsbtParseError {
-    #[from]
-    Hex(hex::Error),
+mod display_from_str {
+    use std::fmt::{self, Display, Formatter, LowerHex};
+    use std::str::FromStr;
 
-    #[from]
-    Base64(base64::DecodeError),
+    use amplify::hex::{self, FromHex, ToHex};
+    use base64::Engine;
 
-    #[from]
-    Psbt(PsbtError),
-}
+    use super::*;
 
-impl Psbt {
-    fn base64_engine() -> base64::engine::GeneralPurpose {
-        base64::engine::GeneralPurpose::new(
-            &base64::alphabet::STANDARD,
-            base64::engine::GeneralPurposeConfig::new(),
-        )
+    #[derive(Clone, Debug, Display, Error, From)]
+    #[display(inner)]
+    pub enum PsbtParseError {
+        #[from]
+        Hex(hex::Error),
+
+        #[from]
+        Base64(base64::DecodeError),
+
+        #[from]
+        Psbt(PsbtError),
     }
 
-    pub fn from_base64(s: &str) -> Result<Psbt, PsbtParseError> {
-        let engine = Self::base64_engine();
-        let data = engine.decode(s)?;
-        Psbt::deserialize(data).map_err(PsbtParseError::from)
-    }
-
-    pub fn from_base16(s: &str) -> Result<Psbt, PsbtParseError> {
-        let data = Vec::<u8>::from_hex(s)?;
-        Psbt::deserialize(data).map_err(PsbtParseError::from)
-    }
-
-    pub fn to_base64(&self) -> String { self.to_base64_ver(self.version) }
-
-    pub fn to_base64_ver(&self, version: PsbtVer) -> String {
-        let engine = Self::base64_engine();
-        engine.encode(self.serialize(version))
-    }
-
-    pub fn to_base16(&self) -> String { self.to_base16_ver(self.version) }
-
-    pub fn to_base16_ver(&self, version: PsbtVer) -> String { self.serialize(version).to_hex() }
-}
-
-impl FromStr for Psbt {
-    type Err = PsbtParseError;
-
-    #[inline]
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Self::from_base16(s).or_else(|_| Self::from_base64(s))
-    }
-}
-
-impl Display for Psbt {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let mut ver = match f.width().unwrap_or(0) {
-            0 => PsbtVer::V0,
-            2 => PsbtVer::V2,
-            _ => return Err(fmt::Error),
-        };
-        if f.alternate() {
-            ver = PsbtVer::V2;
+    impl Psbt {
+        fn base64_engine() -> base64::engine::GeneralPurpose {
+            base64::engine::GeneralPurpose::new(
+                &base64::alphabet::STANDARD,
+                base64::engine::GeneralPurposeConfig::new(),
+            )
         }
-        f.write_str(&self.to_base64_ver(ver))
-    }
-}
 
-impl LowerHex for Psbt {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let mut ver = match f.width().unwrap_or(0) {
-            0 => PsbtVer::V0,
-            2 => PsbtVer::V2,
-            _ => return Err(fmt::Error),
-        };
-        if f.alternate() {
-            ver = PsbtVer::V2;
+        pub fn from_base64(s: &str) -> Result<Psbt, PsbtParseError> {
+            let engine = Self::base64_engine();
+            let data = engine.decode(s)?;
+            Psbt::deserialize(data).map_err(PsbtParseError::from)
         }
-        f.write_str(&self.to_base16_ver(ver))
+
+        pub fn from_base16(s: &str) -> Result<Psbt, PsbtParseError> {
+            let data = Vec::<u8>::from_hex(s)?;
+            Psbt::deserialize(data).map_err(PsbtParseError::from)
+        }
+
+        pub fn to_base64(&self) -> String { self.to_base64_ver(self.version) }
+
+        pub fn to_base64_ver(&self, version: PsbtVer) -> String {
+            let engine = Self::base64_engine();
+            engine.encode(self.serialize(version))
+        }
+
+        pub fn to_base16(&self) -> String { self.to_base16_ver(self.version) }
+
+        pub fn to_base16_ver(&self, version: PsbtVer) -> String { self.serialize(version).to_hex() }
+    }
+
+    impl FromStr for Psbt {
+        type Err = PsbtParseError;
+
+        #[inline]
+        fn from_str(s: &str) -> Result<Self, Self::Err> {
+            Self::from_base16(s).or_else(|_| Self::from_base64(s))
+        }
+    }
+
+    impl Display for Psbt {
+        fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+            let mut ver = match f.width().unwrap_or(0) {
+                0 => PsbtVer::V0,
+                2 => PsbtVer::V2,
+                _ => return Err(fmt::Error),
+            };
+            if f.alternate() {
+                ver = PsbtVer::V2;
+            }
+            f.write_str(&self.to_base64_ver(ver))
+        }
+    }
+
+    impl LowerHex for Psbt {
+        fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+            let mut ver = match f.width().unwrap_or(0) {
+                0 => PsbtVer::V0,
+                2 => PsbtVer::V2,
+                _ => return Err(fmt::Error),
+            };
+            if f.alternate() {
+                ver = PsbtVer::V2;
+            }
+            f.write_str(&self.to_base16_ver(ver))
+        }
     }
 }
 
