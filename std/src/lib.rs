@@ -37,7 +37,6 @@ mod base58;
 mod index;
 mod path;
 mod key;
-mod scripts;
 mod xpub;
 mod descriptors;
 mod address;
@@ -61,7 +60,6 @@ pub use index::{
 };
 pub use key::{CompressedPk, KeyOrigin, LegacyPk, OriginParseError, TaprootPk, UncompressedPk};
 pub use path::{DerivationParseError, DerivationPath, DerivationSeg, SegParseError};
-pub use scripts::{RedeemScript, WitnessScript};
 pub use xpub::{
     Xpub, XpubDecodeError, XpubDerivable, XpubFp, XpubId, XpubMeta, XpubOrigin, XpubSpec,
 };

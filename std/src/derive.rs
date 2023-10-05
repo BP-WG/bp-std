@@ -25,12 +25,12 @@ use std::num::ParseIntError;
 use std::ops::Range;
 use std::str::FromStr;
 
-use bc::{InternalPk, ScriptPubkey};
+use bc::{InternalPk, RedeemScript, ScriptPubkey, WitnessScript};
 
 use crate::address::AddressError;
 use crate::{
     Address, AddressNetwork, AddressParseError, CompressedPk, Idx, IndexParseError, NormalIndex,
-    RedeemScript, WitnessScript, XpubDerivable, XpubSpec,
+    XpubDerivable, XpubSpec,
 };
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
