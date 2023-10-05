@@ -317,6 +317,8 @@ mod display_from_str {
     use std::str::FromStr;
 
     use amplify::hex::{self, FromHex, ToHex};
+    use base64::display::Base64Display;
+    use base64::prelude::BASE64_STANDARD;
     use base64::Engine;
 
     use super::*;
@@ -335,17 +337,8 @@ mod display_from_str {
     }
 
     impl Psbt {
-        fn base64_engine() -> base64::engine::GeneralPurpose {
-            base64::engine::GeneralPurpose::new(
-                &base64::alphabet::STANDARD,
-                base64::engine::GeneralPurposeConfig::new(),
-            )
-        }
-
         pub fn from_base64(s: &str) -> Result<Psbt, PsbtParseError> {
-            let engine = Self::base64_engine();
-            let data = engine.decode(s)?;
-            Psbt::deserialize(data).map_err(PsbtParseError::from)
+            Psbt::deserialize(BASE64_STANDARD.decode(s)?).map_err(PsbtParseError::from)
         }
 
         pub fn from_base16(s: &str) -> Result<Psbt, PsbtParseError> {
@@ -356,8 +349,7 @@ mod display_from_str {
         pub fn to_base64(&self) -> String { self.to_base64_ver(self.version) }
 
         pub fn to_base64_ver(&self, version: PsbtVer) -> String {
-            let engine = Self::base64_engine();
-            engine.encode(self.serialize(version))
+            BASE64_STANDARD.encode(self.serialize(version))
         }
 
         pub fn to_base16(&self) -> String { self.to_base16_ver(self.version) }
@@ -365,6 +357,7 @@ mod display_from_str {
         pub fn to_base16_ver(&self, version: PsbtVer) -> String { self.serialize(version).to_hex() }
     }
 
+    /// FromStr implementation parses both Base64 and Hex (Base16) encodings.
     impl FromStr for Psbt {
         type Err = PsbtParseError;
 
@@ -374,17 +367,22 @@ mod display_from_str {
         }
     }
 
+    /// PSBT displays Base64-encoded string. The selection of the version if the following:
+    /// - by default, it uses version specified in the PSBT itself;
+    /// - if zero `{:0}` is given and no width (`{:0}`) or a zero width (`{:00}`) is provided, than
+    ///   the PSBT is encoded as V0 even if the structure itself uses V2;
+    /// - if a width equal to two is given like in `{:2}`, than zero flag is ignored (so `{:02}`
+    ///   also works that way) and PSBT is encoded as V2 even if the structure itself uses V1;
+    /// - all other flags has no effect on the display.
     impl Display for Psbt {
         fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-            let mut ver = match f.width().unwrap_or(0) {
-                0 => PsbtVer::V0,
-                2 => PsbtVer::V2,
-                _ => return Err(fmt::Error),
+            let ver = match (f.width(), f.sign_aware_zero_pad()) {
+                (None, true) => PsbtVer::V0,
+                (Some(0), _) => PsbtVer::V0,
+                (Some(2), _) => PsbtVer::V2,
+                _ => self.version,
             };
-            if f.alternate() {
-                ver = PsbtVer::V2;
-            }
-            f.write_str(&self.to_base64_ver(ver))
+            write!(f, "{}", Base64Display::new(&self.serialize(ver), &BASE64_STANDARD))
         }
     }
 
