@@ -619,6 +619,9 @@ impl Input {
 
     #[inline]
     pub fn value(&self) -> Sats { self.prev_txout().value }
+
+    #[inline]
+    pub fn index(&self) -> usize { self.index }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -711,6 +714,9 @@ impl Output {
 
     #[inline]
     pub fn value(&self) -> Sats { self.amount }
+
+    #[inline]
+    pub fn index(&self) -> usize { self.index }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
