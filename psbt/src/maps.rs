@@ -25,9 +25,9 @@ use std::io::{Read, Write};
 
 use amplify::{Bytes20, Bytes32, IoError};
 use bpstd::{
-    Bip340Sig, CompressedPk, InternalPk, KeyOrigin, LegacyPk, LegacySig, LockTime, RedeemScript,
-    Sats, ScriptPubkey, SeqNo, SigScript, SighashType, TaprootPk, Tx, TxOut, TxVer, Txid, VarInt,
-    VarIntArray, Vout, Witness, WitnessScript, Xpub, XpubOrigin,
+    Bip340Sig, ByteStr, CompressedPk, InternalPk, KeyOrigin, LegacyPk, LegacySig, LockTime,
+    RedeemScript, Sats, ScriptPubkey, SeqNo, SigScript, SighashType, TaprootPk, Tx, TxOut, TxVer,
+    Txid, VarInt, Vout, Witness, WitnessScript, Xpub, XpubOrigin,
 };
 use indexmap::IndexMap;
 
@@ -38,8 +38,8 @@ use crate::{
     LockTimestamp, ModifiableFlags, Output, OutputKey, PropKey, Psbt, PsbtError, PsbtVer,
 };
 
-pub type KeyData = VarIntArray<u8>;
-pub type ValueData = VarIntArray<u8>;
+pub type KeyData = ByteStr;
+pub type ValueData = ByteStr;
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display)]
 #[display(lowercase)]

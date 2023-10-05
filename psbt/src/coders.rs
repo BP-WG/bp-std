@@ -25,11 +25,11 @@ use std::string::FromUtf8Error;
 
 use amplify::{confinement, Array, Bytes, IoError, RawArray, Wrapper};
 use bpstd::{
-    Bip340Sig, CompressedPk, ConsensusDataError, ConsensusDecode, ConsensusDecodeError,
+    Bip340Sig, ByteStr, CompressedPk, ConsensusDataError, ConsensusDecode, ConsensusDecodeError,
     ConsensusEncode, DerivationIndex, DerivationPath, HardenedIndex, Idx, InternalPk, KeyOrigin,
     LegacyPk, LegacySig, LockTime, NonStandardValue, RedeemScript, Sats, ScriptBytes, ScriptPubkey,
     SeqNo, SigError, SigScript, SighashType, TaprootPk, Tx, TxOut, TxVer, Txid, UncompressedPk,
-    VarInt, VarIntArray, Vout, Witness, WitnessScript, Xpub, XpubDecodeError, XpubFp, XpubOrigin,
+    VarInt, Vout, Witness, WitnessScript, Xpub, XpubDecodeError, XpubFp, XpubOrigin,
 };
 
 use crate::keys::KeyValue;
@@ -289,8 +289,8 @@ impl<T: KeyType> Decode for KeyValue<T> {
 
         Ok(KeyValue::Pair(KeyPair {
             key_type,
-            key_data: KeyData::try_from(key_data)?,
-            value_data: ValueData::try_from(value_data)?,
+            key_data: KeyData::from(key_data),
+            value_data: ValueData::from(value_data),
         }))
     }
 }
@@ -635,8 +635,8 @@ impl Encode for ScriptBytes {
 
 impl Decode for ScriptBytes {
     fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
-        let bytes = RawBytes::<VarIntArray<u8>>::decode(reader)?;
-        Ok(ScriptBytes::from_inner(bytes.0))
+        let bytes = RawBytes::<ByteStr>::decode(reader)?;
+        Ok(ScriptBytes::from_inner(bytes.0.into_inner()))
     }
 }
 
@@ -693,6 +693,7 @@ psbt_code_using_consensus!(u8);
 psbt_code_using_consensus!(u32);
 psbt_code_using_consensus!(VarInt);
 
+#[derive(From)]
 pub(crate) struct RawBytes<T: AsRef<[u8]>>(pub T);
 
 impl<T: AsRef<[u8]>> Encode for RawBytes<T> {
@@ -711,11 +712,11 @@ impl Decode for RawBytes<Vec<u8>> {
     }
 }
 
-impl Decode for RawBytes<VarIntArray<u8>> {
+impl Decode for RawBytes<ByteStr> {
     fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
         let mut buf = Vec::new();
         reader.read_to_end(&mut buf)?;
-        VarIntArray::try_from(buf).map(Self).map_err(DecodeError::from)
+        Ok(ByteStr::from(buf).into())
     }
 }
 
