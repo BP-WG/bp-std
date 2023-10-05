@@ -28,8 +28,8 @@ use bpstd::{
     CompressedPk, ConsensusDataError, ConsensusDecode, ConsensusDecodeError, ConsensusEncode,
     DerivationIndex, DerivationPath, HardenedIndex, Idx, InternalPk, KeyOrigin, LegacyPk, LockTime,
     RedeemScript, Sats, ScriptBytes, ScriptPubkey, SeqNo, SigScript, TaprootPk, Tx, TxOut, TxVer,
-    Txid, UncompressedPk, VarInt, Vout, Witness, WitnessScript, Xpub, XpubDecodeError, XpubFp,
-    XpubOrigin,
+    Txid, UncompressedPk, VarInt, VarIntArray, Vout, Witness, WitnessScript, Xpub, XpubDecodeError,
+    XpubFp, XpubOrigin,
 };
 
 use crate::keys::KeyValue;
@@ -223,7 +223,7 @@ impl Psbt {
             .map(PsbtVer::deserialize)
             .transpose()?
             .unwrap_or(PsbtVer::V0);
-        let mut psbt = Psbt::create();
+        let mut psbt = Psbt::create(PsbtVer::V0);
         psbt.parse_map(version, map)?;
 
         for input in &mut psbt.inputs {
@@ -442,10 +442,14 @@ impl Encode for LegacyPk {
 
 impl Decode for LegacyPk {
     fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
-        let flag = u8::decode(reader)?;
-        match flag {
-            02 | 03 => CompressedPk::decode(reader).map(Self::from),
-            04 => UncompressedPk::decode(reader).map(Self::from),
+        let mut buf = [0u8; 65];
+        reader.read_exact(&mut buf[..33])?;
+        match buf[0] {
+            02 | 03 => CompressedPk::decode(&mut Cursor::new(&buf[..33])).map(Self::from),
+            04 => {
+                reader.read_exact(&mut buf[33..])?;
+                UncompressedPk::decode(&mut Cursor::new(buf)).map(Self::from)
+            }
             other => Err(PsbtError::UnrecognizedKeyFormat(other).into()),
         }
     }
@@ -622,10 +626,32 @@ impl Decode for LockHeight {
     }
 }
 
-psbt_code_using_consensus!(ScriptBytes);
-psbt_code_using_consensus!(SigScript);
-psbt_code_using_consensus!(ScriptPubkey);
 psbt_code_using_consensus!(Witness);
+
+impl Encode for ScriptBytes {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
+        RawBytes(self.as_inner()).encode(writer)
+    }
+}
+
+impl Decode for ScriptBytes {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        let bytes = RawBytes::<VarIntArray<u8>>::decode(reader)?;
+        Ok(ScriptBytes::from_inner(bytes.0))
+    }
+}
+
+impl Encode for ScriptPubkey {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
+        self.as_script_bytes().encode(writer)
+    }
+}
+
+impl Decode for ScriptPubkey {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        ScriptBytes::decode(reader).map(Self::from_inner)
+    }
+}
 
 impl Encode for WitnessScript {
     fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
@@ -651,6 +677,18 @@ impl Decode for RedeemScript {
     }
 }
 
+impl Encode for SigScript {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
+        self.as_script_bytes().encode(writer)
+    }
+}
+
+impl Decode for SigScript {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        ScriptBytes::decode(reader).map(Self::from_inner)
+    }
+}
+
 psbt_code_using_consensus!(Sats);
 psbt_code_using_consensus!(u8);
 psbt_code_using_consensus!(u32);
@@ -671,6 +709,14 @@ impl Decode for RawBytes<Vec<u8>> {
         let mut buf = Vec::new();
         reader.read_to_end(&mut buf)?;
         Ok(Self(buf))
+    }
+}
+
+impl Decode for RawBytes<VarIntArray<u8>> {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        let mut buf = Vec::new();
+        reader.read_to_end(&mut buf)?;
+        VarIntArray::try_from(buf).map(Self).map_err(DecodeError::from)
     }
 }
 
