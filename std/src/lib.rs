@@ -52,7 +52,7 @@ pub use address::{
 pub use bc::{secp256k1, *};
 pub use derive::{
     Derive, DeriveCompr, DeriveKey, DeriveScripts, DeriveSet, DeriveXOnly, DerivedAddr,
-    DerivedAddrParseError, Terminal, TerminalParseError,
+    DerivedAddrParseError, DerivedScript, Terminal, TerminalParseError,
 };
 pub use descriptors::{Descriptor, DescriptorStd, TrKey, Wpkh};
 pub use index::{

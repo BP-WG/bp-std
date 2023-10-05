@@ -26,10 +26,9 @@ use std::{iter, vec};
 use bc::{InternalPk, ScriptPubkey};
 use indexmap::IndexMap;
 
-use crate::derive::DerivedScript;
 use crate::{
-    CompressedPk, Derive, DeriveCompr, DeriveScripts, DeriveSet, DeriveXOnly, KeyOrigin,
-    NormalIndex, Terminal, WPubkeyHash, XpubDerivable, XpubSpec,
+    CompressedPk, Derive, DeriveCompr, DeriveScripts, DeriveSet, DeriveXOnly, DerivedScript,
+    KeyOrigin, NormalIndex, Terminal, WPubkeyHash, XpubDerivable, XpubSpec,
 };
 
 pub trait Descriptor<K = XpubDerivable, V = ()>: DeriveScripts {
