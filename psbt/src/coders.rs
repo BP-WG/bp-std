@@ -26,10 +26,11 @@ use std::string::FromUtf8Error;
 use amplify::{confinement, Array, ByteArray, Bytes, IoError, Wrapper};
 use bpstd::{
     Bip340Sig, ByteStr, CompressedPk, ConsensusDataError, ConsensusDecode, ConsensusDecodeError,
-    ConsensusEncode, DerivationIndex, DerivationPath, HardenedIndex, Idx, InternalPk, KeyOrigin,
-    LegacyPk, LegacySig, LockTime, NonStandardValue, RedeemScript, Sats, ScriptBytes, ScriptPubkey,
-    SeqNo, SigError, SigScript, SighashType, TaprootPk, Tx, TxOut, TxVer, Txid, UncompressedPk,
-    VarInt, Vout, Witness, WitnessScript, Xpub, XpubDecodeError, XpubFp, XpubOrigin,
+    ConsensusEncode, ControlBlock, DerivationIndex, DerivationPath, HardenedIndex, Idx, InternalPk,
+    InvalidLeafVer, KeyOrigin, LeafScript, LeafVer, LegacyPk, LegacySig, LockTime,
+    NonStandardValue, RedeemScript, Sats, ScriptBytes, ScriptPubkey, SeqNo, SigError, SigScript,
+    SighashType, TaprootPk, Tx, TxOut, TxVer, Txid, UncompressedPk, VarInt, Vout, Witness,
+    WitnessScript, Xpub, XpubDecodeError, XpubFp, XpubOrigin,
 };
 
 use crate::keys::KeyValue;
@@ -50,6 +51,7 @@ pub enum DecodeError {
     #[from(ConsensusDataError)]
     #[from(PsbtUnsupportedVer)]
     #[from(XpubDecodeError)]
+    #[from(InvalidLeafVer)]
     #[from(NonStandardValue<u8>)]
     #[from(confinement::Error)]
     Psbt(PsbtError),
@@ -136,6 +138,10 @@ pub enum PsbtError {
 
     /// proof of reserves is not a valid UTF-8 string. {0}.
     InvalidPorString(FromUtf8Error),
+
+    #[from]
+    #[display(inner)]
+    InvalidLeafVer(InvalidLeafVer),
 
     #[from]
     #[display(inner)]
@@ -626,6 +632,7 @@ impl Decode for LockHeight {
 }
 
 psbt_code_using_consensus!(Witness);
+psbt_code_using_consensus!(ControlBlock);
 
 impl Encode for ScriptBytes {
     fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
@@ -649,6 +656,22 @@ impl Encode for ScriptPubkey {
 impl Decode for ScriptPubkey {
     fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
         ScriptBytes::decode(reader).map(Self::from_inner)
+    }
+}
+
+impl Encode for LeafScript {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
+        let mut counter = self.version.to_consensus_u8().encode(writer)?;
+        counter += self.script.encode(writer)?;
+        Ok(counter)
+    }
+}
+
+impl Decode for LeafScript {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        let version = LeafVer::from_consensus_u8(u8::decode(reader)?)?;
+        let script = ScriptBytes::decode(reader)?;
+        Ok(Self { version, script })
     }
 }
 
@@ -747,6 +770,20 @@ impl<T: Encode> Encode for Option<T> {
 impl Encode for Box<dyn Encode> {
     fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
         self.as_ref().encode(writer)
+    }
+}
+
+impl<A: Encode, B: Encode> Encode for (A, B) {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
+        Ok(self.0.encode(writer)? + self.1.encode(writer)?)
+    }
+}
+
+impl<A: Decode, B: Decode> Decode for (A, B) {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        let a = A::decode(reader)?;
+        let b = B::decode(reader)?;
+        Ok((a, b))
     }
 }
 
