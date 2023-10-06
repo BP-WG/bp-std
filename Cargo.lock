@@ -4,9 +4,9 @@ version = 3
 
 [[package]]
 name = "amplify"
-version = "4.1.1"
+version = "4.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3f58ae011435caa061fb64894c7b05d615321011d35dd07b53b2843a4b61933"
+checksum = "add3e79c9c3e33209e1676562e0fda882bc20701f52870ba162d9f046b7d8b0b"
 dependencies = [
  "amplify_apfloat",
  "amplify_derive 3.0.1",
@@ -245,7 +245,7 @@ dependencies = [
 [[package]]
 name = "bp-primitives"
 version = "0.10.8"
-source = "git+https://github.com/BP-WG/bp-core?branch=primitives#f1cdb38ce022264324dc59ca49521f31fda5477b"
+source = "git+https://github.com/BP-WG/bp-core?branch=primitives#8efffe91a13bb4ffa3a134cc00a2f3d06c634fc5"
 dependencies = [
  "amplify",
  "commit_verify",
@@ -294,9 +294,9 @@ checksum = "7f30e7476521f6f8af1a1c4c0b8cc94f0bee37d91763d0ca2665f299b6cd8aec"
 
 [[package]]
 name = "byteorder"
-version = "1.4.3"
+version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "14c189c53d098945499cdfa7ecc63567cf3886b3332b312a5b4585d8d3a6a610"
+checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
 
 [[package]]
 name = "cc"
@@ -646,9 +646,9 @@ checksum = "5b40af805b3121feab8a3c29f04d8ad262fa8e0561883e7653e024ae4479e6de"
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.67"
+version = "1.0.68"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d433d9f1a3e8c1263d9456598b16fec66f4acc9a74dacffd35c7bb09b3a1328"
+checksum = "5b1106fec09662ec6dd98ccac0f81cef56984d0b49f75c92d8cbad76e20c005c"
 dependencies = [
  "unicode-ident",
 ]

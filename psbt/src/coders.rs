@@ -23,7 +23,7 @@
 use std::io::{self, Cursor, Read, Write};
 use std::string::FromUtf8Error;
 
-use amplify::{confinement, Array, Bytes, IoError, RawArray, Wrapper};
+use amplify::{confinement, Array, ByteArray, Bytes, IoError, Wrapper};
 use bpstd::{
     Bip340Sig, ByteStr, CompressedPk, ConsensusDataError, ConsensusDecode, ConsensusDecodeError,
     ConsensusEncode, DerivationIndex, DerivationPath, HardenedIndex, Idx, InternalPk, KeyOrigin,
@@ -385,7 +385,7 @@ impl Decode for XpubOrigin {
     fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
         let mut buf = [0u8; 4];
         reader.read_exact(&mut buf)?;
-        let master_fp = XpubFp::from_raw_array(buf);
+        let master_fp = XpubFp::from_byte_array(buf);
         let mut derivation = DerivationPath::<HardenedIndex>::new();
         while let Ok(index) = u32::decode(reader) {
             derivation.push(
@@ -500,7 +500,7 @@ impl Decode for KeyOrigin {
     fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
         let mut buf = [0u8; 4];
         reader.read_exact(&mut buf)?;
-        let master_fp = XpubFp::from_raw_array(buf);
+        let master_fp = XpubFp::from_byte_array(buf);
         let mut derivation = DerivationPath::new();
         while let Ok(index) = u32::decode(reader) {
             derivation.push(DerivationIndex::from_index(index));

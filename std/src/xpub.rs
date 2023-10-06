@@ -24,7 +24,7 @@ use std::borrow::Borrow;
 use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 
-use amplify::{hex, Bytes20, Bytes32, Bytes4, RawArray, Wrapper};
+use amplify::{hex, ByteArray, Bytes20, Bytes32, Bytes4, Wrapper};
 use bc::secp256k1;
 use bc::secp256k1::{PublicKey, XOnlyPublicKey, SECP256K1};
 use hashes::{hash160, sha512, Hash, HashEngine, Hmac, HmacEngine};
@@ -252,13 +252,13 @@ impl Xpub {
     /// Returns the HASH160 of the chaincode
     pub fn identifier(&self) -> XpubId {
         let hash = hash160::Hash::hash(&self.core.public_key.serialize());
-        XpubId::from_raw_array(*hash.as_byte_array())
+        XpubId::from_byte_array(*hash.as_byte_array())
     }
 
     pub fn fingerprint(&self) -> XpubFp {
         let mut bytes = [0u8; 4];
         bytes.copy_from_slice(&self.identifier()[..4]);
-        XpubFp::from_raw_array(bytes)
+        XpubFp::from_byte_array(bytes)
     }
 
     /// Constructs ECDSA public key matching internal public key representation.
@@ -293,7 +293,7 @@ impl Xpub {
             .into();
         let mut bytes = [0u8; 32];
         bytes.copy_from_slice(&hmac_result[32..]);
-        let chain_code = ChainCode::from_raw_array(bytes);
+        let chain_code = ChainCode::from_byte_array(bytes);
         (private_key, chain_code)
     }
 
