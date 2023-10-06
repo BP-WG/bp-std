@@ -123,7 +123,10 @@ impl<K: KeyType> Map<K> {
             }
         }
         for key_type in K::STANDARD {
-            if key_type.is_required() && version >= key_type.present_since() {
+            if key_type.is_required()
+                && version >= key_type.present_since()
+                && matches!(key_type.deprecated_since(), Some(depr) if version < depr)
+            {
                 if (key_type.has_key_data() && !self.plural.contains_key(&key_type))
                     || (!key_type.has_key_data() && !self.singular.contains_key(&key_type))
                 {
