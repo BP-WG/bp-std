@@ -29,16 +29,17 @@ use bpstd::{
     Bip340Sig, ByteStr, CompressedPk, ConsensusDataError, ConsensusDecode, ConsensusDecodeError,
     ConsensusEncode, ControlBlock, DerivationIndex, DerivationPath, HardenedIndex, Idx, InternalPk,
     InvalidLeafVer, InvalidTree, KeyOrigin, LeafInfo, LeafScript, LeafVer, LegacyPk, LegacySig,
-    LenVarInt, LockTime, NonStandardValue, RedeemScript, Sats, ScriptBytes, ScriptPubkey, SeqNo,
-    SigError, SigScript, SighashType, TapTree, TaprootPk, Tx, TxOut, TxVer, Txid, UncompressedPk,
-    VarInt, VarIntArray, Vout, Witness, WitnessScript, Xpub, XpubDecodeError, XpubFp, XpubOrigin,
+    LenVarInt, LockTime, NonStandardValue, Outpoint, RedeemScript, Sats, ScriptBytes, ScriptPubkey,
+    SeqNo, SigError, SigScript, SighashType, TapTree, TaprootPk, Tx, TxOut, TxVer, Txid,
+    UncompressedPk, VarInt, VarIntArray, Vout, Witness, WitnessScript, Xpub, XpubDecodeError,
+    XpubFp, XpubOrigin,
 };
 
 use crate::keys::KeyValue;
 use crate::{
     GlobalKey, InputKey, KeyData, KeyMap, KeyPair, KeyType, LockHeight, LockTimestamp, Map,
     MapName, ModifiableFlags, OutputKey, PropKey, Psbt, PsbtUnsupportedVer, PsbtVer, TapDerivation,
-    ValueData,
+    UnsignedTx, UnsignedTxIn, ValueData,
 };
 
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
@@ -105,6 +106,9 @@ pub enum PsbtError {
     #[from]
     #[display(inner)]
     UnsupportedVersion(PsbtUnsupportedVer),
+
+    /// Provided transaction in `PSBT_GLOBAL_UNSIGNED_TX` contains non-empty `sigScript`.
+    SignedTx,
 
     /// invalid lock height value {0}.
     InvalidLockHeight(u32),
@@ -576,6 +580,75 @@ impl Decode for SighashType {
     }
 }
 
+impl Encode for UnsignedTx {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
+        let mut counter = 0;
+        counter += self.version.encode(writer)?;
+        counter += VarInt::with(self.inputs.len()).encode(writer)?;
+        for input in &self.inputs {
+            counter += input.encode(writer)?;
+        }
+        counter += VarInt::with(self.outputs.len()).encode(writer)?;
+        for output in &self.outputs {
+            counter += output.encode(writer)?;
+        }
+        counter += self.lock_time.encode(writer)?;
+        Ok(counter)
+    }
+}
+
+impl Decode for UnsignedTx {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        let version = TxVer::decode(reader)?;
+
+        let input_count = VarInt::decode(reader)?;
+        let mut inputs = Vec::with_capacity(input_count.to_usize());
+        for _ in 0..input_count.to_usize() {
+            inputs.push(UnsignedTxIn::decode(reader)?);
+        }
+
+        let output_count = VarInt::decode(reader)?;
+        let mut outputs = Vec::with_capacity(output_count.to_usize());
+        for _ in 0..output_count.to_usize() {
+            outputs.push(TxOut::decode(reader)?);
+        }
+
+        let lock_time = LockTime::decode(reader)?;
+
+        Ok(UnsignedTx {
+            version,
+            inputs,
+            outputs,
+            lock_time,
+        })
+    }
+}
+
+impl Encode for UnsignedTxIn {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
+        let mut counter = 0;
+        counter += self.prev_output.encode(writer)?;
+        counter += VarInt::new(0).encode(writer)?;
+        counter += self.sequence.encode(writer)?;
+        Ok(counter)
+    }
+}
+
+impl Decode for UnsignedTxIn {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        let prev_output = Outpoint::decode(reader)?;
+        let sig_script_len = VarInt::decode(reader)?;
+        if sig_script_len != 0u64 {
+            return Err(PsbtError::SignedTx.into());
+        }
+        let sequence = SeqNo::decode(reader)?;
+        Ok(UnsignedTxIn {
+            prev_output,
+            sequence,
+        })
+    }
+}
+
 macro_rules! psbt_code_using_consensus {
     ($ty:ty) => {
         psbt_encode_from_consensus!($ty);
@@ -613,6 +686,7 @@ macro_rules! psbt_decode_from_consensus {
 psbt_code_using_consensus!(Tx);
 psbt_code_using_consensus!(TxVer);
 psbt_code_using_consensus!(TxOut);
+psbt_code_using_consensus!(Outpoint);
 psbt_code_using_consensus!(Txid);
 psbt_code_using_consensus!(Vout);
 psbt_code_using_consensus!(SeqNo);

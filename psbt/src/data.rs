@@ -20,7 +20,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use amplify::confinement::Confined;
 use amplify::num::u5;
 use amplify::{Bytes20, Bytes32};
 use bpstd::{
@@ -57,14 +56,109 @@ impl Prevout {
     pub fn outpoint(&self) -> Outpoint { Outpoint::new(self.txid, self.vout) }
 }
 
+/// Structure representing data on unsigned transaction the way it is stored in PSBTv1 global key.
+///
+/// We can't use [`Tx`] since PSBT may contain unsigned transaction with zero inputs, according to
+/// BIP-174 test cases. [`Tx`] containing zero inputs is an invalid structure, prohibited by
+/// consensus. An attempt to deserialize it will be incorrectly identified as a Segwit transaction
+/// (since zero inputs is the trick which was used to make Segwit softfork) and fail with invalid
+/// segwit flag error (since the second byte after 0 segwit indicator must be `01` and not a number
+/// of inputs) fail to parse outputs (for transactions containing just a one output).
+///
+/// `UnsignedTx` also ensures invariant that none of its inputs contain witnesses or sigscripts.
+///
+/// [`Tx`]: bpstd::Tx
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct UnsignedTx {
+    pub version: TxVer,
+    pub inputs: Vec<UnsignedTxIn>,
+    pub outputs: Vec<TxOut>,
+    pub lock_time: LockTime,
+}
+
+impl From<Tx> for UnsignedTx {
+    #[inline]
+    fn from(tx: Tx) -> UnsignedTx { UnsignedTx::with_sigs_removed(tx) }
+}
+
+impl From<UnsignedTx> for Tx {
+    #[inline]
+    fn from(unsigned_tx: UnsignedTx) -> Tx {
+        Tx {
+            version: unsigned_tx.version,
+            inputs: VarIntArray::from_collection_unsafe(
+                unsigned_tx.inputs.into_iter().map(TxIn::from).collect(),
+            ),
+            outputs: VarIntArray::from_collection_unsafe(unsigned_tx.outputs),
+            lock_time: unsigned_tx.lock_time,
+        }
+    }
+}
+
+impl UnsignedTx {
+    #[inline]
+    pub fn with_sigs_removed(tx: Tx) -> UnsignedTx {
+        UnsignedTx {
+            version: tx.version,
+            inputs: tx.inputs.into_iter().map(UnsignedTxIn::with_sigs_removed).collect(),
+            outputs: tx.outputs.into_inner(),
+            lock_time: tx.lock_time,
+        }
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct UnsignedTxIn {
+    pub prev_output: Outpoint,
+    pub sequence: SeqNo,
+}
+
+impl From<TxIn> for UnsignedTxIn {
+    #[inline]
+    fn from(txin: TxIn) -> UnsignedTxIn { UnsignedTxIn::with_sigs_removed(txin) }
+}
+
+impl From<UnsignedTxIn> for TxIn {
+    #[inline]
+    fn from(unsigned_txin: UnsignedTxIn) -> TxIn {
+        TxIn {
+            prev_output: unsigned_txin.prev_output,
+            sig_script: none!(),
+            sequence: unsigned_txin.sequence,
+            witness: empty!(),
+        }
+    }
+}
+
+impl UnsignedTxIn {
+    #[inline]
+    pub fn with_sigs_removed(txin: TxIn) -> UnsignedTxIn {
+        UnsignedTxIn {
+            prev_output: txin.prev_output,
+            sequence: txin.sequence,
+        }
+    }
+}
+
 #[derive(Clone, Eq, PartialEq, Debug)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-// TODO: Serde deserialize must correctly initialzie inputs and outputs with their indexes and
-//       account for unknown fields
+// Serde deserialize is not implemented and require manual implementation instead of derive, since
+// we need to correctly initialize inputs and outputs with their indexes and account for unknown
+// fields.
 pub struct Psbt {
     /// PSBT version
     pub version: PsbtVer,
@@ -114,18 +208,21 @@ impl Psbt {
         }
     }
 
-    pub fn from_unsigned_tx(unsigned_tx: Tx) -> Self {
+    pub fn from_tx(tx: impl Into<UnsignedTx>) -> Self {
+        let unsigned_tx = tx.into();
         let mut psbt = Psbt::create(PsbtVer::V0);
         psbt.reset_from_unsigned_tx(unsigned_tx);
         psbt
     }
 
-    pub(crate) fn reset_from_unsigned_tx(&mut self, tx: Tx) {
+    pub(crate) fn reset_from_unsigned_tx(&mut self, unsigned_tx: UnsignedTx) {
         self.version = PsbtVer::V0;
-        self.tx_version = tx.version;
-        self.fallback_locktime = Some(tx.lock_time);
-        self.inputs = tx.inputs.into_iter().enumerate().map(Input::from_unsigned_txin).collect();
-        self.outputs = tx.outputs.into_iter().enumerate().map(Output::from_txout).collect();
+        self.tx_version = unsigned_tx.version;
+        self.fallback_locktime = Some(unsigned_tx.lock_time);
+        self.inputs =
+            unsigned_tx.inputs.into_iter().enumerate().map(Input::from_unsigned_txin).collect();
+        self.outputs =
+            unsigned_tx.outputs.into_iter().enumerate().map(Output::from_txout).collect();
     }
 
     pub(crate) fn reset_inputs(&mut self, input_count: usize) {
@@ -136,13 +233,11 @@ impl Psbt {
         self.outputs = (0..output_count).map(Output::new).collect();
     }
 
-    pub fn to_unsigned_tx(&self) -> Tx {
-        Tx {
+    pub fn to_unsigned_tx(&self) -> UnsignedTx {
+        UnsignedTx {
             version: self.tx_version,
-            inputs: Confined::try_from_iter(self.inputs().map(Input::to_unsigned_txin))
-                .expect("number of inputs exceeds billions"),
-            outputs: Confined::try_from_iter(self.outputs().map(Output::to_txout))
-                .expect("number of inputs exceeds billions"),
+            inputs: self.inputs().map(Input::to_unsigned_txin).collect(),
+            outputs: self.outputs().map(Output::to_txout).collect(),
             lock_time: self.lock_time(),
         }
     }
@@ -574,24 +669,23 @@ impl Input {
         }
     }
 
-    pub fn with_unsigned_txin(txin: TxIn, index: usize) -> Input {
+    pub fn with_txin(txin: impl Into<UnsignedTxIn>, index: usize) -> Input {
+        let txin = txin.into();
         let mut input = Input::new(index);
         input.previous_outpoint = txin.prev_output;
         input.sequence_number = Some(txin.sequence);
         input
     }
 
-    pub fn from_unsigned_txin((index, txin): (usize, TxIn)) -> Input {
-        Input::with_unsigned_txin(txin, index)
+    pub fn from_unsigned_txin((index, txin): (usize, UnsignedTxIn)) -> Input {
+        Input::with_txin(txin, index)
     }
 
-    pub fn to_unsigned_txin(&self) -> TxIn {
-        TxIn {
+    pub fn to_unsigned_txin(&self) -> UnsignedTxIn {
+        UnsignedTxIn {
             prev_output: self.previous_outpoint,
-            sig_script: none!(),
             // TODO: Figure out default SeqNo
             sequence: self.sequence_number.unwrap_or(SeqNo::from_consensus_u32(0)),
-            witness: none!(),
         }
     }
 

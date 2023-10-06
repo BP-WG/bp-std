@@ -36,7 +36,7 @@ use crate::keys::KeyValue;
 use crate::{
     Decode, DecodeError, Encode, GlobalKey, Input, InputKey, KeyPair, KeyType, LockHeight,
     LockTimestamp, ModifiableFlags, Output, OutputKey, PropKey, Psbt, PsbtError, PsbtVer,
-    TapDerivation,
+    TapDerivation, UnsignedTx,
 };
 
 pub type KeyData = ByteStr;
@@ -305,7 +305,9 @@ impl KeyMap for Psbt {
         value_data: ValueData,
     ) -> Result<(), PsbtError> {
         match key_type {
-            GlobalKey::UnsignedTx => self.reset_from_unsigned_tx(Tx::deserialize(value_data)?),
+            GlobalKey::UnsignedTx => {
+                self.reset_from_unsigned_tx(UnsignedTx::deserialize(value_data)?)
+            }
             GlobalKey::TxVersion => self.tx_version = TxVer::deserialize(value_data)?,
             GlobalKey::FallbackLocktime => {
                 self.fallback_locktime = Some(LockTime::deserialize(value_data)?)
