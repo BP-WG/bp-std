@@ -25,8 +25,8 @@ use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 
 use amplify::{hex, ByteArray, Bytes20, Bytes32, Bytes4, Wrapper};
-use bc::secp256k1;
-use bc::secp256k1::{PublicKey, XOnlyPublicKey, SECP256K1};
+use bc::secp256k1::{PublicKey, SECP256K1};
+use bc::{secp256k1, TaprootPk};
 use hashes::{hash160, sha512, Hash, HashEngine, Hmac, HmacEngine};
 
 use crate::{
@@ -265,7 +265,7 @@ impl Xpub {
     pub fn to_compr_pub(&self) -> CompressedPk { CompressedPk(self.core.public_key) }
 
     /// Constructs BIP340 public key matching internal public key representation.
-    pub fn to_xonly_pub(&self) -> XOnlyPublicKey { XOnlyPublicKey::from(self.core.public_key) }
+    pub fn to_xonly_pub(&self) -> TaprootPk { TaprootPk::from(self.core.public_key) }
 
     /// Attempts to derive an extended public key from a path.
     ///

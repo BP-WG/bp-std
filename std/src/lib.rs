@@ -62,9 +62,12 @@ pub use index::{
     DerivationIndex, HardenedIndex, Idx, IndexError, IndexParseError, NormalIndex,
     HARDENED_INDEX_BOUNDARY,
 };
-pub use key::{CompressedPk, KeyOrigin, LegacyPk, OriginParseError, TaprootPk, UncompressedPk};
+pub use key::{CompressedPk, KeyOrigin, LegacyPk, OriginParseError, UncompressedPk};
 pub use path::{DerivationParseError, DerivationPath, DerivationSeg, SegParseError};
-pub use taptree::{FinalizedTree, InvalidTree, LeafInfo, TapTree, TapTreeBuilder, UnfinalizedTree};
+pub use taptree::{
+    ControlBlockFactory, FinalizedTree, InvalidTree, LeafInfo, TapDerivation, TapTree,
+    TapTreeBuilder, UnfinalizedTree,
+};
 pub use xpub::{
     Xpub, XpubDecodeError, XpubDerivable, XpubFp, XpubId, XpubMeta, XpubOrigin, XpubSpec,
 };

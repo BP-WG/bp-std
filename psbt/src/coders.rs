@@ -30,16 +30,16 @@ use bpstd::{
     ConsensusEncode, ControlBlock, DerivationIndex, DerivationPath, HardenedIndex, Idx, InternalPk,
     InvalidLeafVer, InvalidTree, KeyOrigin, LeafInfo, LeafScript, LeafVer, LegacyPk, LegacySig,
     LenVarInt, LockTime, NonStandardValue, Outpoint, RedeemScript, Sats, ScriptBytes, ScriptPubkey,
-    SeqNo, SigError, SigScript, SighashType, TapTree, TaprootPk, Tx, TxOut, TxVer, Txid,
-    UncompressedPk, VarInt, VarIntArray, Vout, Witness, WitnessScript, Xpub, XpubDecodeError,
-    XpubFp, XpubOrigin,
+    SeqNo, SigError, SigScript, SighashType, TapDerivation, TapNodeHash, TapTree, TaprootPk, Tx,
+    TxOut, TxVer, Txid, UncompressedPk, VarInt, VarIntArray, Vout, Witness, WitnessScript, Xpub,
+    XpubDecodeError, XpubFp, XpubOrigin,
 };
 
 use crate::keys::KeyValue;
 use crate::{
     GlobalKey, InputKey, KeyData, KeyMap, KeyPair, KeyType, LockHeight, LockTimestamp, Map,
-    MapName, ModifiableFlags, OutputKey, PropKey, Psbt, PsbtUnsupportedVer, PsbtVer, TapDerivation,
-    UnsignedTx, UnsignedTxIn, ValueData,
+    MapName, ModifiableFlags, OutputKey, PropKey, Psbt, PsbtUnsupportedVer, PsbtVer, UnsignedTx,
+    UnsignedTxIn, ValueData,
 };
 
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
@@ -872,6 +872,18 @@ impl Decode for TapTree {
             });
         }
         TapTree::from_leafs(path).map_err(DecodeError::from)
+    }
+}
+
+impl Encode for TapNodeHash {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
+        self.into_inner().encode(writer)
+    }
+}
+
+impl Decode for TapNodeHash {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        Bytes32::decode(reader).map(Self::from_inner)
     }
 }
 

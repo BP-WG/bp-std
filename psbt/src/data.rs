@@ -25,8 +25,8 @@ use amplify::{Bytes20, Bytes32};
 use bpstd::{
     Bip340Sig, ByteStr, CompressedPk, ControlBlock, Descriptor, InternalPk, KeyOrigin, LeafScript,
     LegacyPk, LegacySig, LockTime, NormalIndex, Outpoint, RedeemScript, Sats, ScriptPubkey, SeqNo,
-    SigScript, SighashType, TapTree, TaprootPk, Terminal, Tx, TxIn, TxOut, TxVer, Txid,
-    VarIntArray, Vout, Witness, WitnessScript, Xpub, XpubOrigin,
+    SigScript, SighashType, TapDerivation, TapNodeHash, TapTree, TaprootPk, Terminal, Tx, TxIn,
+    TxOut, TxVer, Txid, VarIntArray, Vout, Witness, WitnessScript, Xpub, XpubOrigin,
 };
 use indexmap::IndexMap;
 
@@ -302,7 +302,6 @@ impl Psbt {
             witness_script: scripts.to_witness_script(),
             bip32_derivation: descriptor.compr_keyset(terminal),
             // TODO: Fill hash preimages from descriptor
-            // TODO: Fill taproot information from descriptor
             final_script_sig: None,
             final_witness: None,
             proof_of_reserves: None,
@@ -312,10 +311,10 @@ impl Psbt {
             hash256: none!(),
             tap_key_sig: None,
             tap_script_sig: none!(),
-            tap_leaf_script: none!(),
-            tap_bip32_derivation: none!(),
-            tap_internal_key: None,
-            tap_merkle_root: None,
+            tap_leaf_script: scripts.to_leaf_scripts(),
+            tap_bip32_derivation: descriptor.xonly_keyset(terminal),
+            tap_internal_key: scripts.to_internal_pk(),
+            tap_merkle_root: scripts.to_tap_root(),
             proprietary: none!(),
             unknown: none!(),
         };
@@ -379,10 +378,9 @@ impl Psbt {
             redeem_script: scripts.to_redeem_script(),
             witness_script: scripts.to_witness_script(),
             bip32_derivation: descriptor.compr_keyset(Terminal::change(index)),
-            // TODO: Fill taproot data from descriptor
-            tap_internal_key: None,
-            tap_tree: None,
-            tap_bip32_derivation: none!(),
+            tap_internal_key: scripts.to_internal_pk(),
+            tap_tree: scripts.to_tap_tree(),
+            tap_bip32_derivation: descriptor.xonly_keyset(Terminal::change(index)),
             proprietary: none!(),
             unknown: none!(),
         };
@@ -601,7 +599,6 @@ pub struct Input {
     /// should remove this field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
     pub tap_key_sig: Option<Bip340Sig>,
 
-    // TODO: Add taproot data structures: ControlBlock etc
     /// The 64 or 65 byte Schnorr signature for this pubkey and leaf combination. Finalizers
     /// should remove this field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
     pub tap_script_sig: IndexMap<(InternalPk, Bytes32), Bip340Sig>,
@@ -627,7 +624,7 @@ pub struct Input {
 
     ///  The 32 byte Merkle root hash. Finalizers should remove this field after
     /// `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
-    pub tap_merkle_root: Option<Bytes32>,
+    pub tap_merkle_root: Option<TapNodeHash>,
 
     /// Proprietary keys
     pub proprietary: IndexMap<PropKey, ValueData>,
@@ -871,22 +868,4 @@ impl ModifiableFlags {
             | ((self.outputs_modifiable as u8) << 1)
             | ((self.sighash_single as u8) << 2)
     }
-}
-
-/// A compact size unsigned integer representing the number of leaf hashes, followed by a list
-/// of leaf hashes, followed by the 4 byte master key fingerprint concatenated with the
-/// derivation path of the public key. The derivation path is represented as 32-bit little
-/// endian unsigned integer indexes concatenated with each other. Public keys are those needed
-/// to spend this output. The leaf hashes are of the leaves which involve this public key. The
-/// internal key does not have leaf hashes, so can be indicated with a hashes len of 0.
-/// Finalizers should remove this field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
-pub struct TapDerivation {
-    pub leaf_hashes: VarIntArray<Bytes32>,
-    pub origin: KeyOrigin,
 }

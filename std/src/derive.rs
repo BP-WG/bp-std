@@ -25,12 +25,15 @@ use std::num::ParseIntError;
 use std::ops::Range;
 use std::str::FromStr;
 
-use bc::{InternalPk, RedeemScript, ScriptPubkey, WitnessScript};
+use bc::{
+    ControlBlock, InternalPk, LeafScript, RedeemScript, ScriptPubkey, TapNodeHash, WitnessScript,
+};
+use indexmap::IndexMap;
 
 use crate::address::AddressError;
 use crate::{
-    Address, AddressNetwork, AddressParseError, CompressedPk, Idx, IndexParseError, NormalIndex,
-    XpubDerivable, XpubSpec,
+    Address, AddressNetwork, AddressParseError, CompressedPk, ControlBlockFactory, Idx,
+    IndexParseError, NormalIndex, TapTree, XpubDerivable, XpubSpec,
 };
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
@@ -93,7 +96,7 @@ pub enum DerivedScript {
     Segwit(WitnessScript),
     Nested(WitnessScript),
     TaprootKeyOnly(InternalPk),
-    //Taproot(XOnlyPublicKey, TapTree)
+    Taproot(InternalPk, TapTree),
 }
 
 impl DerivedScript {
@@ -106,6 +109,7 @@ impl DerivedScript {
             DerivedScript::TaprootKeyOnly(internal_key) => {
                 ScriptPubkey::p2tr_key_only(*internal_key)
             }
+            DerivedScript::Taproot(_, _) => todo!(),
         }
     }
 
@@ -116,6 +120,7 @@ impl DerivedScript {
             DerivedScript::Segwit(_) => todo!(),
             DerivedScript::Nested(_) => todo!(),
             DerivedScript::TaprootKeyOnly(_) => None,
+            DerivedScript::Taproot(_, _) => None,
         }
     }
     pub fn as_witness_script(&self) -> Option<&WitnessScript> {
@@ -126,22 +131,46 @@ impl DerivedScript {
                 Some(witness_script)
             }
             DerivedScript::TaprootKeyOnly(_) => None,
+            DerivedScript::Taproot(_, _) => todo!(),
         }
     }
     pub fn to_redeem_script(&self) -> Option<RedeemScript> { self.as_redeem_script().cloned() }
     pub fn to_witness_script(&self) -> Option<WitnessScript> { self.as_witness_script().cloned() }
 
-    pub fn to_internal_key(&self) -> Option<InternalPk> {
+    pub fn to_internal_pk(&self) -> Option<InternalPk> {
         match self {
             DerivedScript::Bare(_)
             | DerivedScript::Bip13(_)
             | DerivedScript::Segwit(_)
             | DerivedScript::Nested(_) => None,
             DerivedScript::TaprootKeyOnly(internal_key) => Some(*internal_key),
+            DerivedScript::Taproot(internal_key, _) => Some(*internal_key),
         }
     }
 
-    // pub fn to_tap_tree(&self) -> Option<TapTree> {}
+    pub fn to_tap_tree(&self) -> Option<TapTree> {
+        match self {
+            DerivedScript::Bare(_)
+            | DerivedScript::Bip13(_)
+            | DerivedScript::Segwit(_)
+            | DerivedScript::Nested(_)
+            | DerivedScript::TaprootKeyOnly(_) => None,
+            DerivedScript::Taproot(_, tap_tree) => Some(tap_tree.clone()),
+        }
+    }
+
+    pub fn to_leaf_scripts(&self) -> IndexMap<ControlBlock, LeafScript> {
+        let (Some(internal_pk), Some(tap_tree)) = (self.to_internal_pk(), self.to_tap_tree())
+        else {
+            return empty!();
+        };
+        ControlBlockFactory::with(internal_pk, tap_tree).collect()
+    }
+
+    #[inline]
+    pub fn to_tap_root(&self) -> Option<TapNodeHash> {
+        self.to_tap_tree().as_ref().map(TapTree::merkle_root)
+    }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display)]

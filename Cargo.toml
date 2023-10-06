@@ -25,3 +25,4 @@ serde_with = "3.1.0"
 [patch.crates-io]
 commit_verify = { git = "https://github.com/LNP-BP/client_side_validation", branch = "buoy" }
 bp-primitives = { git = "https://github.com/BP-WG/bp-core", branch = "primitives" }
+bp-dbc = { git = "https://github.com/BP-WG/bp-core", branch = "primitives" }

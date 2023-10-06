@@ -24,8 +24,14 @@ use std::ops::Deref;
 use std::{slice, vec};
 
 use amplify::num::u7;
-use bc::{LeafScript, TapScript};
+use amplify::Bytes32;
+use bc::{
+    ControlBlock, InternalPk, LeafScript, OutputPk, Parity, TapMerklePath, TapNodeHash, TapScript,
+    VarIntArray,
+};
 use commit_verify::mpc::MerkleBuoy;
+
+use crate::{KeyOrigin, Terminal, XpubOrigin};
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display, Error, From)]
 pub enum InvalidTree {
@@ -117,6 +123,11 @@ impl TapTree {
         builder.finish()
     }
 
+    pub fn merkle_root(&self) -> TapNodeHash {
+        // TODO: implement TapTree::merkle_root
+        todo!()
+    }
+
     pub fn into_vec(self) -> Vec<LeafInfo> { self.0 }
 }
 
@@ -136,6 +147,83 @@ impl LeafInfo {
         LeafInfo {
             depth,
             script: LeafScript::from_tap_script(script),
+        }
+    }
+}
+
+#[derive(Getters, Clone, Eq, PartialEq, Debug)]
+#[getter(as_copy)]
+pub struct ControlBlockFactory {
+    internal_pk: InternalPk,
+    output_pk: OutputPk,
+    parity: Parity,
+    merkle_root: TapNodeHash,
+
+    #[getter(skip)]
+    merkle_path: TapMerklePath,
+    #[getter(skip)]
+    remaining_leaves: Vec<LeafInfo>,
+}
+
+impl ControlBlockFactory {
+    #[inline]
+    pub fn with(internal_pk: InternalPk, tap_tree: TapTree) -> Self {
+        let merkle_root = tap_tree.merkle_root();
+        let (output_pk, parity) = internal_pk.to_output_pk(Some(merkle_root));
+        ControlBlockFactory {
+            internal_pk,
+            output_pk,
+            parity,
+            merkle_root,
+            merkle_path: empty!(),
+            remaining_leaves: tap_tree.into_vec(),
+        }
+    }
+
+    #[inline]
+    pub fn into_remaining_leaves(self) -> Vec<LeafInfo> { self.remaining_leaves }
+}
+
+impl Iterator for ControlBlockFactory {
+    type Item = (ControlBlock, LeafScript);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let leaf = self.remaining_leaves.pop()?;
+        let leaf_script = leaf.script;
+        let control_block = ControlBlock::with(
+            leaf_script.version,
+            self.internal_pk,
+            self.parity,
+            self.merkle_path.clone(),
+        );
+        Some((control_block, leaf_script))
+    }
+}
+
+/// A compact size unsigned integer representing the number of leaf hashes, followed by a list
+/// of leaf hashes, followed by the 4 byte master key fingerprint concatenated with the
+/// derivation path of the public key. The derivation path is represented as 32-bit little
+/// endian unsigned integer indexes concatenated with each other. Public keys are those needed
+/// to spend this output. The leaf hashes are of the leaves which involve this public key. The
+/// internal key does not have leaf hashes, so can be indicated with a hashes len of 0.
+/// Finalizers should remove this field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct TapDerivation {
+    pub leaf_hashes: VarIntArray<Bytes32>,
+    pub origin: KeyOrigin,
+}
+
+impl TapDerivation {
+    pub fn with_internal_pk(xpub_origin: XpubOrigin, terminal: Terminal) -> Self {
+        let origin = KeyOrigin::with(xpub_origin, terminal);
+        TapDerivation {
+            leaf_hashes: empty!(),
+            origin,
         }
     }
 }

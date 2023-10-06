@@ -26,8 +26,9 @@ use std::io::{Read, Write};
 use amplify::{Bytes20, Bytes32, IoError};
 use bpstd::{
     Bip340Sig, ByteStr, CompressedPk, ControlBlock, InternalPk, KeyOrigin, LeafScript, LegacyPk,
-    LegacySig, LockTime, RedeemScript, Sats, ScriptPubkey, SeqNo, SigScript, SighashType, TapTree,
-    TaprootPk, Tx, TxOut, TxVer, Txid, VarInt, Vout, Witness, WitnessScript, Xpub, XpubOrigin,
+    LegacySig, LockTime, RedeemScript, Sats, ScriptPubkey, SeqNo, SigScript, SighashType,
+    TapDerivation, TapNodeHash, TapTree, TaprootPk, Tx, TxOut, TxVer, Txid, VarInt, Vout, Witness,
+    WitnessScript, Xpub, XpubOrigin,
 };
 use indexmap::IndexMap;
 
@@ -36,7 +37,7 @@ use crate::keys::KeyValue;
 use crate::{
     Decode, DecodeError, Encode, GlobalKey, Input, InputKey, KeyPair, KeyType, LockHeight,
     LockTimestamp, ModifiableFlags, Output, OutputKey, PropKey, Psbt, PsbtError, PsbtVer,
-    TapDerivation, UnsignedTx,
+    UnsignedTx,
 };
 
 pub type KeyData = ByteStr;
@@ -447,7 +448,7 @@ impl KeyMap for Input {
                 self.tap_internal_key = Some(InternalPk::deserialize(value_data)?)
             }
             InputKey::TapMerkleRoot => {
-                self.tap_merkle_root = Some(Bytes32::deserialize(value_data)?)
+                self.tap_merkle_root = Some(TapNodeHash::deserialize(value_data)?)
             }
 
             InputKey::PartialSig
