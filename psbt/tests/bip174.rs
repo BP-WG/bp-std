@@ -70,10 +70,10 @@ fn xpubs() { parse_roundtrip(include_str!("valid.v0/xpubs.psbt")); }
 
 /// Case: PSBT with global unsigned tx that has 0 inputs and 0 outputs
 #[test]
-#[should_panic(message = "Psbt(Consensus(UnsupportedSegwitFlag(2)))")]
+#[should_panic(expected = "Psbt(Consensus(UnsupportedSegwitFlag(0)))")]
 fn no_inputs_outputs() { parse_roundtrip(include_str!("valid.v0/no_inputs_outputs.psbt")); }
 
 /// Case: PSBT with 0 inputs
 #[test]
-#[should_panic(message = "Psbt(Consensus(UnsupportedSegwitFlag(2)))")]
+#[should_panic(expected = "Psbt(Consensus(UnsupportedSegwitFlag(2)))")]
 fn no_inputs() { parse_roundtrip(include_str!("valid.v0/no_inputs.psbt")); }
