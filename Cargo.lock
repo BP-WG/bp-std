@@ -206,7 +206,7 @@ dependencies = [
 [[package]]
 name = "bp-dbc"
 version = "0.10.9"
-source = "git+https://github.com/BP-WG/bp-core?branch=primitives#0c041da4b47cad5bd92dfbb42cee453e342eb607"
+source = "git+https://github.com/BP-WG/bp-core?branch=primitives#2798bf75661bc995bc18001f2d93996fc2836d62"
 dependencies = [
  "amplify",
  "base85",
@@ -232,7 +232,7 @@ dependencies = [
 [[package]]
 name = "bp-primitives"
 version = "0.10.8"
-source = "git+https://github.com/BP-WG/bp-core?branch=primitives#0c041da4b47cad5bd92dfbb42cee453e342eb607"
+source = "git+https://github.com/BP-WG/bp-core?branch=primitives#2798bf75661bc995bc18001f2d93996fc2836d62"
 dependencies = [
  "amplify",
  "commit_verify",

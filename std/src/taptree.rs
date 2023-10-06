@@ -24,10 +24,9 @@ use std::ops::Deref;
 use std::{slice, vec};
 
 use amplify::num::u7;
-use amplify::Bytes32;
 use bc::{
-    ControlBlock, InternalPk, LeafScript, OutputPk, Parity, TapMerklePath, TapNodeHash, TapScript,
-    VarIntArray,
+    ControlBlock, InternalPk, LeafScript, OutputPk, Parity, TapLeafHash, TapMerklePath,
+    TapNodeHash, TapScript,
 };
 use commit_verify::mpc::MerkleBuoy;
 
@@ -73,7 +72,8 @@ impl TapTreeBuilder {
         }
         let depth = leaf.depth;
         self.leafs.push(leaf);
-        if self.buoy.push(depth) {
+        self.buoy.push(depth);
+        if self.buoy.level() == u7::ZERO {
             self.finalized = true
         }
         Ok(self.finalized)
@@ -214,7 +214,7 @@ impl Iterator for ControlBlockFactory {
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct TapDerivation {
-    pub leaf_hashes: VarIntArray<Bytes32>,
+    pub leaf_hashes: Vec<TapLeafHash>,
     pub origin: KeyOrigin,
 }
 

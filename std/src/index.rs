@@ -480,21 +480,66 @@ impl DerivationIndex {
         Self::Hardened(HardenedIndex::hardened(child_number))
     }
 
-    pub fn from_index(value: u32) -> Self {
+    pub const fn from_index(value: u32) -> Self {
         match value {
-            0..=0x0FFFFFFF => NormalIndex(value).into(),
-            _ => HardenedIndex(value - HARDENED_INDEX_BOUNDARY).into(),
+            0..=0x0FFFFFFF => DerivationIndex::Normal(NormalIndex(value)),
+            _ => DerivationIndex::Hardened(HardenedIndex(value - HARDENED_INDEX_BOUNDARY)),
         }
     }
+}
 
-    pub fn index(&self) -> u32 {
+impl Idx for DerivationIndex {
+    const ZERO: Self = DerivationIndex::Normal(NormalIndex::ZERO);
+    const ONE: Self = DerivationIndex::Normal(NormalIndex::ONE);
+    const MAX: Self = DerivationIndex::Normal(NormalIndex::MAX);
+
+    #[doc(hidden)]
+    fn from_child_number(_no: impl Into<u16>) -> Self { panic!("method must not be used") }
+
+    #[doc(hidden)]
+    fn try_from_child_number(_index: impl Into<u32>) -> Result<Self, IndexError> {
+        panic!("method must not be used")
+    }
+
+    fn child_number(&self) -> u32 {
         match self {
-            DerivationIndex::Normal(normal) => normal.index(),
-            DerivationIndex::Hardened(hardened) => hardened.index(),
+            DerivationIndex::Normal(idx) => idx.child_number(),
+            DerivationIndex::Hardened(idx) => idx.child_number(),
         }
     }
 
-    pub const fn is_hardened(&self) -> bool {
+    fn try_from_index(index: u32) -> Result<Self, IndexError> { Ok(Self::from_index(index)) }
+
+    fn index(&self) -> u32 {
+        match self {
+            DerivationIndex::Normal(idx) => idx.index(),
+            DerivationIndex::Hardened(idx) => idx.index(),
+        }
+    }
+
+    fn checked_add_assign(&mut self, add: impl Into<u32>) -> Option<Self> {
+        match self {
+            DerivationIndex::Normal(idx) => {
+                idx.checked_add_assign(add).map(DerivationIndex::Normal)
+            }
+            DerivationIndex::Hardened(idx) => {
+                idx.checked_add_assign(add).map(DerivationIndex::Hardened)
+            }
+        }
+    }
+
+    fn checked_sub_assign(&mut self, sub: impl Into<u32>) -> Option<Self> {
+        match self {
+            DerivationIndex::Normal(idx) => {
+                idx.checked_sub_assign(sub).map(DerivationIndex::Normal)
+            }
+            DerivationIndex::Hardened(idx) => {
+                idx.checked_sub_assign(sub).map(DerivationIndex::Hardened)
+            }
+        }
+    }
+
+    fn is_hardened(&self) -> bool {
         match self {
             DerivationIndex::Normal(_) => false,
             DerivationIndex::Hardened(_) => true,
