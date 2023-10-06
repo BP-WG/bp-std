@@ -33,7 +33,7 @@ mod maps;
 mod coders;
 
 pub use coders::{Decode, DecodeError, Encode, PsbtError};
-pub use data::{Input, ModifiableFlags, Output, Prevout, Psbt, PsbtParseError};
+pub use data::{Input, ModifiableFlags, Output, Prevout, Psbt, PsbtParseError, TapDerivation};
 pub use keys::{GlobalKey, InputKey, KeyPair, KeyType, OutputKey, PropKey};
 pub use maps::{KeyData, KeyMap, Map, MapName, ValueData};
 pub use timelocks::{InvalidTimelock, LockHeight, LockTimestamp, TimelockParseError};

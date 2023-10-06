@@ -34,13 +34,17 @@ extern crate cfg_eval;
 pub extern crate bitcoin_hashes as hashes;
 
 mod base58;
+mod address;
+
+mod taptree;
+
 mod index;
 mod path;
 mod key;
 mod xpub;
-mod descriptors;
-mod address;
 mod derive;
+
+mod descriptors;
 
 #[cfg(feature = "core")]
 pub use ::bp::{dbc, seals};
@@ -60,6 +64,7 @@ pub use index::{
 };
 pub use key::{CompressedPk, KeyOrigin, LegacyPk, OriginParseError, TaprootPk, UncompressedPk};
 pub use path::{DerivationParseError, DerivationPath, DerivationSeg, SegParseError};
+pub use taptree::{FinalizedTree, InvalidTree, LeafInfo, TapTree, TapTreeBuilder, UnfinalizedTree};
 pub use xpub::{
     Xpub, XpubDecodeError, XpubDerivable, XpubFp, XpubId, XpubMeta, XpubOrigin, XpubSpec,
 };

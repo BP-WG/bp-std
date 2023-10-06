@@ -24,10 +24,10 @@ use amplify::confinement::Confined;
 use amplify::num::u5;
 use amplify::{Bytes20, Bytes32};
 use bpstd::{
-    Bip340Sig, CompressedPk, Descriptor, InternalPk, KeyOrigin, LegacyPk, LegacySig, LockTime,
-    NormalIndex, Outpoint, RedeemScript, Sats, ScriptPubkey, SeqNo, SigScript, SighashType,
-    TaprootPk, Terminal, Tx, TxIn, TxOut, TxVer, Txid, Vout, Witness, WitnessScript, Xpub,
-    XpubOrigin,
+    Bip340Sig, ByteStr, CompressedPk, ControlBlock, Descriptor, InternalPk, KeyOrigin, LeafScript,
+    LegacyPk, LegacySig, LockTime, NormalIndex, Outpoint, RedeemScript, Sats, ScriptPubkey, SeqNo,
+    SigScript, SighashType, TapTree, TaprootPk, Terminal, Tx, TxIn, TxOut, TxVer, Txid,
+    VarIntArray, Vout, Witness, WitnessScript, Xpub, XpubOrigin,
 };
 use indexmap::IndexMap;
 
@@ -488,19 +488,19 @@ pub struct Input {
 
     ///  The hash preimage, encoded as a byte vector, which must equal the key when run through the
     /// RIPEMD160 algorithm.
-    pub ripemd160: IndexMap<Bytes20, ValueData>,
+    pub ripemd160: IndexMap<Bytes20, ByteStr>,
 
     ///  The hash preimage, encoded as a byte vector, which must equal the key when run through the
     /// SHA256 algorithm.
-    pub sha256: IndexMap<Bytes32, ValueData>,
+    pub sha256: IndexMap<Bytes32, ByteStr>,
 
     /// The hash preimage, encoded as a byte vector, which must equal the key when run through the
     /// SHA256 algorithm followed by the RIPEMD160 algorithm .
-    pub hash160: IndexMap<Bytes20, ValueData>,
+    pub hash160: IndexMap<Bytes20, ByteStr>,
 
     /// The hash preimage, encoded as a byte vector, which must equal the key when run through the
     /// SHA256 algorithm twice.
-    pub hash256: IndexMap<Bytes32, ValueData>,
+    pub hash256: IndexMap<Bytes32, ByteStr>,
 
     /// The 64 or 65 byte Schnorr signature for key path spending a Taproot output. Finalizers
     /// should remove this field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
@@ -509,13 +509,13 @@ pub struct Input {
     // TODO: Add taproot data structures: ControlBlock etc
     /// The 64 or 65 byte Schnorr signature for this pubkey and leaf combination. Finalizers
     /// should remove this field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
-    pub tap_script_sig: IndexMap<KeyData, Bip340Sig>,
+    pub tap_script_sig: IndexMap<(InternalPk, Bytes32), Bip340Sig>,
 
-    ///  The script for this leaf as would be provided in the witness stack followed by the single
+    /// The script for this leaf as would be provided in the witness stack followed by the single
     /// byte leaf version. Note that the leaves included in this field should be those that the
     /// signers of this input are expected to be able to sign for. Finalizers should remove this
     /// field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
-    pub tap_leaf_script: IndexMap<KeyData, ValueData>,
+    pub tap_leaf_script: IndexMap<ControlBlock, LeafScript>,
 
     /// A compact size unsigned integer representing the number of leaf hashes, followed by a list
     /// of leaf hashes, followed by the 4 byte master key fingerprint concatenated with the
@@ -524,14 +524,14 @@ pub struct Input {
     /// to spend this output. The leaf hashes are of the leaves which involve this public key. The
     /// internal key does not have leaf hashes, so can be indicated with a hashes len of 0.
     /// Finalizers should remove this field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
-    pub tap_bip32_derivation: IndexMap<TaprootPk, ValueData>,
+    pub tap_bip32_derivation: IndexMap<TaprootPk, TapDerivation>,
 
     /// The X-only pubkey used as the internal key in this output. Finalizers should remove this
     /// field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
     pub tap_internal_key: Option<InternalPk>,
 
     ///  The 32 byte Merkle root hash. Finalizers should remove this field after
-    /// PSBT_IN_FINAL_SCRIPTWITNESS is constructed.
+    /// `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
     pub tap_merkle_root: Option<Bytes32>,
 
     /// Proprietary keys
@@ -660,7 +660,7 @@ pub struct Output {
     /// unsigned integer representing the depth in the Taproot tree for this script, an 8-bit
     /// unsigned integer representing the leaf version, the length of the script as a compact size
     /// unsigned integer, and the script itself.
-    pub tap_tree: Option<ValueData>,
+    pub tap_tree: Option<TapTree>,
 
     /// A compact size unsigned integer representing the number of leaf hashes, followed by a list
     /// of leaf hashes, followed by the 4 byte master key fingerprint concatenated with the
@@ -669,7 +669,7 @@ pub struct Output {
     /// to spend this output. The leaf hashes are of the leaves which involve this public key. The
     /// internal key does not have leaf hashes, so can be indicated with a hashes len of 0.
     /// Finalizers should remove this field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
-    pub tap_bip32_derivation: IndexMap<TaprootPk, ValueData>,
+    pub tap_bip32_derivation: IndexMap<TaprootPk, TapDerivation>,
 
     /// Proprietary keys
     pub proprietary: IndexMap<PropKey, ValueData>,
@@ -718,7 +718,7 @@ impl Output {
     pub fn index(&self) -> usize { self.index }
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
@@ -777,4 +777,22 @@ impl ModifiableFlags {
             | ((self.outputs_modifiable as u8) << 1)
             | ((self.sighash_single as u8) << 2)
     }
+}
+
+/// A compact size unsigned integer representing the number of leaf hashes, followed by a list
+/// of leaf hashes, followed by the 4 byte master key fingerprint concatenated with the
+/// derivation path of the public key. The derivation path is represented as 32-bit little
+/// endian unsigned integer indexes concatenated with each other. Public keys are those needed
+/// to spend this output. The leaf hashes are of the leaves which involve this public key. The
+/// internal key does not have leaf hashes, so can be indicated with a hashes len of 0.
+/// Finalizers should remove this field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct TapDerivation {
+    pub leaf_hashes: VarIntArray<Bytes32>,
+    pub origin: KeyOrigin,
 }

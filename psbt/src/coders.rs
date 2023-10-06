@@ -23,20 +23,22 @@
 use std::io::{self, Cursor, Read, Write};
 use std::string::FromUtf8Error;
 
-use amplify::{confinement, Array, ByteArray, Bytes, IoError, Wrapper};
+use amplify::num::u7;
+use amplify::{confinement, Array, ByteArray, Bytes, Bytes32, IoError, Wrapper};
 use bpstd::{
     Bip340Sig, ByteStr, CompressedPk, ConsensusDataError, ConsensusDecode, ConsensusDecodeError,
     ConsensusEncode, ControlBlock, DerivationIndex, DerivationPath, HardenedIndex, Idx, InternalPk,
-    InvalidLeafVer, KeyOrigin, LeafScript, LeafVer, LegacyPk, LegacySig, LockTime,
-    NonStandardValue, RedeemScript, Sats, ScriptBytes, ScriptPubkey, SeqNo, SigError, SigScript,
-    SighashType, TaprootPk, Tx, TxOut, TxVer, Txid, UncompressedPk, VarInt, Vout, Witness,
-    WitnessScript, Xpub, XpubDecodeError, XpubFp, XpubOrigin,
+    InvalidLeafVer, InvalidTree, KeyOrigin, LeafInfo, LeafScript, LeafVer, LegacyPk, LegacySig,
+    LenVarInt, LockTime, NonStandardValue, RedeemScript, Sats, ScriptBytes, ScriptPubkey, SeqNo,
+    SigError, SigScript, SighashType, TapTree, TaprootPk, Tx, TxOut, TxVer, Txid, UncompressedPk,
+    VarInt, VarIntArray, Vout, Witness, WitnessScript, Xpub, XpubDecodeError, XpubFp, XpubOrigin,
 };
 
 use crate::keys::KeyValue;
 use crate::{
     GlobalKey, InputKey, KeyData, KeyMap, KeyPair, KeyType, LockHeight, LockTimestamp, Map,
-    MapName, ModifiableFlags, OutputKey, PropKey, Psbt, PsbtUnsupportedVer, PsbtVer, ValueData,
+    MapName, ModifiableFlags, OutputKey, PropKey, Psbt, PsbtUnsupportedVer, PsbtVer, TapDerivation,
+    ValueData,
 };
 
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
@@ -51,6 +53,7 @@ pub enum DecodeError {
     #[from(ConsensusDataError)]
     #[from(PsbtUnsupportedVer)]
     #[from(XpubDecodeError)]
+    #[from(InvalidTree)]
     #[from(InvalidLeafVer)]
     #[from(NonStandardValue<u8>)]
     #[from(confinement::Error)]
@@ -139,9 +142,19 @@ pub enum PsbtError {
     /// proof of reserves is not a valid UTF-8 string. {0}.
     InvalidPorString(FromUtf8Error),
 
+    /// tap tree has invalid depth {0} exceeding 128 consensus restriction.
+    InvalidTapLeafDepth(u8),
+
+    /// tap tree has script which is tool arge ({0} bytes) and exceeds consensus script limits.
+    InvalidTapLeafScriptSize(usize),
+
     #[from]
     #[display(inner)]
-    InvalidLeafVer(InvalidLeafVer),
+    InvalidTapLeafVer(InvalidLeafVer),
+
+    #[from]
+    #[display(inner)]
+    InvalidTapTree(InvalidTree),
 
     #[from]
     #[display(inner)]
@@ -708,6 +721,83 @@ impl Encode for SigScript {
 impl Decode for SigScript {
     fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
         ScriptBytes::decode(reader).map(Self::from_inner)
+    }
+}
+
+/// A compact size unsigned integer representing the number of leaf hashes, followed by a list
+/// of leaf hashes, followed by the 4 byte master key fingerprint concatenated with the
+/// derivation path of the public key. The derivation path is represented as 32-bit little
+/// endian unsigned integer indexes concatenated with each other.
+impl Encode for TapDerivation {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
+        let no = self.leaf_hashes.len_var_int();
+        let mut counter = no.encode(writer)?;
+        for leaf_hash in &self.leaf_hashes {
+            counter += leaf_hash.encode(writer)?;
+        }
+        counter += self.origin.encode(writer)?;
+        Ok(counter)
+    }
+}
+
+impl Decode for TapDerivation {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        let no = VarInt::decode(reader)?;
+        let mut hashes = Vec::with_capacity(no.to_usize());
+        for _ in 0..no.to_usize() {
+            hashes.push(Bytes32::decode(reader)?);
+        }
+        let origin = KeyOrigin::decode(reader)?;
+        Ok(Self {
+            leaf_hashes: VarIntArray::from_collection_unsafe(hashes),
+            origin,
+        })
+    }
+}
+
+/// One or more tuples representing the depth, leaf version, and script for a leaf in the
+/// Taproot tree, allowing the entire tree to be reconstructed. The tuples must be in depth
+/// first search order so that the tree is correctly reconstructed. Each tuple is an 8-bit
+/// unsigned integer representing the depth in the Taproot tree for this script, an 8-bit
+/// unsigned integer representing the leaf version, the length of the script as a compact size
+/// unsigned integer, and the script itself.
+impl Encode for TapTree {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
+        let mut counter = 0;
+        for leaf in self {
+            counter += leaf.depth.to_u8().encode(writer)?;
+            // TODO: make it plain
+            counter += leaf.script.version.to_consensus_u8().encode(writer)?;
+            counter += leaf.script.script.len_var_int().encode(writer)?;
+            counter += leaf.script.script.encode(writer)?;
+        }
+        Ok(counter)
+    }
+}
+
+impl Decode for TapTree {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        let mut path = Vec::new();
+        loop {
+            let depth = match u8::decode(reader) {
+                Err(DecodeError::Psbt(PsbtError::UnexpectedEod)) => break,
+                Err(err) => return Err(err),
+                Ok(depth) => {
+                    u7::try_from(depth).map_err(|_| PsbtError::InvalidTapLeafDepth(depth))?
+                }
+            };
+            let ver = LeafVer::from_consensus_u8(u8::decode(reader)?)?;
+            let len = VarInt::decode(reader)?;
+            let mut script = vec![0u8; len.to_usize()];
+            reader.read_exact(&mut script)?;
+            let len = script.len();
+            path.push(LeafInfo {
+                depth,
+                script: LeafScript::with_bytes(ver, script)
+                    .map_err(|_| PsbtError::InvalidTapLeafScriptSize(len))?,
+            });
+        }
+        TapTree::from_leafs(path).map_err(DecodeError::from)
     }
 }
 

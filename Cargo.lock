@@ -245,7 +245,7 @@ dependencies = [
 [[package]]
 name = "bp-primitives"
 version = "0.10.8"
-source = "git+https://github.com/BP-WG/bp-core?branch=primitives#8efffe91a13bb4ffa3a134cc00a2f3d06c634fc5"
+source = "git+https://github.com/BP-WG/bp-core?branch=primitives#b757924d7c7b1a94ddc886fd54462af9755a9dcc"
 dependencies = [
  "amplify",
  "commit_verify",
@@ -281,6 +281,7 @@ dependencies = [
  "bp-core",
  "bp-primitives",
  "cfg_eval",
+ "commit_verify",
  "indexmap 2.0.2",
  "serde",
  "serde_with",
@@ -342,8 +343,7 @@ dependencies = [
 [[package]]
 name = "commit_encoding_derive"
 version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "00033f14d67c4169d588f085ea2faeb7b610cf03a74d42ea09eeba31abef2047"
+source = "git+https://github.com/LNP-BP/client_side_validation?branch=buoy#d0f97e3e99fb9164949d841e09b8394bd0374f17"
 dependencies = [
  "amplify",
  "amplify_syn",
@@ -355,8 +355,7 @@ dependencies = [
 [[package]]
 name = "commit_verify"
 version = "0.10.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "caa8114b3ff20947176c8cbfd1e84e56649501eed4e33ba9205c70374b2615ae"
+source = "git+https://github.com/LNP-BP/client_side_validation?branch=buoy#d0f97e3e99fb9164949d841e09b8394bd0374f17"
 dependencies = [
  "amplify",
  "commit_encoding_derive",
