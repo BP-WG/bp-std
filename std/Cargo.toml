@@ -23,12 +23,10 @@ commit_verify = "0.10.5"
 bp-primitives = { workspace = true }
 bp-core = { version = "0.10.9", optional = true }
 indexmap = { workspace = true }
-cfg_eval = { version = "0.1.2", optional = true }
 serde_crate = { workspace = true, optional = true }
-serde_with = { workspace = true, optional = true }
 
 [features]
 default = []
 all = ["core", "serde"]
 core = ["bp-core"]
-serde = ["cfg_eval", "serde_crate", "serde_with", "bp-primitives/serde", "bp-core/serde"]
+serde = ["serde_crate", "bp-primitives/serde", "bp-core/serde"]

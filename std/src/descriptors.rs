@@ -66,23 +66,9 @@ pub trait VarResolve<K, V>: Descriptor<K, V> {
 }
  */
 
-#[cfg_attr(
-    feature = "serde",
-    cfg_eval,
-    serde_as,
-    derive(Serialize, Deserialize),
-    serde(
-        crate = "serde_crate",
-        bound(
-            serialize = "K: std::fmt::Display",
-            deserialize = "K: std::str::FromStr, K::Err: std::fmt::Display"
-        )
-    )
-)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate",))]
 #[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
-pub struct Wpkh<K: DeriveCompr = XpubDerivable>(
-    #[cfg_attr(feature = "serde", serde_as(as = "serde_with::DisplayFromStr"))] K,
-);
+pub struct Wpkh<K: DeriveCompr = XpubDerivable>(K);
 
 impl<K: DeriveCompr> Wpkh<K> {
     pub fn as_key(&self) -> &K { &self.0 }
@@ -120,23 +106,9 @@ impl<K: DeriveCompr> Descriptor<K> for Wpkh<K> {
     }
 }
 
-#[cfg_attr(
-    feature = "serde",
-    cfg_eval,
-    serde_as,
-    derive(Serialize, Deserialize),
-    serde(
-        crate = "serde_crate",
-        bound(
-            serialize = "K: std::fmt::Display",
-            deserialize = "K: std::str::FromStr, K::Err: std::fmt::Display"
-        )
-    )
-)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate",))]
 #[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
-pub struct TrKey<K: DeriveXOnly = XpubDerivable>(
-    #[cfg_attr(feature = "serde", serde_as(as = "serde_with::DisplayFromStr"))] K,
-);
+pub struct TrKey<K: DeriveXOnly = XpubDerivable>(K);
 
 impl<K: DeriveXOnly> TrKey<K> {
     pub fn as_internal_key(&self) -> &K { &self.0 }
@@ -192,10 +164,8 @@ pub struct TrScript<K: DeriveXOnly> {
         crate = "serde_crate",
         rename_all = "camelCase",
         bound(
-            serialize = "S::Compr: std::fmt::Display, S::XOnly: std::fmt::Display",
-            deserialize = "S::Compr: std::str::FromStr, <S::Compr as std::str::FromStr>::Err: \
-                           std::fmt::Display, S::XOnly: std::str::FromStr, <S::XOnly as \
-                           std::str::FromStr>::Err: std::fmt::Display"
+            serialize = "S::Compr: serde::Serialize, S::XOnly: serde::Serialize",
+            deserialize = "S::Compr: serde::Deserialize<'de>, S::XOnly: serde::Deserialize<'de>"
         )
     )
 )]
