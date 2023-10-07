@@ -38,8 +38,6 @@ mod key;
 mod xpub;
 mod derive;
 
-mod descriptors;
-
 #[cfg(feature = "core")]
 pub use ::bp::{dbc, seals};
 pub use address::{
@@ -51,7 +49,6 @@ pub use derive::{
     Derive, DeriveCompr, DeriveKey, DeriveScripts, DeriveSet, DeriveXOnly, DerivedAddr,
     DerivedAddrParseError, DerivedScript, Terminal, TerminalParseError,
 };
-pub use descriptors::{Descriptor, DescriptorStd, TrKey, Wpkh};
 pub use index::{
     DerivationIndex, HardenedIndex, Idx, IndexError, IndexParseError, NormalIndex,
     HARDENED_INDEX_BOUNDARY,

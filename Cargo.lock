@@ -363,6 +363,7 @@ dependencies = [
  "amplify",
  "bp-std",
  "indexmap 2.0.2",
+ "serde",
 ]
 
 [[package]]
@@ -563,6 +564,7 @@ dependencies = [
  "base64",
  "bp-std",
  "chrono",
+ "descriptors",
  "indexmap 2.0.2",
  "serde",
 ]

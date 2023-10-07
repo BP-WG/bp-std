@@ -19,6 +19,9 @@ name = "descriptors"
 amplify = { workspace = true }
 bp-std = { path = "../std" }
 indexmap = { workspace = true }
+serde_crate = { workspace = true, optional = true }
 
 [features]
 default = []
+all = ["serde"]
+serde = ["serde_crate", "bp-std/serde"]

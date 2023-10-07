@@ -19,20 +19,3 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
-#[macro_use]
-extern crate amplify;
-#[cfg(feature = "serde")]
-#[macro_use]
-extern crate serde_crate as serde;
-
-mod factory;
-mod descriptor;
-mod multisig;
-mod segwit;
-mod taproot;
-
-pub use descriptor::{Descriptor, DescriptorStd};
-pub use factory::AddressFactory;
-pub use segwit::Wpkh;
-pub use taproot::TrKey;

@@ -23,11 +23,12 @@
 use amplify::num::u5;
 use amplify::{Bytes20, Bytes32};
 use bpstd::{
-    Bip340Sig, ByteStr, CompressedPk, ControlBlock, Descriptor, InternalPk, KeyOrigin, LeafScript,
-    LegacyPk, LegacySig, LockTime, NormalIndex, Outpoint, RedeemScript, Sats, ScriptPubkey, SeqNo,
-    SigScript, SighashType, TapDerivation, TapNodeHash, TapTree, TaprootPk, Terminal, Tx, TxIn,
-    TxOut, TxVer, Txid, VarIntArray, Vout, Witness, WitnessScript, Xpub, XpubOrigin,
+    Bip340Sig, ByteStr, CompressedPk, ControlBlock, InternalPk, KeyOrigin, LeafScript, LegacyPk,
+    LegacySig, LockTime, NormalIndex, Outpoint, RedeemScript, Sats, ScriptPubkey, SeqNo, SigScript,
+    SighashType, TapDerivation, TapNodeHash, TapTree, TaprootPk, Terminal, Tx, TxIn, TxOut, TxVer,
+    Txid, VarIntArray, Vout, Witness, WitnessScript, Xpub, XpubOrigin,
 };
+use descriptors::Descriptor;
 use indexmap::IndexMap;
 
 pub use self::display_from_str::PsbtParseError;

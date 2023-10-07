@@ -23,14 +23,13 @@
 use std::ops::Range;
 use std::{iter, vec};
 
-use bc::{InternalPk, ScriptPubkey};
+use bpstd::{
+    CompressedPk, Derive, DeriveCompr, DeriveScripts, DeriveSet, DeriveXOnly, DerivedScript,
+    KeyOrigin, NormalIndex, TapDerivation, TaprootPk, Terminal, XpubDerivable, XpubSpec,
+};
 use indexmap::IndexMap;
 
-use crate::{
-    CompressedPk, Derive, DeriveCompr, DeriveScripts, DeriveSet, DeriveXOnly, DerivedScript,
-    KeyOrigin, NormalIndex, TapDerivation, TaprootPk, Terminal, WPubkeyHash, XpubDerivable,
-    XpubSpec,
-};
+use crate::{TrKey, Wpkh};
 
 pub trait Descriptor<K = XpubDerivable, V = ()>: DeriveScripts {
     type KeyIter<'k>: Iterator<Item = &'k K>
@@ -53,108 +52,6 @@ pub trait Descriptor<K = XpubDerivable, V = ()>: DeriveScripts {
     fn compr_keyset(&self, terminal: Terminal) -> IndexMap<CompressedPk, KeyOrigin>;
     fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<TaprootPk, TapDerivation>;
 }
-
-/*
-pub trait KeyTranslate<K, V = ()>: Descriptor<K, V> {
-    type Dest<K2>: Descriptor<K2, V>;
-    fn translate<K2>(&self, f: impl Fn(K) -> K2) -> Self::Dest<K2>;
-}
-
-pub trait VarResolve<K, V>: Descriptor<K, V> {
-    type Dest<V2>: Descriptor<K, V2>;
-    fn resolve<V2>(&self, f: impl Fn(V) -> V2) -> Self::Dest<V2>;
-}
- */
-
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate",))]
-#[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
-pub struct Wpkh<K: DeriveCompr = XpubDerivable>(K);
-
-impl<K: DeriveCompr> Wpkh<K> {
-    pub fn as_key(&self) -> &K { &self.0 }
-    pub fn into_key(self) -> K { self.0 }
-}
-
-impl<K: DeriveCompr> Derive<DerivedScript> for Wpkh<K> {
-    #[inline]
-    fn keychains(&self) -> Range<u8> { self.0.keychains() }
-
-    fn derive(&self, keychain: u8, index: impl Into<NormalIndex>) -> DerivedScript {
-        let key = self.0.derive(keychain, index);
-        DerivedScript::Bare(ScriptPubkey::p2wpkh(WPubkeyHash::with(key)))
-    }
-}
-
-impl<K: DeriveCompr> Descriptor<K> for Wpkh<K> {
-    type KeyIter<'k> = iter::Once<&'k K> where Self: 'k, K: 'k;
-    type VarIter<'v> = iter::Empty<&'v ()> where Self: 'v, (): 'v;
-    type XpubIter<'x> = iter::Once<&'x XpubSpec> where Self: 'x;
-
-    fn keys(&self) -> Self::KeyIter<'_> { iter::once(&self.0) }
-    fn vars(&self) -> Self::VarIter<'_> { iter::empty() }
-    fn xpubs(&self) -> Self::XpubIter<'_> { iter::once(self.0.xpub_spec()) }
-
-    fn compr_keyset(&self, terminal: Terminal) -> IndexMap<CompressedPk, KeyOrigin> {
-        let mut map = IndexMap::with_capacity(1);
-        let key = self.0.derive(terminal.keychain, terminal.index);
-        map.insert(key, KeyOrigin::with(self.0.xpub_spec().origin().clone(), terminal));
-        map
-    }
-
-    fn xonly_keyset(&self, _terminal: Terminal) -> IndexMap<TaprootPk, TapDerivation> {
-        IndexMap::new()
-    }
-}
-
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate",))]
-#[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
-pub struct TrKey<K: DeriveXOnly = XpubDerivable>(K);
-
-impl<K: DeriveXOnly> TrKey<K> {
-    pub fn as_internal_key(&self) -> &K { &self.0 }
-    pub fn into_internal_key(self) -> K { self.0 }
-}
-
-impl<K: DeriveXOnly> Derive<DerivedScript> for TrKey<K> {
-    #[inline]
-    fn keychains(&self) -> Range<u8> { self.0.keychains() }
-
-    fn derive(&self, keychain: u8, index: impl Into<NormalIndex>) -> DerivedScript {
-        let internal_key = self.0.derive(keychain, index);
-        DerivedScript::TaprootKeyOnly(InternalPk::from_unchecked(internal_key))
-    }
-}
-
-impl<K: DeriveXOnly> Descriptor<K> for TrKey<K> {
-    type KeyIter<'k> = iter::Once<&'k K> where Self: 'k, K: 'k;
-    type VarIter<'v> = iter::Empty<&'v ()> where Self: 'v, (): 'v;
-    type XpubIter<'x> = iter::Once<&'x XpubSpec> where Self: 'x;
-
-    fn keys(&self) -> Self::KeyIter<'_> { iter::once(&self.0) }
-    fn vars(&self) -> Self::VarIter<'_> { iter::empty() }
-    fn xpubs(&self) -> Self::XpubIter<'_> { iter::once(self.0.xpub_spec()) }
-
-    fn compr_keyset(&self, _terminal: Terminal) -> IndexMap<CompressedPk, KeyOrigin> {
-        IndexMap::new()
-    }
-
-    fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<TaprootPk, TapDerivation> {
-        let mut map = IndexMap::with_capacity(1);
-        let key = self.0.derive(terminal.keychain, terminal.index);
-        map.insert(
-            key.into(),
-            TapDerivation::with_internal_pk(self.0.xpub_spec().origin().clone(), terminal),
-        );
-        map
-    }
-}
-
-/*
-pub struct TrScript<K: DeriveXOnly> {
-    internal_key: K,
-    tap_tree: TapTree<Policy<K>>,
-}
-*/
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
 #[cfg_attr(
