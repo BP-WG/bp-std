@@ -31,7 +31,7 @@ use hashes::{hash160, sha512, Hash, HashEngine, Hmac, HmacEngine};
 
 use crate::{
     base58, CompressedPk, DerivationIndex, DerivationParseError, DerivationPath, DerivationSeg,
-    HardenedIndex, Idx, IndexParseError, NormalIndex, OriginParseError, SegParseError,
+    HardenedIndex, Idx, IndexParseError, LegacyPk, NormalIndex, OriginParseError, SegParseError,
 };
 
 pub const XPUB_MAINNET_MAGIC: [u8; 4] = [0x04u8, 0x88, 0xB2, 0x1E];
@@ -261,7 +261,10 @@ impl Xpub {
         XpubFp::from_byte_array(bytes)
     }
 
-    /// Constructs ECDSA public key matching internal public key representation.
+    /// Constructs ECDSA public key valid in legacy context (compressed by default).
+    pub fn to_legacy_pub(&self) -> LegacyPk { LegacyPk::compressed(self.core.public_key) }
+
+    /// Constructs ECDSA public key.
     pub fn to_compr_pub(&self) -> CompressedPk { CompressedPk(self.core.public_key) }
 
     /// Constructs BIP340 public key matching internal public key representation.

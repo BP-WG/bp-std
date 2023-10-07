@@ -34,7 +34,7 @@ use indexmap::IndexMap;
 use crate::address::AddressError;
 use crate::{
     Address, AddressNetwork, AddressParseError, CompressedPk, ControlBlockFactory, Idx,
-    IndexParseError, NormalIndex, TapTree, XpubDerivable, XpubSpec,
+    IndexParseError, LegacyPk, NormalIndex, TapTree, XpubDerivable, XpubSpec,
 };
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
@@ -248,6 +248,9 @@ pub trait DeriveKey<D>: Derive<D> {
     fn xpub_spec(&self) -> &XpubSpec;
 }
 
+pub trait DeriveLegacy: DeriveKey<LegacyPk> {}
+impl<T: DeriveKey<LegacyPk>> DeriveLegacy for T {}
+
 pub trait DeriveCompr: DeriveKey<CompressedPk> {}
 impl<T: DeriveKey<CompressedPk>> DeriveCompr for T {}
 
@@ -281,12 +284,25 @@ pub trait DeriveScripts: Derive<DerivedScript> {
 }
 impl<T: Derive<DerivedScript>> DeriveScripts for T {}
 
+impl DeriveKey<LegacyPk> for XpubDerivable {
+    fn xpub_spec(&self) -> &XpubSpec { self.spec() }
+}
+
 impl DeriveKey<CompressedPk> for XpubDerivable {
     fn xpub_spec(&self) -> &XpubSpec { self.spec() }
 }
 
 impl DeriveKey<TaprootPk> for XpubDerivable {
     fn xpub_spec(&self) -> &XpubSpec { self.spec() }
+}
+
+impl Derive<LegacyPk> for XpubDerivable {
+    #[inline]
+    fn keychains(&self) -> Range<u8> { 0..self.keychains.count() }
+
+    fn derive(&self, keychain: u8, index: impl Into<NormalIndex>) -> LegacyPk {
+        self.xpub().derive_pub([keychain.into(), index.into()]).to_legacy_pub()
+    }
 }
 
 impl Derive<CompressedPk> for XpubDerivable {
@@ -308,11 +324,13 @@ impl Derive<TaprootPk> for XpubDerivable {
 }
 
 pub trait DeriveSet {
+    type Legacy: DeriveLegacy;
     type Compr: DeriveCompr;
     type XOnly: DeriveXOnly;
 }
 
 impl DeriveSet for XpubDerivable {
+    type Legacy = XpubDerivable;
     type Compr = XpubDerivable;
     type XOnly = XpubDerivable;
 }

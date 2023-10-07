@@ -66,12 +66,77 @@ pub trait Descriptor<K = XpubDerivable, V = ()>: DeriveScripts {
         )
     )
 )]
+#[non_exhaustive]
 pub enum DescriptorStd<S: DeriveSet = XpubDerivable> {
+    /*
+    #[from]
+    Bare(Bare<S::Legacy>),
+
+    #[from]
+    Pkh(Pkh<S::Legacy>),
+
+    #[from]
+    ShMulti(ShMulti<S::Legacy>),
+
+    #[from]
+    ShSortedMulti(ShSortedMulti<S::Legacy>),
+
+    #[from]
+    ShTlMulti(ShTlMulti<S::Legacy>),
+
+    #[from]
+    ShTemplate(ShTemplate<S::Legacy>),
+     */
     #[from]
     Wpkh(Wpkh<S::Compr>),
 
+    /*
+    #[from]
+    WshMulti(WshMulti<S::Compr>),
+
+    #[from]
+    WshSortedMulti(WshSortedMulti<S::Compr>),
+
+    #[from]
+    WshTlMulti(WshTlMulti<S::Compr>),
+
+    #[from]
+    WshTemplate(ShTemplate<S::Compr>),
+     */
     #[from]
     TrKey(TrKey<S::XOnly>),
+    /*
+    #[from]
+    TrMusig(TrMusig<S::XOnly>),
+
+    #[from]
+    TrMulti(TrMulti<S::XOnly>),
+
+    #[from]
+    TrTlMulti(TrTlMulti<S::XOnly>),
+
+    #[from]
+    TrTree(TrTree<S::XOnly>),
+
+    // This should go into LNP:
+    Bolt(Bolt<S::Compr>)
+
+    // The rest should go to RGB:
+    #[from]
+    TapretKey(TapretKey<S::XOnly),
+
+    #[from]
+    TapretMusig(TapretMusig<S::XOnly>),
+
+    #[from]
+    TrMulti(TapretMulti<S::XOnly>),
+
+    #[from]
+    TapretTlMulti(TapretTlMulti<S::XOnly>),
+
+    #[from]
+    TapretTree(TapretTree<S::XOnly>),
+     */
 }
 
 impl<S: DeriveSet> Derive<DerivedScript> for DescriptorStd<S> {
