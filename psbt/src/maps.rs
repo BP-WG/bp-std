@@ -25,8 +25,9 @@ use std::io::{Read, Write};
 
 use amplify::{Bytes20, Bytes32, IoError};
 use bpstd::{
-    CompressedPk, InternalPk, KeyOrigin, LegacyPk, LockTime, RedeemScript, Sats, ScriptPubkey,
-    SeqNo, SigScript, TaprootPk, Tx, TxOut, TxVer, Txid, VarInt, VarIntArray, Vout, Witness,
+    Bip340Sig, ByteStr, CompressedPk, ControlBlock, InternalPk, KeyOrigin, LeafScript, LegacyPk,
+    LegacySig, LockTime, RedeemScript, Sats, ScriptPubkey, SeqNo, SigScript, SighashType,
+    TapDerivation, TapNodeHash, TapTree, TaprootPk, Tx, TxOut, TxVer, Txid, VarInt, Vout, Witness,
     WitnessScript, Xpub, XpubOrigin,
 };
 use indexmap::IndexMap;
@@ -34,13 +35,13 @@ use indexmap::IndexMap;
 use crate::coders::RawBytes;
 use crate::keys::KeyValue;
 use crate::{
-    Bip340Sig, Decode, DecodeError, Encode, GlobalKey, Input, InputKey, KeyPair, KeyType,
-    LegacySig, LockHeight, LockTimestamp, ModifiableFlags, Output, OutputKey, PropKey, Psbt,
-    PsbtError, PsbtVer, SighashType,
+    Decode, DecodeError, Encode, GlobalKey, Input, InputKey, KeyPair, KeyType, LockHeight,
+    LockTimestamp, ModifiableFlags, Output, OutputKey, PropKey, Psbt, PsbtError, PsbtVer,
+    UnsignedTx,
 };
 
-pub type KeyData = VarIntArray<u8>;
-pub type ValueData = VarIntArray<u8>;
+pub type KeyData = ByteStr;
+pub type ValueData = ByteStr;
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display)]
 #[display(lowercase)]
@@ -122,7 +123,10 @@ impl<K: KeyType> Map<K> {
             }
         }
         for key_type in K::STANDARD {
-            if key_type.is_required() && version >= key_type.present_since() {
+            if key_type.is_required()
+                && version >= key_type.present_since()
+                && matches!(key_type.deprecated_since(), Some(depr) if version < depr)
+            {
                 if (key_type.has_key_data() && !self.plural.contains_key(&key_type))
                     || (!key_type.has_key_data() && !self.singular.contains_key(&key_type))
                 {
@@ -266,19 +270,6 @@ macro_rules! iter_raw {
         $expr.iter().map(|(k, v)| KeyPair::boxed(Self::PROPRIETARY_TYPE, k, RawBytes(v))).collect()
     };
 }
-macro_rules! iter_raw_key {
-    ($expr:expr) => {
-        $expr.iter().map(|(k, v)| KeyPair::boxed(Self::PROPRIETARY_TYPE, RawBytes(k), v)).collect()
-    };
-}
-macro_rules! iter_raw_all {
-    ($expr:expr) => {
-        $expr
-            .iter()
-            .map(|(k, v)| KeyPair::boxed(Self::PROPRIETARY_TYPE, RawBytes(k), RawBytes(v)))
-            .collect()
-    };
-}
 
 impl KeyMap for Psbt {
     type Keys = GlobalKey;
@@ -318,7 +309,9 @@ impl KeyMap for Psbt {
         value_data: ValueData,
     ) -> Result<(), PsbtError> {
         match key_type {
-            GlobalKey::UnsignedTx => self.reset_from_unsigned_tx(Tx::deserialize(value_data)?),
+            GlobalKey::UnsignedTx => {
+                self.reset_from_unsigned_tx(UnsignedTx::deserialize(value_data)?)
+            }
             GlobalKey::TxVersion => self.tx_version = TxVer::deserialize(value_data)?,
             GlobalKey::FallbackLocktime => {
                 self.fallback_locktime = Some(LockTime::deserialize(value_data)?)
@@ -402,13 +395,13 @@ impl KeyMap for Input {
             InputKey::RequiredTimeLock => option!(self.required_time_lock),
             InputKey::RequiredHeighLock => option!(self.required_height_lock),
             InputKey::TapKeySig => option!(self.tap_key_sig),
-            InputKey::TapScriptSig => iter_raw_key!(self.tap_script_sig),
-            InputKey::TapLeafScript => iter_raw_all!(self.tap_leaf_script),
+            InputKey::TapScriptSig => iter!(self.tap_script_sig),
+            InputKey::TapLeafScript => iter!(self.tap_leaf_script),
             InputKey::TapBip32Derivation => {
-                iter_raw!(self.tap_bip32_derivation)
+                iter!(self.tap_bip32_derivation)
             }
             InputKey::TapInternalKey => option!(self.tap_internal_key),
-            InputKey::TapMerkleRoot => option_raw!(self.tap_merkle_root),
+            InputKey::TapMerkleRoot => option!(self.tap_merkle_root),
 
             InputKey::Proprietary | InputKey::Unknown(_) => unreachable!(),
         };
@@ -458,7 +451,7 @@ impl KeyMap for Input {
                 self.tap_internal_key = Some(InternalPk::deserialize(value_data)?)
             }
             InputKey::TapMerkleRoot => {
-                self.tap_merkle_root = Some(Bytes32::deserialize(value_data)?)
+                self.tap_merkle_root = Some(TapNodeHash::deserialize(value_data)?)
             }
 
             InputKey::PartialSig
@@ -528,15 +521,19 @@ impl KeyMap for Input {
                 self.hash256.insert(hash, value_data);
             }
             InputKey::TapScriptSig => {
+                let (internal_pk, leaf_hash) = <(InternalPk, Bytes32)>::deserialize(key_data)?;
                 let sig = Bip340Sig::deserialize(value_data)?;
-                self.tap_script_sig.insert(key_data, sig);
+                self.tap_script_sig.insert((internal_pk, leaf_hash), sig);
             }
             InputKey::TapLeafScript => {
-                self.tap_leaf_script.insert(key_data, value_data);
+                let control_block = ControlBlock::deserialize(key_data)?;
+                let leaf_script = LeafScript::deserialize(value_data)?;
+                self.tap_leaf_script.insert(control_block, leaf_script);
             }
             InputKey::TapBip32Derivation => {
                 let pk = TaprootPk::deserialize(key_data)?;
-                self.tap_bip32_derivation.insert(pk, value_data);
+                let derivation = TapDerivation::deserialize(value_data)?;
+                self.tap_bip32_derivation.insert(pk, derivation);
             }
 
             InputKey::Proprietary | InputKey::Unknown(_) => unreachable!(),
@@ -568,9 +565,9 @@ impl KeyMap for Output {
             OutputKey::Amount => once!(self.amount),
             OutputKey::Script => once!(&self.script),
             OutputKey::TapInternalKey => option!(self.tap_internal_key),
-            OutputKey::TapTree => option_raw!(self.tap_tree),
+            OutputKey::TapTree => option!(self.tap_tree),
             OutputKey::TapBip32Derivation => {
-                iter_raw!(self.tap_bip32_derivation)
+                iter!(self.tap_bip32_derivation)
             }
 
             OutputKey::Proprietary | OutputKey::Unknown(_) => unreachable!(),
@@ -596,7 +593,7 @@ impl KeyMap for Output {
             OutputKey::TapInternalKey => {
                 self.tap_internal_key = Some(InternalPk::deserialize(value_data)?)
             }
-            OutputKey::TapTree => self.tap_tree = Some(value_data),
+            OutputKey::TapTree => self.tap_tree = Some(TapTree::deserialize(value_data)?),
 
             OutputKey::Bip32Derivation | OutputKey::TapBip32Derivation => unreachable!(),
 
@@ -626,7 +623,8 @@ impl KeyMap for Output {
             }
             OutputKey::TapBip32Derivation => {
                 let pk = TaprootPk::deserialize(key_data)?;
-                self.tap_bip32_derivation.insert(pk, value_data);
+                let derivation = TapDerivation::deserialize(value_data)?;
+                self.tap_bip32_derivation.insert(pk, derivation);
             }
 
             OutputKey::Proprietary | OutputKey::Unknown(_) => unreachable!(),

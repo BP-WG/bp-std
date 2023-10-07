@@ -20,21 +20,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use amplify::confinement::Confined;
 use amplify::num::u5;
 use amplify::{Bytes20, Bytes32};
 use bpstd::{
-    CompressedPk, Descriptor, InternalPk, KeyOrigin, LegacyPk, LockTime, NormalIndex, Outpoint,
-    RedeemScript, Sats, ScriptPubkey, SeqNo, SigScript, TaprootPk, Terminal, Tx, TxIn, TxOut,
-    TxVer, Txid, Vout, Witness, WitnessScript, Xpub, XpubOrigin,
+    Bip340Sig, ByteStr, CompressedPk, ControlBlock, Descriptor, InternalPk, KeyOrigin, LeafScript,
+    LegacyPk, LegacySig, LockTime, NormalIndex, Outpoint, RedeemScript, Sats, ScriptPubkey, SeqNo,
+    SigScript, SighashType, TapDerivation, TapNodeHash, TapTree, TaprootPk, Terminal, Tx, TxIn,
+    TxOut, TxVer, Txid, VarIntArray, Vout, Witness, WitnessScript, Xpub, XpubOrigin,
 };
 use indexmap::IndexMap;
 
 pub use self::display_from_str::PsbtParseError;
-use crate::{
-    Bip340Sig, KeyData, LegacySig, LockHeight, LockTimestamp, PropKey, PsbtError, PsbtVer,
-    SighashType, ValueData,
-};
+use crate::{KeyData, LockHeight, LockTimestamp, PropKey, PsbtError, PsbtVer, ValueData};
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error)]
 #[display("PSBT can't be modified")]
@@ -59,14 +56,109 @@ impl Prevout {
     pub fn outpoint(&self) -> Outpoint { Outpoint::new(self.txid, self.vout) }
 }
 
+/// Structure representing data on unsigned transaction the way it is stored in PSBTv1 global key.
+///
+/// We can't use [`Tx`] since PSBT may contain unsigned transaction with zero inputs, according to
+/// BIP-174 test cases. [`Tx`] containing zero inputs is an invalid structure, prohibited by
+/// consensus. An attempt to deserialize it will be incorrectly identified as a Segwit transaction
+/// (since zero inputs is the trick which was used to make Segwit softfork) and fail with invalid
+/// segwit flag error (since the second byte after 0 segwit indicator must be `01` and not a number
+/// of inputs) fail to parse outputs (for transactions containing just a one output).
+///
+/// `UnsignedTx` also ensures invariant that none of its inputs contain witnesses or sigscripts.
+///
+/// [`Tx`]: bpstd::Tx
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct UnsignedTx {
+    pub version: TxVer,
+    pub inputs: Vec<UnsignedTxIn>,
+    pub outputs: Vec<TxOut>,
+    pub lock_time: LockTime,
+}
+
+impl From<Tx> for UnsignedTx {
+    #[inline]
+    fn from(tx: Tx) -> UnsignedTx { UnsignedTx::with_sigs_removed(tx) }
+}
+
+impl From<UnsignedTx> for Tx {
+    #[inline]
+    fn from(unsigned_tx: UnsignedTx) -> Tx {
+        Tx {
+            version: unsigned_tx.version,
+            inputs: VarIntArray::from_collection_unsafe(
+                unsigned_tx.inputs.into_iter().map(TxIn::from).collect(),
+            ),
+            outputs: VarIntArray::from_collection_unsafe(unsigned_tx.outputs),
+            lock_time: unsigned_tx.lock_time,
+        }
+    }
+}
+
+impl UnsignedTx {
+    #[inline]
+    pub fn with_sigs_removed(tx: Tx) -> UnsignedTx {
+        UnsignedTx {
+            version: tx.version,
+            inputs: tx.inputs.into_iter().map(UnsignedTxIn::with_sigs_removed).collect(),
+            outputs: tx.outputs.into_inner(),
+            lock_time: tx.lock_time,
+        }
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
+pub struct UnsignedTxIn {
+    pub prev_output: Outpoint,
+    pub sequence: SeqNo,
+}
+
+impl From<TxIn> for UnsignedTxIn {
+    #[inline]
+    fn from(txin: TxIn) -> UnsignedTxIn { UnsignedTxIn::with_sigs_removed(txin) }
+}
+
+impl From<UnsignedTxIn> for TxIn {
+    #[inline]
+    fn from(unsigned_txin: UnsignedTxIn) -> TxIn {
+        TxIn {
+            prev_output: unsigned_txin.prev_output,
+            sig_script: none!(),
+            sequence: unsigned_txin.sequence,
+            witness: empty!(),
+        }
+    }
+}
+
+impl UnsignedTxIn {
+    #[inline]
+    pub fn with_sigs_removed(txin: TxIn) -> UnsignedTxIn {
+        UnsignedTxIn {
+            prev_output: txin.prev_output,
+            sequence: txin.sequence,
+        }
+    }
+}
+
 #[derive(Clone, Eq, PartialEq, Debug)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-// TODO: Serde deserialize must correctly initialzie inputs and outputs with their indexes and
-//       account for unknown fields
+// Serde deserialize is not implemented and require manual implementation instead of derive, since
+// we need to correctly initialize inputs and outputs with their indexes and account for unknown
+// fields.
 pub struct Psbt {
     /// PSBT version
     pub version: PsbtVer,
@@ -116,18 +208,21 @@ impl Psbt {
         }
     }
 
-    pub fn from_unsigned_tx(unsigned_tx: Tx) -> Self {
+    pub fn from_tx(tx: impl Into<UnsignedTx>) -> Self {
+        let unsigned_tx = tx.into();
         let mut psbt = Psbt::create(PsbtVer::V0);
         psbt.reset_from_unsigned_tx(unsigned_tx);
         psbt
     }
 
-    pub(crate) fn reset_from_unsigned_tx(&mut self, tx: Tx) {
+    pub(crate) fn reset_from_unsigned_tx(&mut self, unsigned_tx: UnsignedTx) {
         self.version = PsbtVer::V0;
-        self.tx_version = tx.version;
-        self.fallback_locktime = Some(tx.lock_time);
-        self.inputs = tx.inputs.into_iter().enumerate().map(Input::from_unsigned_txin).collect();
-        self.outputs = tx.outputs.into_iter().enumerate().map(Output::from_txout).collect();
+        self.tx_version = unsigned_tx.version;
+        self.fallback_locktime = Some(unsigned_tx.lock_time);
+        self.inputs =
+            unsigned_tx.inputs.into_iter().enumerate().map(Input::from_unsigned_txin).collect();
+        self.outputs =
+            unsigned_tx.outputs.into_iter().enumerate().map(Output::from_txout).collect();
     }
 
     pub(crate) fn reset_inputs(&mut self, input_count: usize) {
@@ -138,13 +233,11 @@ impl Psbt {
         self.outputs = (0..output_count).map(Output::new).collect();
     }
 
-    pub fn to_unsigned_tx(&self) -> Tx {
-        Tx {
+    pub fn to_unsigned_tx(&self) -> UnsignedTx {
+        UnsignedTx {
             version: self.tx_version,
-            inputs: Confined::try_from_iter(self.inputs().map(Input::to_unsigned_txin))
-                .expect("number of inputs exceeds billions"),
-            outputs: Confined::try_from_iter(self.outputs().map(Output::to_txout))
-                .expect("number of inputs exceeds billions"),
+            inputs: self.inputs().map(Input::to_unsigned_txin).collect(),
+            outputs: self.outputs().map(Output::to_txout).collect(),
             lock_time: self.lock_time(),
         }
     }
@@ -209,7 +302,6 @@ impl Psbt {
             witness_script: scripts.to_witness_script(),
             bip32_derivation: descriptor.compr_keyset(terminal),
             // TODO: Fill hash preimages from descriptor
-            // TODO: Fill taproot information from descriptor
             final_script_sig: None,
             final_witness: None,
             proof_of_reserves: None,
@@ -219,10 +311,10 @@ impl Psbt {
             hash256: none!(),
             tap_key_sig: None,
             tap_script_sig: none!(),
-            tap_leaf_script: none!(),
-            tap_bip32_derivation: none!(),
-            tap_internal_key: None,
-            tap_merkle_root: None,
+            tap_leaf_script: scripts.to_leaf_scripts(),
+            tap_bip32_derivation: descriptor.xonly_keyset(terminal),
+            tap_internal_key: scripts.to_internal_pk(),
+            tap_merkle_root: scripts.to_tap_root(),
             proprietary: none!(),
             unknown: none!(),
         };
@@ -286,10 +378,9 @@ impl Psbt {
             redeem_script: scripts.to_redeem_script(),
             witness_script: scripts.to_witness_script(),
             bip32_derivation: descriptor.compr_keyset(Terminal::change(index)),
-            // TODO: Fill taproot data from descriptor
-            tap_internal_key: None,
-            tap_tree: None,
-            tap_bip32_derivation: none!(),
+            tap_internal_key: scripts.to_internal_pk(),
+            tap_tree: scripts.to_tap_tree(),
+            tap_bip32_derivation: descriptor.xonly_keyset(Terminal::change(index)),
             proprietary: none!(),
             unknown: none!(),
         };
@@ -490,34 +581,33 @@ pub struct Input {
 
     ///  The hash preimage, encoded as a byte vector, which must equal the key when run through the
     /// RIPEMD160 algorithm.
-    pub ripemd160: IndexMap<Bytes20, ValueData>,
+    pub ripemd160: IndexMap<Bytes20, ByteStr>,
 
     ///  The hash preimage, encoded as a byte vector, which must equal the key when run through the
     /// SHA256 algorithm.
-    pub sha256: IndexMap<Bytes32, ValueData>,
+    pub sha256: IndexMap<Bytes32, ByteStr>,
 
     /// The hash preimage, encoded as a byte vector, which must equal the key when run through the
     /// SHA256 algorithm followed by the RIPEMD160 algorithm .
-    pub hash160: IndexMap<Bytes20, ValueData>,
+    pub hash160: IndexMap<Bytes20, ByteStr>,
 
     /// The hash preimage, encoded as a byte vector, which must equal the key when run through the
     /// SHA256 algorithm twice.
-    pub hash256: IndexMap<Bytes32, ValueData>,
+    pub hash256: IndexMap<Bytes32, ByteStr>,
 
     /// The 64 or 65 byte Schnorr signature for key path spending a Taproot output. Finalizers
     /// should remove this field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
     pub tap_key_sig: Option<Bip340Sig>,
 
-    // TODO: Add taproot data structures: ControlBlock etc
     /// The 64 or 65 byte Schnorr signature for this pubkey and leaf combination. Finalizers
     /// should remove this field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
-    pub tap_script_sig: IndexMap<KeyData, Bip340Sig>,
+    pub tap_script_sig: IndexMap<(InternalPk, Bytes32), Bip340Sig>,
 
-    ///  The script for this leaf as would be provided in the witness stack followed by the single
+    /// The script for this leaf as would be provided in the witness stack followed by the single
     /// byte leaf version. Note that the leaves included in this field should be those that the
     /// signers of this input are expected to be able to sign for. Finalizers should remove this
     /// field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
-    pub tap_leaf_script: IndexMap<KeyData, ValueData>,
+    pub tap_leaf_script: IndexMap<ControlBlock, LeafScript>,
 
     /// A compact size unsigned integer representing the number of leaf hashes, followed by a list
     /// of leaf hashes, followed by the 4 byte master key fingerprint concatenated with the
@@ -526,15 +616,15 @@ pub struct Input {
     /// to spend this output. The leaf hashes are of the leaves which involve this public key. The
     /// internal key does not have leaf hashes, so can be indicated with a hashes len of 0.
     /// Finalizers should remove this field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
-    pub tap_bip32_derivation: IndexMap<TaprootPk, ValueData>,
+    pub tap_bip32_derivation: IndexMap<TaprootPk, TapDerivation>,
 
     /// The X-only pubkey used as the internal key in this output. Finalizers should remove this
     /// field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
     pub tap_internal_key: Option<InternalPk>,
 
     ///  The 32 byte Merkle root hash. Finalizers should remove this field after
-    /// PSBT_IN_FINAL_SCRIPTWITNESS is constructed.
-    pub tap_merkle_root: Option<Bytes32>,
+    /// `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
+    pub tap_merkle_root: Option<TapNodeHash>,
 
     /// Proprietary keys
     pub proprietary: IndexMap<PropKey, ValueData>,
@@ -576,24 +666,23 @@ impl Input {
         }
     }
 
-    pub fn with_unsigned_txin(txin: TxIn, index: usize) -> Input {
+    pub fn with_txin(txin: impl Into<UnsignedTxIn>, index: usize) -> Input {
+        let txin = txin.into();
         let mut input = Input::new(index);
         input.previous_outpoint = txin.prev_output;
         input.sequence_number = Some(txin.sequence);
         input
     }
 
-    pub fn from_unsigned_txin((index, txin): (usize, TxIn)) -> Input {
-        Input::with_unsigned_txin(txin, index)
+    pub fn from_unsigned_txin((index, txin): (usize, UnsignedTxIn)) -> Input {
+        Input::with_txin(txin, index)
     }
 
-    pub fn to_unsigned_txin(&self) -> TxIn {
-        TxIn {
+    pub fn to_unsigned_txin(&self) -> UnsignedTxIn {
+        UnsignedTxIn {
             prev_output: self.previous_outpoint,
-            sig_script: none!(),
             // TODO: Figure out default SeqNo
             sequence: self.sequence_number.unwrap_or(SeqNo::from_consensus_u32(0)),
-            witness: none!(),
         }
     }
 
@@ -662,7 +751,7 @@ pub struct Output {
     /// unsigned integer representing the depth in the Taproot tree for this script, an 8-bit
     /// unsigned integer representing the leaf version, the length of the script as a compact size
     /// unsigned integer, and the script itself.
-    pub tap_tree: Option<ValueData>,
+    pub tap_tree: Option<TapTree>,
 
     /// A compact size unsigned integer representing the number of leaf hashes, followed by a list
     /// of leaf hashes, followed by the 4 byte master key fingerprint concatenated with the
@@ -671,7 +760,7 @@ pub struct Output {
     /// to spend this output. The leaf hashes are of the leaves which involve this public key. The
     /// internal key does not have leaf hashes, so can be indicated with a hashes len of 0.
     /// Finalizers should remove this field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
-    pub tap_bip32_derivation: IndexMap<TaprootPk, ValueData>,
+    pub tap_bip32_derivation: IndexMap<TaprootPk, TapDerivation>,
 
     /// Proprietary keys
     pub proprietary: IndexMap<PropKey, ValueData>,
@@ -720,7 +809,7 @@ impl Output {
     pub fn index(&self) -> usize { self.index }
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),

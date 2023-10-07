@@ -22,33 +22,12 @@
 
 use std::str::FromStr;
 
-use amplify::hex;
-use bc::secp256k1::{PublicKey, XOnlyPublicKey};
+use amplify::{hex, Wrapper};
+use bc::secp256k1::PublicKey;
 use bc::InvalidPubkey;
 
 use crate::xpub::XpubParseError;
 use crate::{DerivationIndex, DerivationParseError, DerivationPath, Terminal, XpubFp, XpubOrigin};
-
-#[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
-#[wrap(Deref, LowerHex)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", transparent)
-)]
-pub struct TaprootPk(pub XOnlyPublicKey);
-
-impl TaprootPk {
-    pub fn from_byte_array(data: [u8; 32]) -> Result<Self, InvalidPubkey> {
-        XOnlyPublicKey::from_slice(data.as_ref()).map(Self).map_err(|_| InvalidPubkey)
-    }
-
-    pub fn to_byte_array(&self) -> [u8; 32] { self.0.serialize() }
-}
-
-impl From<TaprootPk> for [u8; 32] {
-    fn from(pk: TaprootPk) -> [u8; 32] { pk.to_byte_array() }
-}
 
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
 #[wrap(Deref, LowerHex)]

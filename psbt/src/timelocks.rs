@@ -118,7 +118,7 @@ impl LockTimestamp {
 
     #[inline]
     pub const fn try_from_consensus_u32(lock_time: u32) -> Result<Self, InvalidTimelock> {
-        if !LockTime::from_consensus_u32(lock_time).is_height_based() {
+        if !LockTime::from_consensus_u32(lock_time).is_time_based() {
             return Err(InvalidTimelock(lock_time));
         }
         Ok(Self(lock_time))

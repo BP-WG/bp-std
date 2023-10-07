@@ -27,19 +27,17 @@ extern crate amplify;
 extern crate serde_crate as serde;
 
 mod timelocks;
-mod sigtypes;
 mod data;
 mod keys;
 mod maps;
 mod coders;
 
 pub use coders::{Decode, DecodeError, Encode, PsbtError};
-pub use data::{Input, ModifiableFlags, Output, Prevout, Psbt, PsbtParseError};
+pub use data::{
+    Input, ModifiableFlags, Output, Prevout, Psbt, PsbtParseError, UnsignedTx, UnsignedTxIn,
+};
 pub use keys::{GlobalKey, InputKey, KeyPair, KeyType, OutputKey, PropKey};
 pub use maps::{KeyData, KeyMap, Map, MapName, ValueData};
-pub use sigtypes::{
-    Bip340Sig, LegacySig, NonStandardSighashType, SigError, SighashFlag, SighashType,
-};
 pub use timelocks::{InvalidTimelock, LockHeight, LockTimestamp, TimelockParseError};
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error)]

@@ -28,11 +28,11 @@ use std::str::FromStr;
 
 use amplify::hex::ToHex;
 use amplify::{Array, Wrapper};
-use bc::{Chain, ScriptPubkey, WitnessVer};
+use bc::{Chain, InvalidPubkey, ScriptPubkey, WitnessVer};
 use bech32::u5;
 use hashes::{hash160, Hash};
 
-use crate::{base58, CompressedPk, InvalidPubkey, TaprootPk};
+use crate::{base58, CompressedPk, TaprootPk};
 
 /// Mainnet (bitcoin) pubkey address prefix.
 pub const PUBKEY_ADDRESS_PREFIX_MAIN: u8 = 0; // 0x00

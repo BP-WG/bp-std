@@ -17,8 +17,9 @@ name = "bpstd"
 
 [dependencies]
 amplify = { workspace = true }
-bitcoin_hashes = "0.12.0"
+bitcoin_hashes = "0.12.0" # TODO: Remove and replace with commit_verify
 bech32 = { workspace = true }
+commit_verify = "0.10.5"
 bp-primitives = { workspace = true }
 bp-core = { version = "0.10.9", optional = true }
 indexmap = { workspace = true }

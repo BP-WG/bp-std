@@ -23,12 +23,13 @@
 use std::ops::Range;
 use std::{iter, vec};
 
-use bc::{InternalPk, ScriptPubkey};
+use bc::ScriptPubkey;
 use indexmap::IndexMap;
 
 use crate::{
     CompressedPk, Derive, DeriveCompr, DeriveScripts, DeriveSet, DeriveXOnly, DerivedScript,
-    KeyOrigin, NormalIndex, Terminal, WPubkeyHash, XpubDerivable, XpubSpec,
+    KeyOrigin, NormalIndex, TapDerivation, TaprootPk, Terminal, WPubkeyHash, XpubDerivable,
+    XpubSpec,
 };
 
 pub trait Descriptor<K = XpubDerivable, V = ()>: DeriveScripts {
@@ -50,7 +51,7 @@ pub trait Descriptor<K = XpubDerivable, V = ()>: DeriveScripts {
     fn xpubs(&self) -> Self::XpubIter<'_>;
 
     fn compr_keyset(&self, terminal: Terminal) -> IndexMap<CompressedPk, KeyOrigin>;
-    fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<InternalPk, KeyOrigin>;
+    fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<TaprootPk, TapDerivation>;
 }
 
 /*
@@ -114,7 +115,7 @@ impl<K: DeriveCompr> Descriptor<K> for Wpkh<K> {
         map
     }
 
-    fn xonly_keyset(&self, _terminal: Terminal) -> IndexMap<InternalPk, KeyOrigin> {
+    fn xonly_keyset(&self, _terminal: Terminal) -> IndexMap<TaprootPk, TapDerivation> {
         IndexMap::new()
     }
 }
@@ -165,10 +166,13 @@ impl<K: DeriveXOnly> Descriptor<K> for TrKey<K> {
         IndexMap::new()
     }
 
-    fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<InternalPk, KeyOrigin> {
+    fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<TaprootPk, TapDerivation> {
         let mut map = IndexMap::with_capacity(1);
         let key = self.0.derive(terminal.keychain, terminal.index);
-        map.insert(key, KeyOrigin::with(self.0.xpub_spec().origin().clone(), terminal));
+        map.insert(
+            key.into(),
+            TapDerivation::with_internal_pk(self.0.xpub_spec().origin().clone(), terminal),
+        );
         map
     }
 }
@@ -252,7 +256,7 @@ where Self: Derive<DerivedScript>
         }
     }
 
-    fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<InternalPk, KeyOrigin> {
+    fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<TaprootPk, TapDerivation> {
         match self {
             DescriptorStd::Wpkh(d) => d.xonly_keyset(terminal),
             DescriptorStd::TrKey(d) => d.xonly_keyset(terminal),

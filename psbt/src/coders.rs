@@ -23,20 +23,23 @@
 use std::io::{self, Cursor, Read, Write};
 use std::string::FromUtf8Error;
 
-use amplify::{confinement, Array, Bytes, IoError, RawArray, Wrapper};
+use amplify::num::u7;
+use amplify::{confinement, Array, Bytes, Bytes32, Bytes4, IoError, Wrapper};
 use bpstd::{
-    CompressedPk, ConsensusDataError, ConsensusDecode, ConsensusDecodeError, ConsensusEncode,
-    DerivationIndex, DerivationPath, HardenedIndex, Idx, InternalPk, KeyOrigin, LegacyPk, LockTime,
-    RedeemScript, Sats, ScriptBytes, ScriptPubkey, SeqNo, SigScript, TaprootPk, Tx, TxOut, TxVer,
-    Txid, UncompressedPk, VarInt, VarIntArray, Vout, Witness, WitnessScript, Xpub, XpubDecodeError,
-    XpubFp, XpubOrigin,
+    Bip340Sig, ByteStr, CompressedPk, ConsensusDataError, ConsensusDecode, ConsensusDecodeError,
+    ConsensusEncode, ControlBlock, DerivationPath, Idx, InternalPk, InvalidLeafVer, InvalidTree,
+    KeyOrigin, LeafInfo, LeafScript, LeafVer, LegacyPk, LegacySig, LockTime, NonStandardValue,
+    Outpoint, RedeemScript, Sats, ScriptBytes, ScriptPubkey, SeqNo, SigError, SigScript,
+    SighashType, TapDerivation, TapLeafHash, TapNodeHash, TapTree, TaprootPk, Tx, TxOut, TxVer,
+    Txid, UncompressedPk, VarInt, Vout, Witness, WitnessScript, Xpub, XpubDecodeError, XpubFp,
+    XpubOrigin,
 };
 
 use crate::keys::KeyValue;
 use crate::{
-    Bip340Sig, GlobalKey, InputKey, KeyData, KeyMap, KeyPair, KeyType, LegacySig, LockHeight,
-    LockTimestamp, Map, MapName, ModifiableFlags, NonStandardSighashType, OutputKey, PropKey, Psbt,
-    PsbtUnsupportedVer, PsbtVer, SigError, SighashType, ValueData,
+    GlobalKey, InputKey, KeyData, KeyMap, KeyPair, KeyType, LockHeight, LockTimestamp, Map,
+    MapName, ModifiableFlags, OutputKey, PropKey, Psbt, PsbtUnsupportedVer, PsbtVer, UnsignedTx,
+    UnsignedTxIn, ValueData,
 };
 
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
@@ -51,7 +54,9 @@ pub enum DecodeError {
     #[from(ConsensusDataError)]
     #[from(PsbtUnsupportedVer)]
     #[from(XpubDecodeError)]
-    #[from(NonStandardSighashType)]
+    #[from(InvalidTree)]
+    #[from(InvalidLeafVer)]
+    #[from(NonStandardValue<u8>)]
     #[from(confinement::Error)]
     Psbt(PsbtError),
 }
@@ -65,6 +70,7 @@ impl From<ConsensusDecodeError> for DecodeError {
     }
 }
 
+/// TODO: Split error into classes
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum PsbtError {
@@ -102,6 +108,9 @@ pub enum PsbtError {
     #[display(inner)]
     UnsupportedVersion(PsbtUnsupportedVer),
 
+    /// Provided transaction in `PSBT_GLOBAL_UNSIGNED_TX` contains non-empty `sigScript`.
+    SignedTx,
+
     /// invalid lock height value {0}.
     InvalidLockHeight(u32),
 
@@ -123,7 +132,7 @@ pub enum PsbtError {
 
     #[from]
     #[display(inner)]
-    InvalidSighash(NonStandardSighashType),
+    InvalidSighash(NonStandardValue<u8>),
 
     #[from]
     #[display(inner)]
@@ -132,11 +141,28 @@ pub enum PsbtError {
     /// one of xpubs has an unhardened derivation index
     XpubUnhardenedOrigin,
 
+    /// derivation path has invalid length
+    InvalidDerivationPath,
+
     /// unrecognized public key encoding starting with flag {0:#02x}.
     UnrecognizedKeyFormat(u8),
 
     /// proof of reserves is not a valid UTF-8 string. {0}.
     InvalidPorString(FromUtf8Error),
+
+    /// tap tree has invalid depth {0} exceeding 128 consensus restriction.
+    InvalidTapLeafDepth(u8),
+
+    /// tap tree has script which is tool arge ({0} bytes) and exceeds consensus script limits.
+    InvalidTapLeafScriptSize(usize),
+
+    #[from]
+    #[display(inner)]
+    InvalidTapLeafVer(InvalidLeafVer),
+
+    #[from]
+    #[display(inner)]
+    InvalidTapTree(InvalidTree),
 
     #[from]
     #[display(inner)]
@@ -290,8 +316,8 @@ impl<T: KeyType> Decode for KeyValue<T> {
 
         Ok(KeyValue::Pair(KeyPair {
             key_type,
-            key_data: KeyData::try_from(key_data)?,
-            value_data: ValueData::try_from(value_data)?,
+            key_data: KeyData::from(key_data),
+            value_data: ValueData::from(value_data),
         }))
     }
 }
@@ -372,29 +398,56 @@ impl Decode for Xpub {
     }
 }
 
+impl Encode for XpubFp {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
+        self.into_inner().encode(writer)
+    }
+}
+
+impl Decode for XpubFp {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        Bytes4::decode(reader).map(Self::from_inner)
+    }
+}
+
 impl Encode for XpubOrigin {
     fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
-        writer.write_all(self.master_fp().as_ref())?;
-        for index in self.derivation() {
-            index.index().encode(writer)?;
-        }
-        Ok(4 + self.derivation().len() * 4)
+        Ok(self.master_fp().encode(writer)? + self.derivation().encode(writer)?)
     }
 }
 
 impl Decode for XpubOrigin {
     fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
-        let mut buf = [0u8; 4];
-        reader.read_exact(&mut buf)?;
-        let master_fp = XpubFp::from_raw_array(buf);
-        let mut derivation = DerivationPath::<HardenedIndex>::new();
-        while let Ok(index) = u32::decode(reader) {
-            derivation.push(
-                HardenedIndex::try_from_index(index)
-                    .map_err(|_| PsbtError::XpubUnhardenedOrigin)?,
-            );
-        }
+        let master_fp = XpubFp::decode(reader)?;
+        let derivation = DerivationPath::decode(reader)?;
         Ok(XpubOrigin::new(master_fp, derivation))
+    }
+}
+
+impl<I: Idx> Encode for DerivationPath<I> {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
+        let mut counter = 0;
+        for index in self {
+            counter += index.index().encode(writer)?;
+        }
+        Ok(counter)
+    }
+}
+
+impl<I: Idx> Decode for DerivationPath<I> {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        let mut derivation = DerivationPath::<I>::new();
+        let mut buf = Vec::new();
+        reader.read_to_end(&mut buf)?;
+        let mut iter = buf.chunks_exact(4);
+        for val in iter.by_ref() {
+            let index = u32::decode(&mut Cursor::new(val)).expect("fixed size");
+            derivation.push(I::try_from_index(index).map_err(|_| PsbtError::XpubUnhardenedOrigin)?);
+        }
+        if !iter.remainder().is_empty() {
+            return Err(PsbtError::InvalidDerivationPath.into());
+        }
+        Ok(derivation)
     }
 }
 
@@ -489,23 +542,14 @@ impl Decode for InternalPk {
 
 impl Encode for KeyOrigin {
     fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
-        writer.write_all(self.master_fp().as_ref())?;
-        for index in self.derivation() {
-            index.index().encode(writer)?;
-        }
-        Ok(4 + self.derivation().len() * 4)
+        Ok(self.master_fp().encode(writer)? + self.derivation().encode(writer)?)
     }
 }
 
 impl Decode for KeyOrigin {
     fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
-        let mut buf = [0u8; 4];
-        reader.read_exact(&mut buf)?;
-        let master_fp = XpubFp::from_raw_array(buf);
-        let mut derivation = DerivationPath::new();
-        while let Ok(index) = u32::decode(reader) {
-            derivation.push(DerivationIndex::from_index(index));
-        }
+        let master_fp = XpubFp::decode(reader)?;
+        let derivation = DerivationPath::decode(reader)?;
         Ok(KeyOrigin::new(master_fp, derivation))
     }
 }
@@ -514,7 +558,7 @@ impl Encode for LegacySig {
     fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
         let sig = self.sig.serialize_der();
         writer.write_all(sig.as_ref())?;
-        self.sighash_type.into_u8().encode(writer)?;
+        self.sighash_type.to_consensus_u8().encode(writer)?;
         Ok(sig.len() + 1)
     }
 }
@@ -532,7 +576,7 @@ impl Encode for Bip340Sig {
         let mut counter = 64;
         writer.write_all(&self.sig[..])?;
         if let Some(sighash_type) = self.sighash_type {
-            counter += sighash_type.into_u8().encode(writer)?;
+            counter += sighash_type.to_consensus_u8().encode(writer)?;
         }
         Ok(counter)
     }
@@ -548,13 +592,82 @@ impl Decode for Bip340Sig {
 
 impl Encode for SighashType {
     fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
-        self.into_u32().encode(writer)
+        self.to_consensus_u32().encode(writer)
     }
 }
 
 impl Decode for SighashType {
     fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
-        u32::decode(reader).map(Self::from_consensus)
+        u32::decode(reader).map(Self::from_consensus_u32)
+    }
+}
+
+impl Encode for UnsignedTx {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
+        let mut counter = 0;
+        counter += self.version.encode(writer)?;
+        counter += VarInt::with(self.inputs.len()).encode(writer)?;
+        for input in &self.inputs {
+            counter += input.encode(writer)?;
+        }
+        counter += VarInt::with(self.outputs.len()).encode(writer)?;
+        for output in &self.outputs {
+            counter += output.encode(writer)?;
+        }
+        counter += self.lock_time.encode(writer)?;
+        Ok(counter)
+    }
+}
+
+impl Decode for UnsignedTx {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        let version = TxVer::decode(reader)?;
+
+        let input_count = VarInt::decode(reader)?;
+        let mut inputs = Vec::with_capacity(input_count.to_usize());
+        for _ in 0..input_count.to_usize() {
+            inputs.push(UnsignedTxIn::decode(reader)?);
+        }
+
+        let output_count = VarInt::decode(reader)?;
+        let mut outputs = Vec::with_capacity(output_count.to_usize());
+        for _ in 0..output_count.to_usize() {
+            outputs.push(TxOut::decode(reader)?);
+        }
+
+        let lock_time = LockTime::decode(reader)?;
+
+        Ok(UnsignedTx {
+            version,
+            inputs,
+            outputs,
+            lock_time,
+        })
+    }
+}
+
+impl Encode for UnsignedTxIn {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
+        let mut counter = 0;
+        counter += self.prev_output.encode(writer)?;
+        counter += VarInt::new(0).encode(writer)?;
+        counter += self.sequence.encode(writer)?;
+        Ok(counter)
+    }
+}
+
+impl Decode for UnsignedTxIn {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        let prev_output = Outpoint::decode(reader)?;
+        let sig_script_len = VarInt::decode(reader)?;
+        if sig_script_len != 0u64 {
+            return Err(PsbtError::SignedTx.into());
+        }
+        let sequence = SeqNo::decode(reader)?;
+        Ok(UnsignedTxIn {
+            prev_output,
+            sequence,
+        })
     }
 }
 
@@ -595,6 +708,7 @@ macro_rules! psbt_decode_from_consensus {
 psbt_code_using_consensus!(Tx);
 psbt_code_using_consensus!(TxVer);
 psbt_code_using_consensus!(TxOut);
+psbt_code_using_consensus!(Outpoint);
 psbt_code_using_consensus!(Txid);
 psbt_code_using_consensus!(Vout);
 psbt_code_using_consensus!(SeqNo);
@@ -627,6 +741,7 @@ impl Decode for LockHeight {
 }
 
 psbt_code_using_consensus!(Witness);
+psbt_code_using_consensus!(ControlBlock);
 
 impl Encode for ScriptBytes {
     fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
@@ -636,8 +751,8 @@ impl Encode for ScriptBytes {
 
 impl Decode for ScriptBytes {
     fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
-        let bytes = RawBytes::<VarIntArray<u8>>::decode(reader)?;
-        Ok(ScriptBytes::from_inner(bytes.0))
+        let bytes = RawBytes::<ByteStr>::decode(reader)?;
+        Ok(ScriptBytes::from_inner(bytes.0.into_inner()))
     }
 }
 
@@ -650,6 +765,22 @@ impl Encode for ScriptPubkey {
 impl Decode for ScriptPubkey {
     fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
         ScriptBytes::decode(reader).map(Self::from_inner)
+    }
+}
+
+impl Encode for LeafScript {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
+        let mut counter = self.version.to_consensus_u8().encode(writer)?;
+        counter += self.script.encode(writer)?;
+        Ok(counter)
+    }
+}
+
+impl Decode for LeafScript {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        let version = LeafVer::from_consensus_u8(u8::decode(reader)?)?;
+        let script = ScriptBytes::decode(reader)?;
+        Ok(Self { version, script })
     }
 }
 
@@ -689,11 +820,114 @@ impl Decode for SigScript {
     }
 }
 
+/// A compact size unsigned integer representing the number of leaf hashes, followed by a list
+/// of leaf hashes, followed by the 4 byte master key fingerprint concatenated with the
+/// derivation path of the public key. The derivation path is represented as 32-bit little
+/// endian unsigned integer indexes concatenated with each other.
+impl Encode for TapDerivation {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
+        let no = VarInt::with(self.leaf_hashes.len());
+        let mut counter = no.encode(writer)?;
+        for leaf_hash in &self.leaf_hashes {
+            counter += leaf_hash.encode(writer)?;
+        }
+        counter += self.origin.encode(writer)?;
+        Ok(counter)
+    }
+}
+
+impl Decode for TapDerivation {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        let no = VarInt::decode(reader)?;
+        let mut leaf_hashes = Vec::with_capacity(no.to_usize());
+        for _ in 0..no.to_usize() {
+            leaf_hashes.push(TapLeafHash::decode(reader)?);
+        }
+        let origin = KeyOrigin::decode(reader)?;
+        Ok(Self {
+            leaf_hashes,
+            origin,
+        })
+    }
+}
+
+/// One or more tuples representing the depth, leaf version, and script for a leaf in the
+/// Taproot tree, allowing the entire tree to be reconstructed. The tuples must be in depth
+/// first search order so that the tree is correctly reconstructed. Each tuple is an 8-bit
+/// unsigned integer representing the depth in the Taproot tree for this script, an 8-bit
+/// unsigned integer representing the leaf version, the length of the script as a compact size
+/// unsigned integer, and the script itself.
+impl Encode for TapTree {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
+        let mut counter = 0;
+        for leaf in self {
+            counter += leaf.depth.to_u8().encode(writer)?;
+            // TODO: make it plain
+            counter += leaf.script.version.to_consensus_u8().encode(writer)?;
+            counter += leaf.script.script.len_var_int().encode(writer)?;
+            counter += leaf.script.script.encode(writer)?;
+        }
+        Ok(counter)
+    }
+}
+
+impl Decode for TapTree {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        let mut path = Vec::new();
+        loop {
+            let depth = match u8::decode(reader) {
+                Err(DecodeError::Psbt(PsbtError::UnexpectedEod)) => break,
+                Err(DecodeError::Io(io)) if io.kind() == io::ErrorKind::UnexpectedEof => break,
+                Err(err) => return Err(err),
+                Ok(depth) => {
+                    u7::try_from(depth).map_err(|_| PsbtError::InvalidTapLeafDepth(depth))?
+                }
+            };
+            let ver = LeafVer::from_consensus_u8(u8::decode(reader)?)?;
+            let len = VarInt::decode(reader)?;
+            let mut script = vec![0u8; len.to_usize()];
+            reader.read_exact(&mut script)?;
+            let len = script.len();
+            path.push(LeafInfo {
+                depth,
+                script: LeafScript::with_bytes(ver, script)
+                    .map_err(|_| PsbtError::InvalidTapLeafScriptSize(len))?,
+            });
+        }
+        TapTree::from_leafs(path).map_err(DecodeError::from)
+    }
+}
+
+impl Encode for TapLeafHash {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
+        self.into_inner().encode(writer)
+    }
+}
+
+impl Decode for TapLeafHash {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        Bytes32::decode(reader).map(Self::from_inner)
+    }
+}
+
+impl Encode for TapNodeHash {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
+        self.into_inner().encode(writer)
+    }
+}
+
+impl Decode for TapNodeHash {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        Bytes32::decode(reader).map(Self::from_inner)
+    }
+}
+
 psbt_code_using_consensus!(Sats);
 psbt_code_using_consensus!(u8);
 psbt_code_using_consensus!(u32);
 psbt_code_using_consensus!(VarInt);
 
+#[derive(From)]
 pub(crate) struct RawBytes<T: AsRef<[u8]>>(pub T);
 
 impl<T: AsRef<[u8]>> Encode for RawBytes<T> {
@@ -712,11 +946,11 @@ impl Decode for RawBytes<Vec<u8>> {
     }
 }
 
-impl Decode for RawBytes<VarIntArray<u8>> {
+impl Decode for RawBytes<ByteStr> {
     fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
         let mut buf = Vec::new();
         reader.read_to_end(&mut buf)?;
-        VarIntArray::try_from(buf).map(Self).map_err(DecodeError::from)
+        Ok(ByteStr::from(buf).into())
     }
 }
 
@@ -747,6 +981,20 @@ impl<T: Encode> Encode for Option<T> {
 impl Encode for Box<dyn Encode> {
     fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
         self.as_ref().encode(writer)
+    }
+}
+
+impl<A: Encode, B: Encode> Encode for (A, B) {
+    fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
+        Ok(self.0.encode(writer)? + self.1.encode(writer)?)
+    }
+}
+
+impl<A: Decode, B: Decode> Decode for (A, B) {
+    fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
+        let a = A::decode(reader)?;
+        let b = B::decode(reader)?;
+        Ok((a, b))
     }
 }
 
