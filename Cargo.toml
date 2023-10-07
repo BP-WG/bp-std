@@ -1,10 +1,10 @@
 [workspace]
-members = ["std", "invoice", "psbt", "."]
+members = ["std", "descriptors", "psbt", "."]
 resolver = "2"
 
 [workspace.package]
 version = "0.11.0"
-keywords = ["bitcoin", "wallet", "descriptor-wallet", "psbt", "taproot"]
+keywords = ["bitcoin", "wallet", "descriptors", "psbt", "taproot"]
 categories = ["cryptography::cryptocurrencies"]
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
 homepage = "https://lnp-bp.org"
