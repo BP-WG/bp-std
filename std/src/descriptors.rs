@@ -23,7 +23,7 @@
 use std::ops::Range;
 use std::{iter, vec};
 
-use bc::ScriptPubkey;
+use bc::{InternalPk, ScriptPubkey};
 use indexmap::IndexMap;
 
 use crate::{
@@ -121,7 +121,7 @@ impl<K: DeriveXOnly> Derive<DerivedScript> for TrKey<K> {
 
     fn derive(&self, keychain: u8, index: impl Into<NormalIndex>) -> DerivedScript {
         let internal_key = self.0.derive(keychain, index);
-        DerivedScript::TaprootKeyOnly(internal_key)
+        DerivedScript::TaprootKeyOnly(InternalPk::from_unchecked(internal_key))
     }
 }
 

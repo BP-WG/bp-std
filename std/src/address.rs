@@ -28,11 +28,11 @@ use std::str::FromStr;
 
 use amplify::hex::ToHex;
 use amplify::{Array, Wrapper};
-use bc::{Chain, InvalidPubkey, ScriptPubkey, WitnessVer};
+use bc::{Chain, InvalidPubkey, OutputPk, ScriptPubkey, WitnessVer};
 use bech32::u5;
 use hashes::{hash160, Hash};
 
-use crate::{base58, CompressedPk, TaprootPk};
+use crate::{base58, CompressedPk};
 
 /// Mainnet (bitcoin) pubkey address prefix.
 pub const PUBKEY_ADDRESS_PREFIX_MAIN: u8 = 0; // 0x00
@@ -84,7 +84,7 @@ pub enum AddressParseError {
     UnrecognizableFormat(String),
 
     /// wrong BIP340 public key
-    #[from(InvalidPubkey)]
+    #[from(InvalidPubkey<32>)]
     WrongPublicKeyData,
 
     /// unrecognized address format string; must be one of `P2PKH`, `P2SH`,
@@ -247,7 +247,7 @@ impl FromStr for Address {
                 (WitnessVer::V1, bech32::Variant::Bech32m) if program.len() == 32 => {
                     let mut key = [0u8; 32];
                     key.copy_from_slice(&program);
-                    let pk = TaprootPk::from_byte_array(key)?;
+                    let pk = OutputPk::from_byte_array(key)?;
                     AddressPayload::Tr(pk)
                 }
 
@@ -412,7 +412,7 @@ pub enum AddressPayload {
 
     /// P2TR payload.
     #[from]
-    Tr(TaprootPk),
+    Tr(OutputPk),
 }
 
 impl AddressPayload {
@@ -447,7 +447,7 @@ impl AddressPayload {
             let mut bytes = [0u8; 32];
             bytes.copy_from_slice(&script[2..]);
             AddressPayload::Tr(
-                TaprootPk::from_byte_array(bytes).map_err(|_| AddressError::InvalidTaprootKey)?,
+                OutputPk::from_byte_array(bytes).map_err(|_| AddressError::InvalidTaprootKey)?,
             )
         } else {
             return Err(AddressError::UnsupportedScriptPubkey);
@@ -461,7 +461,7 @@ impl AddressPayload {
             AddressPayload::Sh(hash) => ScriptPubkey::p2sh(hash),
             AddressPayload::Wpkh(hash) => ScriptPubkey::p2wpkh(hash),
             AddressPayload::Wsh(hash) => ScriptPubkey::p2wsh(hash),
-            AddressPayload::Tr(output_key) => ScriptPubkey::p2tr_tweaked(output_key.into()),
+            AddressPayload::Tr(output_key) => ScriptPubkey::p2tr_tweaked(output_key),
         }
     }
 }

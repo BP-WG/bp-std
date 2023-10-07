@@ -145,18 +145,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d86b93f97252c47b41663388e6d155714a9d0c398b99f1005cbc5f978b29f445"
 
 [[package]]
-name = "bitcoin-private"
-version = "0.1.0"
+name = "bitcoin-internals"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "73290177011694f38ec25e165d0387ab7ea749a4b81cd4c80dae5988229f7a57"
+checksum = "9425c3bf7089c983facbae04de54513cce73b41c7f9ff8c845b54e7bc64ebbfb"
 
 [[package]]
 name = "bitcoin_hashes"
-version = "0.12.0"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d7066118b13d4b20b23645932dfb3a81ce7e29f95726c2036fa33cd7b092501"
+checksum = "1930a4dabfebb8d7d9992db18ebe3ae2876f0a305fab206fd168df931ede293b"
 dependencies = [
- "bitcoin-private",
+ "bitcoin-internals",
+ "hex-conservative",
 ]
 
 [[package]]
@@ -188,14 +189,25 @@ dependencies = [
 ]
 
 [[package]]
-name = "bp-core"
-version = "0.10.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "accdf591895f370bb02f0e332b5a26d6124354b058801ef4b155d781ed4eb0d0"
+name = "bp-consensus"
+version = "0.10.10"
+source = "git+https://github.com/BP-WG/bp-core?branch=consensus#722d6b3c81bce5915e561793f37a98283b2a476f"
 dependencies = [
  "amplify",
+ "commit_verify",
+ "secp256k1",
+ "serde",
+ "strict_encoding",
+]
+
+[[package]]
+name = "bp-core"
+version = "0.10.10"
+source = "git+https://github.com/BP-WG/bp-core?branch=consensus#722d6b3c81bce5915e561793f37a98283b2a476f"
+dependencies = [
+ "amplify",
+ "bp-consensus",
  "bp-dbc",
- "bp-primitives",
  "bp-seals",
  "commit_verify",
  "serde",
@@ -205,24 +217,12 @@ dependencies = [
 
 [[package]]
 name = "bp-dbc"
-version = "0.10.9"
-source = "git+https://github.com/BP-WG/bp-core?branch=primitives#2798bf75661bc995bc18001f2d93996fc2836d62"
+version = "0.10.10"
+source = "git+https://github.com/BP-WG/bp-core?branch=consensus#722d6b3c81bce5915e561793f37a98283b2a476f"
 dependencies = [
  "amplify",
  "base85",
- "bp-primitives",
- "commit_verify",
- "secp256k1",
- "serde",
- "strict_encoding",
-]
-
-[[package]]
-name = "bp-primitives"
-version = "0.10.8"
-source = "git+https://github.com/BP-WG/bp-core?branch=primitives#2798bf75661bc995bc18001f2d93996fc2836d62"
-dependencies = [
- "amplify",
+ "bp-consensus",
  "commit_verify",
  "secp256k1",
  "serde",
@@ -231,14 +231,13 @@ dependencies = [
 
 [[package]]
 name = "bp-seals"
-version = "0.10.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "980cb7c5e1bebba10dc65c7c192ba58d254dfb3db7abb7ff10159886c35a17ba"
+version = "0.10.10"
+source = "git+https://github.com/BP-WG/bp-core?branch=consensus#722d6b3c81bce5915e561793f37a98283b2a476f"
 dependencies = [
  "amplify",
  "baid58",
+ "bp-consensus",
  "bp-dbc",
- "bp-primitives",
  "commit_verify",
  "rand",
  "serde",
@@ -253,8 +252,8 @@ dependencies = [
  "amplify",
  "bech32",
  "bitcoin_hashes",
+ "bp-consensus",
  "bp-core",
- "bp-primitives",
  "commit_verify",
  "indexmap 2.0.2",
  "serde",
@@ -363,10 +362,7 @@ version = "0.11.0"
 dependencies = [
  "amplify",
  "bp-std",
- "chrono",
- "fluent-uri",
  "indexmap 2.0.2",
- "percent-encoding",
 ]
 
 [[package]]
@@ -384,15 +380,6 @@ name = "equivalent"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
-
-[[package]]
-name = "fluent-uri"
-version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "17c704e9dbe1ddd863da1e6ff3567795087b1eb201ce80d8fa81162e1516500d"
-dependencies = [
- "bitflags",
-]
 
 [[package]]
 name = "generic-array"
@@ -432,6 +419,12 @@ name = "heck"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "95505c38b4572b2d910cecb0281560f54b440a19336cbbcb27bf6ce6adc6f5a8"
+
+[[package]]
+name = "hex-conservative"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "30ed443af458ccb6d81c1e7e661545f94d3176752fb1df2f543b902a1e0f51e2"
 
 [[package]]
 name = "iana-time-zone"
@@ -546,12 +539,6 @@ name = "paste"
 version = "1.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "de3145af08024dea9fa9914f381a17b8fc6034dfb00f3a84013f7ff43f29ed4c"
-
-[[package]]
-name = "percent-encoding"
-version = "2.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b2a4787296e9989611394c33f193f676704af1686e70b8f8033ab5ba9a35a94"
 
 [[package]]
 name = "ppv-lite86"

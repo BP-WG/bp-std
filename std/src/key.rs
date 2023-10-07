@@ -39,8 +39,8 @@ use crate::{DerivationIndex, DerivationParseError, DerivationPath, Terminal, Xpu
 pub struct CompressedPk(pub PublicKey);
 
 impl CompressedPk {
-    pub fn from_byte_array(data: [u8; 33]) -> Result<Self, InvalidPubkey> {
-        PublicKey::from_slice(&data).map(Self).map_err(|_| InvalidPubkey)
+    pub fn from_byte_array(data: [u8; 33]) -> Result<Self, InvalidPubkey<33>> {
+        PublicKey::from_slice(&data).map(Self).map_err(|_| InvalidPubkey(data.into()))
     }
     pub fn to_byte_array(&self) -> [u8; 33] { self.0.serialize() }
 }
@@ -55,8 +55,8 @@ impl CompressedPk {
 pub struct UncompressedPk(pub PublicKey);
 
 impl UncompressedPk {
-    pub fn from_byte_array(data: [u8; 65]) -> Result<Self, InvalidPubkey> {
-        PublicKey::from_slice(&data).map(Self).map_err(|_| InvalidPubkey)
+    pub fn from_byte_array(data: [u8; 65]) -> Result<Self, InvalidPubkey<65>> {
+        PublicKey::from_slice(&data).map(Self).map_err(|_| InvalidPubkey(data.into()))
     }
     pub fn to_byte_array(&self) -> [u8; 65] { self.0.serialize_uncompressed() }
 }

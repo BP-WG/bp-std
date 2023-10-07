@@ -17,11 +17,11 @@ name = "bpstd"
 
 [dependencies]
 amplify = { workspace = true }
-bitcoin_hashes = "0.12.0" # TODO: Remove and replace with commit_verify
+bitcoin_hashes = { workspace = true }
 bech32 = { workspace = true }
 commit_verify = "0.10.5"
-bp-primitives = { workspace = true }
-bp-core = { version = "0.10.9", optional = true }
+bp-consensus = { workspace = true }
+bp-core = { version = "0.10.10", optional = true }
 indexmap = { workspace = true }
 serde_crate = { workspace = true, optional = true }
 
@@ -29,4 +29,4 @@ serde_crate = { workspace = true, optional = true }
 default = []
 all = ["core", "serde"]
 core = ["bp-core"]
-serde = ["serde_crate", "bp-primitives/serde", "bp-core/serde"]
+serde = ["serde_crate", "bp-consensus/serde", "bp-core/serde"]

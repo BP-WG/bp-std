@@ -26,7 +26,8 @@ use std::ops::Range;
 use std::str::FromStr;
 
 use bc::{
-    ControlBlock, InternalPk, LeafScript, RedeemScript, ScriptPubkey, TapNodeHash, WitnessScript,
+    ControlBlock, InternalPk, LeafScript, RedeemScript, ScriptPubkey, TapNodeHash, TaprootPk,
+    WitnessScript,
 };
 use indexmap::IndexMap;
 
@@ -250,8 +251,8 @@ pub trait DeriveKey<D>: Derive<D> {
 pub trait DeriveCompr: DeriveKey<CompressedPk> {}
 impl<T: DeriveKey<CompressedPk>> DeriveCompr for T {}
 
-pub trait DeriveXOnly: DeriveKey<InternalPk> {}
-impl<T: DeriveKey<InternalPk>> DeriveXOnly for T {}
+pub trait DeriveXOnly: DeriveKey<TaprootPk> {}
+impl<T: DeriveKey<TaprootPk>> DeriveXOnly for T {}
 
 pub trait DeriveScripts: Derive<DerivedScript> {
     fn derive_address(
@@ -284,7 +285,7 @@ impl DeriveKey<CompressedPk> for XpubDerivable {
     fn xpub_spec(&self) -> &XpubSpec { self.spec() }
 }
 
-impl DeriveKey<InternalPk> for XpubDerivable {
+impl DeriveKey<TaprootPk> for XpubDerivable {
     fn xpub_spec(&self) -> &XpubSpec { self.spec() }
 }
 
@@ -297,12 +298,12 @@ impl Derive<CompressedPk> for XpubDerivable {
     }
 }
 
-impl Derive<InternalPk> for XpubDerivable {
+impl Derive<TaprootPk> for XpubDerivable {
     #[inline]
     fn keychains(&self) -> Range<u8> { 0..self.keychains.count() }
 
-    fn derive(&self, keychain: u8, index: impl Into<NormalIndex>) -> InternalPk {
-        self.xpub().derive_pub([keychain.into(), index.into()]).to_xonly_pub().into()
+    fn derive(&self, keychain: u8, index: impl Into<NormalIndex>) -> TaprootPk {
+        self.xpub().derive_pub([keychain.into(), index.into()]).to_xonly_pub()
     }
 }
 
