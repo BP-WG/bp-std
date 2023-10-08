@@ -25,7 +25,7 @@ use std::{iter, vec};
 
 use bpstd::{
     CompressedPk, Derive, DeriveCompr, DeriveScripts, DeriveSet, DeriveXOnly, DerivedScript,
-    KeyOrigin, NormalIndex, TapDerivation, TaprootPk, Terminal, XpubDerivable, XpubSpec,
+    KeyOrigin, NormalIndex, TapDerivation, Terminal, XOnlyPk, XpubDerivable, XpubSpec,
 };
 use indexmap::IndexMap;
 
@@ -50,7 +50,7 @@ pub trait Descriptor<K = XpubDerivable, V = ()>: DeriveScripts {
     fn xpubs(&self) -> Self::XpubIter<'_>;
 
     fn compr_keyset(&self, terminal: Terminal) -> IndexMap<CompressedPk, KeyOrigin>;
-    fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<TaprootPk, TapDerivation>;
+    fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation>;
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
@@ -188,7 +188,7 @@ where Self: Derive<DerivedScript>
         }
     }
 
-    fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<TaprootPk, TapDerivation> {
+    fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation> {
         match self {
             DescriptorStd::Wpkh(d) => d.xonly_keyset(terminal),
             DescriptorStd::TrKey(d) => d.xonly_keyset(terminal),

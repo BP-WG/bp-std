@@ -24,15 +24,15 @@ use amplify::num::u5;
 use amplify::{Bytes20, Bytes32};
 use bpstd::{
     Bip340Sig, ByteStr, CompressedPk, ControlBlock, InternalPk, KeyOrigin, LeafScript, LegacyPk,
-    LegacySig, LockTime, NormalIndex, Outpoint, RedeemScript, Sats, ScriptPubkey, SeqNo, SigScript,
-    SighashType, TapDerivation, TapNodeHash, TapTree, TaprootPk, Terminal, Tx, TxIn, TxOut, TxVer,
-    Txid, VarIntArray, Vout, Witness, WitnessScript, Xpub, XpubOrigin,
+    LegacySig, LockHeight, LockTime, LockTimestamp, NormalIndex, Outpoint, RedeemScript, Sats,
+    ScriptPubkey, SeqNo, SigScript, SighashType, TapDerivation, TapNodeHash, TapTree, Terminal, Tx,
+    TxIn, TxOut, TxVer, Txid, VarIntArray, Vout, Witness, WitnessScript, XOnlyPk, Xpub, XpubOrigin,
 };
 use descriptors::Descriptor;
 use indexmap::IndexMap;
 
 pub use self::display_from_str::PsbtParseError;
-use crate::{KeyData, LockHeight, LockTimestamp, PropKey, PsbtError, PsbtVer, ValueData};
+use crate::{KeyData, PropKey, PsbtError, PsbtVer, ValueData};
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error)]
 #[display("PSBT can't be modified")]
@@ -617,7 +617,7 @@ pub struct Input {
     /// to spend this output. The leaf hashes are of the leaves which involve this public key. The
     /// internal key does not have leaf hashes, so can be indicated with a hashes len of 0.
     /// Finalizers should remove this field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
-    pub tap_bip32_derivation: IndexMap<TaprootPk, TapDerivation>,
+    pub tap_bip32_derivation: IndexMap<XOnlyPk, TapDerivation>,
 
     /// The X-only pubkey used as the internal key in this output. Finalizers should remove this
     /// field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
@@ -761,7 +761,7 @@ pub struct Output {
     /// to spend this output. The leaf hashes are of the leaves which involve this public key. The
     /// internal key does not have leaf hashes, so can be indicated with a hashes len of 0.
     /// Finalizers should remove this field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
-    pub tap_bip32_derivation: IndexMap<TaprootPk, TapDerivation>,
+    pub tap_bip32_derivation: IndexMap<XOnlyPk, TapDerivation>,
 
     /// Proprietary keys
     pub proprietary: IndexMap<PropKey, ValueData>,

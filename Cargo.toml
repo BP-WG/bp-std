@@ -22,7 +22,8 @@ indexmap = "2.0.0"
 serde_crate = { package = "serde", version = "1", features = ["derive"] }
 
 [patch.crates-io]
-commit_verify = { git = "https://github.com/LNP-BP/client_side_validation", branch = "buoy" }
+amplify_derive = { git = "https://github.com/rust-amplify/amplify-derive", branch = "wrapper" }
+commit_verify = { git = "https://github.com/LNP-BP/client_side_validation", branch = "develop" }
 bp-consensus = { git = "https://github.com/BP-WG/bp-core", branch = "consensus" }
 bp-dbc = { git = "https://github.com/BP-WG/bp-core", branch = "consensus" }
 bp-seals = { git = "https://github.com/BP-WG/bp-core", branch = "consensus" }

@@ -26,15 +26,15 @@ use std::ops::Range;
 use std::str::FromStr;
 
 use bc::{
-    ControlBlock, InternalPk, LeafScript, RedeemScript, ScriptPubkey, TapNodeHash, TaprootPk,
-    WitnessScript,
+    CompressedPk, ControlBlock, InternalPk, LeafScript, LegacyPk, RedeemScript, ScriptPubkey,
+    TapNodeHash, WitnessScript, XOnlyPk,
 };
 use indexmap::IndexMap;
 
 use crate::address::AddressError;
 use crate::{
-    Address, AddressNetwork, AddressParseError, CompressedPk, ControlBlockFactory, Idx,
-    IndexParseError, LegacyPk, NormalIndex, TapTree, XpubDerivable, XpubSpec,
+    Address, AddressNetwork, AddressParseError, ControlBlockFactory, Idx, IndexParseError,
+    NormalIndex, TapTree, XpubDerivable, XpubSpec,
 };
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
@@ -97,29 +97,34 @@ pub enum DerivedScript {
     Segwit(WitnessScript),
     Nested(WitnessScript),
     TaprootKeyOnly(InternalPk),
-    Taproot(InternalPk, TapTree),
+    Taproot(InternalPk, Option<TapTree>),
 }
 
 impl DerivedScript {
     pub fn to_script_pubkey(&self) -> ScriptPubkey {
         match self {
             DerivedScript::Bare(script_pubkey) => script_pubkey.clone(),
-            DerivedScript::Bip13(_) => todo!(),
-            DerivedScript::Segwit(_) => todo!(),
-            DerivedScript::Nested(_) => todo!(),
+            DerivedScript::Bip13(redeem_script) => redeem_script.to_script_pubkey(),
+            DerivedScript::Segwit(witness_script) => witness_script.to_script_pubkey(),
+            DerivedScript::Nested(witness_script) => {
+                witness_script.to_redeem_script().to_script_pubkey()
+            }
             DerivedScript::TaprootKeyOnly(internal_key) => {
                 ScriptPubkey::p2tr_key_only(*internal_key)
             }
-            DerivedScript::Taproot(_, _) => todo!(),
+            DerivedScript::Taproot(internal_pk, tap_tree) => internal_pk
+                .to_output_pk(tap_tree.as_ref().map(TapTree::merkle_root))
+                .0
+                .to_script_pubkey(),
         }
     }
 
-    pub fn as_redeem_script(&self) -> Option<&RedeemScript> {
+    pub fn to_redeem_script(&self) -> Option<RedeemScript> {
         match self {
             DerivedScript::Bare(_) => None,
-            DerivedScript::Bip13(redeem_script) => Some(redeem_script),
-            DerivedScript::Segwit(_) => todo!(),
-            DerivedScript::Nested(_) => todo!(),
+            DerivedScript::Bip13(redeem_script) => Some(redeem_script.clone()),
+            DerivedScript::Segwit(_) => None,
+            DerivedScript::Nested(witness_script) => Some(witness_script.to_redeem_script()),
             DerivedScript::TaprootKeyOnly(_) => None,
             DerivedScript::Taproot(_, _) => None,
         }
@@ -132,10 +137,9 @@ impl DerivedScript {
                 Some(witness_script)
             }
             DerivedScript::TaprootKeyOnly(_) => None,
-            DerivedScript::Taproot(_, _) => todo!(),
+            DerivedScript::Taproot(_, _) => None,
         }
     }
-    pub fn to_redeem_script(&self) -> Option<RedeemScript> { self.as_redeem_script().cloned() }
     pub fn to_witness_script(&self) -> Option<WitnessScript> { self.as_witness_script().cloned() }
 
     pub fn to_internal_pk(&self) -> Option<InternalPk> {
@@ -149,16 +153,18 @@ impl DerivedScript {
         }
     }
 
-    pub fn to_tap_tree(&self) -> Option<TapTree> {
+    pub fn as_tap_tree(&self) -> Option<&TapTree> {
         match self {
             DerivedScript::Bare(_)
             | DerivedScript::Bip13(_)
             | DerivedScript::Segwit(_)
             | DerivedScript::Nested(_)
             | DerivedScript::TaprootKeyOnly(_) => None,
-            DerivedScript::Taproot(_, tap_tree) => Some(tap_tree.clone()),
+            DerivedScript::Taproot(_, tap_tree) => tap_tree.as_ref(),
         }
     }
+
+    pub fn to_tap_tree(&self) -> Option<TapTree> { self.as_tap_tree().cloned() }
 
     pub fn to_leaf_scripts(&self) -> IndexMap<ControlBlock, LeafScript> {
         let (Some(internal_pk), Some(tap_tree)) = (self.to_internal_pk(), self.to_tap_tree())
@@ -254,8 +260,8 @@ impl<T: DeriveKey<LegacyPk>> DeriveLegacy for T {}
 pub trait DeriveCompr: DeriveKey<CompressedPk> {}
 impl<T: DeriveKey<CompressedPk>> DeriveCompr for T {}
 
-pub trait DeriveXOnly: DeriveKey<TaprootPk> {}
-impl<T: DeriveKey<TaprootPk>> DeriveXOnly for T {}
+pub trait DeriveXOnly: DeriveKey<XOnlyPk> {}
+impl<T: DeriveKey<XOnlyPk>> DeriveXOnly for T {}
 
 pub trait DeriveScripts: Derive<DerivedScript> {
     fn derive_address(
@@ -292,7 +298,7 @@ impl DeriveKey<CompressedPk> for XpubDerivable {
     fn xpub_spec(&self) -> &XpubSpec { self.spec() }
 }
 
-impl DeriveKey<TaprootPk> for XpubDerivable {
+impl DeriveKey<XOnlyPk> for XpubDerivable {
     fn xpub_spec(&self) -> &XpubSpec { self.spec() }
 }
 
@@ -314,11 +320,11 @@ impl Derive<CompressedPk> for XpubDerivable {
     }
 }
 
-impl Derive<TaprootPk> for XpubDerivable {
+impl Derive<XOnlyPk> for XpubDerivable {
     #[inline]
     fn keychains(&self) -> Range<u8> { 0..self.keychains.count() }
 
-    fn derive(&self, keychain: u8, index: impl Into<NormalIndex>) -> TaprootPk {
+    fn derive(&self, keychain: u8, index: impl Into<NormalIndex>) -> XOnlyPk {
         self.xpub().derive_pub([keychain.into(), index.into()]).to_xonly_pub()
     }
 }

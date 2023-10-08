@@ -26,7 +26,6 @@ extern crate amplify;
 #[macro_use]
 extern crate serde_crate as serde;
 
-mod timelocks;
 mod data;
 mod keys;
 mod maps;
@@ -38,7 +37,6 @@ pub use data::{
 };
 pub use keys::{GlobalKey, InputKey, KeyPair, KeyType, OutputKey, PropKey};
 pub use maps::{KeyData, KeyMap, Map, MapName, ValueData};
-pub use timelocks::{InvalidTimelock, LockHeight, LockTimestamp, TimelockParseError};
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error)]
 #[display("unsupported version of PSBT v{0}")]

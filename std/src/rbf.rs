@@ -22,8 +22,6 @@
 
 pub const SEQ_NO_MAX_VALUE: u32 = 0xFFFFFFFF;
 pub const SEQ_NO_SUBMAX_VALUE: u32 = 0xFFFFFFFE;
-pub const SEQ_NO_CSV_DISABLE_MASK: u32 = 0x80000000;
-pub const SEQ_NO_CSV_TYPE_MASK: u32 = 0x00400000;
 
 pub trait SeqNoExt {
     /// Classifies type of `nSeq` value (see [`SeqNoClass`]).
@@ -34,11 +32,6 @@ pub trait SeqNoExt {
     /// relative time locks).
     #[inline]
     fn is_rbf(self) -> bool;
-
-    /// Checks if `nSeq` value opts-in for relative time locks (also always
-    /// imply RBG opt-in).
-    #[inline]
-    fn is_timelock(self) -> bool;
 }
 
 impl SeqNoExt for SeqNo {
@@ -54,9 +47,6 @@ impl SeqNoExt for SeqNo {
 
     #[inline]
     fn is_rbf(self) -> bool { self.0 < SEQ_NO_SUBMAX_VALUE }
-
-    #[inline]
-    fn is_timelock(self) -> bool { self.0 & SEQ_NO_CSV_DISABLE_MASK > 1 }
 }
 
 /// Classes for `nSeq` values
@@ -102,33 +92,6 @@ impl Rbf {
     /// This value is the value supported by the BitBox software.
     #[inline]
     pub fn rbf() -> SeqNo { SeqNo(SEQ_NO_SUBMAX_VALUE - 1) }
-}
-
-pub struct RelativeLock(SeqNo);
-
-impl RelativeLock {
-    /// Creates relative time lock measured in number of blocks (implies RBF).
-    #[inline]
-    pub fn from_height(blocks: u16) -> SeqNo { SeqNo(blocks as u32) }
-
-    /// Creates relative time lock measured in number of 512-second intervals
-    /// (implies RBF).
-    #[inline]
-    pub fn from_intervals(intervals: u16) -> SeqNo {
-        SeqNo(intervals as u32 | SEQ_NO_CSV_TYPE_MASK)
-    }
-
-    /// Gets structured relative time lock information from the `nSeq` value.
-    /// See [`TimeLockInterval`].
-    pub fn time_lock_interval(self) -> Option<TimeLockInterval> {
-        if self.0 & SEQ_NO_CSV_DISABLE_MASK != 0 {
-            None
-        } else if self.0 & SEQ_NO_CSV_TYPE_MASK != 0 {
-            Some(TimeLockInterval::Time((self.0 & 0xFFFF) as u16))
-        } else {
-            Some(TimeLockInterval::Height((self.0 & 0xFFFF) as u16))
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, From, Display)]

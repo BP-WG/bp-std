@@ -34,7 +34,6 @@ mod taptree;
 
 mod index;
 mod path;
-mod key;
 mod xpub;
 mod derive;
 
@@ -42,7 +41,6 @@ mod derive;
 pub use ::bp::{dbc, seals};
 pub use address::{
     Address, AddressError, AddressNetwork, AddressParseError, AddressPayload, AddressType,
-    PubkeyHash, ScriptHash, WPubkeyHash, WScriptHash,
 };
 pub use bc::{secp256k1, *};
 pub use derive::{
@@ -53,12 +51,12 @@ pub use index::{
     DerivationIndex, HardenedIndex, Idx, IndexError, IndexParseError, NormalIndex,
     HARDENED_INDEX_BOUNDARY,
 };
-pub use key::{CompressedPk, KeyOrigin, LegacyPk, OriginParseError, UncompressedPk};
 pub use path::{DerivationParseError, DerivationPath, DerivationSeg, SegParseError};
 pub use taptree::{
     ControlBlockFactory, FinalizedTree, InvalidTree, LeafInfo, TapDerivation, TapTree,
     TapTreeBuilder, UnfinalizedTree,
 };
 pub use xpub::{
-    Xpub, XpubDecodeError, XpubDerivable, XpubFp, XpubId, XpubMeta, XpubOrigin, XpubSpec,
+    KeyOrigin, OriginParseError, Xpub, XpubDecodeError, XpubDerivable, XpubFp, XpubId, XpubMeta,
+    XpubOrigin, XpubSpec,
 };

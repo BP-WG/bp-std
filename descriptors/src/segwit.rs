@@ -25,7 +25,7 @@ use std::ops::Range;
 
 use bpstd::{
     CompressedPk, Derive, DeriveCompr, DerivedScript, KeyOrigin, NormalIndex, ScriptPubkey,
-    TapDerivation, TaprootPk, Terminal, WPubkeyHash, XpubDerivable, XpubSpec,
+    TapDerivation, Terminal, WPubkeyHash, XOnlyPk, XpubDerivable, XpubSpec,
 };
 use indexmap::IndexMap;
 
@@ -46,7 +46,7 @@ impl<K: DeriveCompr> Derive<DerivedScript> for Wpkh<K> {
 
     fn derive(&self, keychain: u8, index: impl Into<NormalIndex>) -> DerivedScript {
         let key = self.0.derive(keychain, index);
-        DerivedScript::Bare(ScriptPubkey::p2wpkh(WPubkeyHash::with(key)))
+        DerivedScript::Bare(ScriptPubkey::p2wpkh(WPubkeyHash::from(key)))
     }
 }
 
@@ -66,7 +66,7 @@ impl<K: DeriveCompr> Descriptor<K> for Wpkh<K> {
         map
     }
 
-    fn xonly_keyset(&self, _terminal: Terminal) -> IndexMap<TaprootPk, TapDerivation> {
+    fn xonly_keyset(&self, _terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation> {
         IndexMap::new()
     }
 }

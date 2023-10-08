@@ -25,7 +25,7 @@ use std::ops::Range;
 
 use bpstd::{
     CompressedPk, Derive, DeriveXOnly, DerivedScript, InternalPk, KeyOrigin, NormalIndex,
-    TapDerivation, TaprootPk, Terminal, XpubDerivable, XpubSpec,
+    TapDerivation, Terminal, XOnlyPk, XpubDerivable, XpubSpec,
 };
 use indexmap::IndexMap;
 
@@ -63,7 +63,7 @@ impl<K: DeriveXOnly> Descriptor<K> for TrKey<K> {
         IndexMap::new()
     }
 
-    fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<TaprootPk, TapDerivation> {
+    fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation> {
         let mut map = IndexMap::with_capacity(1);
         let key = self.0.derive(terminal.keychain, terminal.index);
         map.insert(
