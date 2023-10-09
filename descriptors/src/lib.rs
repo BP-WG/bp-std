@@ -20,18 +20,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-pub const LOCKTIME_THRESHOLD: u32 = 500000000;
+#[macro_use]
+extern crate amplify;
+#[cfg(feature = "serde")]
+#[macro_use]
+extern crate serde_crate as serde;
 
-/// Time lock interval describing both relative (OP_CHECKSEQUENCEVERIFY) and
-/// absolute (OP_CHECKTIMELOCKVERIFY) timelocks.
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
-#[derive(StrictEncode, StrictDecode)]
-pub enum TimeLockInterval {
-    /// Describes number of blocks for the timelock
-    #[display("height({0})")]
-    Height(u16),
+mod factory;
+mod descriptor;
+mod multisig;
+mod segwit;
+mod taproot;
 
-    /// Describes number of 512-second intervals for the timelock
-    #[display("time({0})")]
-    Time(u16),
-}
+pub use descriptor::{Descriptor, DescriptorStd};
+pub use factory::AddressFactory;
+pub use segwit::Wpkh;
+pub use taproot::TrKey;

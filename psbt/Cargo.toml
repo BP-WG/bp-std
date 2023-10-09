@@ -15,6 +15,7 @@ license = { workspace = true }
 [dependencies]
 amplify = { workspace = true }
 bp-std = { path = "../std" }
+descriptors = { path = "../descriptors" }
 indexmap = { workspace = true }
 base64 = "0.21.4"
 chrono = "0.4.31"

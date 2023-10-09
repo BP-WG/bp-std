@@ -26,13 +26,13 @@
 use std::fmt::{self, Debug, Display, Formatter};
 use std::str::FromStr;
 
-use amplify::hex::ToHex;
-use amplify::{Array, Wrapper};
-use bc::{Chain, InvalidPubkey, ScriptPubkey, WitnessVer};
+use bc::{
+    Chain, InvalidPubkey, OutputPk, PubkeyHash, ScriptHash, ScriptPubkey, WPubkeyHash, WScriptHash,
+    WitnessVer,
+};
 use bech32::u5;
-use hashes::{hash160, Hash};
 
-use crate::{base58, CompressedPk, TaprootPk};
+use crate::base58;
 
 /// Mainnet (bitcoin) pubkey address prefix.
 pub const PUBKEY_ADDRESS_PREFIX_MAIN: u8 = 0; // 0x00
@@ -84,7 +84,7 @@ pub enum AddressParseError {
     UnrecognizableFormat(String),
 
     /// wrong BIP340 public key
-    #[from(InvalidPubkey)]
+    #[from(InvalidPubkey<32>)]
     WrongPublicKeyData,
 
     /// unrecognized address format string; must be one of `P2PKH`, `P2SH`,
@@ -247,7 +247,7 @@ impl FromStr for Address {
                 (WitnessVer::V1, bech32::Variant::Bech32m) if program.len() == 32 => {
                     let mut key = [0u8; 32];
                     key.copy_from_slice(&program);
-                    let pk = TaprootPk::from_byte_array(key)?;
+                    let pk = OutputPk::from_byte_array(key)?;
                     AddressPayload::Tr(pk)
                 }
 
@@ -276,121 +276,6 @@ impl FromStr for Address {
     }
 }
 
-#[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Display, From)]
-#[wrapper(BorrowSlice, Index, RangeOps, FromStr, Hex)]
-#[display(LowerHex)]
-pub struct PubkeyHash(
-    #[from]
-    #[from([u8; 20])]
-    Array<u8, 20>,
-);
-
-impl AsRef<[u8; 20]> for PubkeyHash {
-    fn as_ref(&self) -> &[u8; 20] { self.0.as_inner() }
-}
-
-impl AsRef<[u8]> for PubkeyHash {
-    fn as_ref(&self) -> &[u8] { self.0.as_ref() }
-}
-
-impl From<PubkeyHash> for [u8; 20] {
-    fn from(value: PubkeyHash) -> Self { value.0.into_inner() }
-}
-
-impl Debug for PubkeyHash {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("PubkeyHash").field(&self.to_hex()).finish()
-    }
-}
-
-#[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Display, From)]
-#[wrapper(BorrowSlice, Index, RangeOps, FromStr, Hex)]
-#[display(LowerHex)]
-pub struct ScriptHash(
-    #[from]
-    #[from([u8; 20])]
-    Array<u8, 20>,
-);
-
-impl AsRef<[u8; 20]> for ScriptHash {
-    fn as_ref(&self) -> &[u8; 20] { self.0.as_inner() }
-}
-
-impl AsRef<[u8]> for ScriptHash {
-    fn as_ref(&self) -> &[u8] { self.0.as_ref() }
-}
-
-impl From<ScriptHash> for [u8; 20] {
-    fn from(value: ScriptHash) -> Self { value.0.into_inner() }
-}
-
-impl Debug for ScriptHash {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("ScriptHash").field(&self.to_hex()).finish()
-    }
-}
-
-#[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Display, From)]
-#[wrapper(BorrowSlice, Index, RangeOps, FromStr, Hex)]
-#[display(LowerHex)]
-pub struct WPubkeyHash(
-    #[from]
-    #[from([u8; 20])]
-    Array<u8, 20>,
-);
-
-impl AsRef<[u8; 20]> for WPubkeyHash {
-    fn as_ref(&self) -> &[u8; 20] { self.0.as_inner() }
-}
-
-impl AsRef<[u8]> for WPubkeyHash {
-    fn as_ref(&self) -> &[u8] { self.0.as_ref() }
-}
-
-impl From<WPubkeyHash> for [u8; 20] {
-    fn from(value: WPubkeyHash) -> Self { value.0.into_inner() }
-}
-
-impl Debug for WPubkeyHash {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("WPubkeyHash").field(&self.to_hex()).finish()
-    }
-}
-
-impl WPubkeyHash {
-    pub fn with(key: CompressedPk) -> Self {
-        let hash = hash160::Hash::hash(&key.to_byte_array());
-        Self(hash.to_byte_array().into())
-    }
-}
-
-#[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Display, From)]
-#[wrapper(BorrowSlice, Index, RangeOps, FromStr, Hex)]
-#[display(LowerHex)]
-pub struct WScriptHash(
-    #[from]
-    #[from([u8; 32])]
-    Array<u8, 32>,
-);
-
-impl AsRef<[u8; 32]> for WScriptHash {
-    fn as_ref(&self) -> &[u8; 32] { self.0.as_inner() }
-}
-
-impl AsRef<[u8]> for WScriptHash {
-    fn as_ref(&self) -> &[u8] { self.0.as_ref() }
-}
-
-impl From<WScriptHash> for [u8; 32] {
-    fn from(value: WScriptHash) -> Self { value.0.into_inner() }
-}
-
-impl Debug for WScriptHash {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("WScriptHash").field(&self.to_hex()).finish()
-    }
-}
-
 /// Internal address content. Consists of serialized hashes or x-only key value.
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
 pub enum AddressPayload {
@@ -412,7 +297,7 @@ pub enum AddressPayload {
 
     /// P2TR payload.
     #[from]
-    Tr(TaprootPk),
+    Tr(OutputPk),
 }
 
 impl AddressPayload {
@@ -447,7 +332,7 @@ impl AddressPayload {
             let mut bytes = [0u8; 32];
             bytes.copy_from_slice(&script[2..]);
             AddressPayload::Tr(
-                TaprootPk::from_byte_array(bytes).map_err(|_| AddressError::InvalidTaprootKey)?,
+                OutputPk::from_byte_array(bytes).map_err(|_| AddressError::InvalidTaprootKey)?,
             )
         } else {
             return Err(AddressError::UnsupportedScriptPubkey);
@@ -461,7 +346,7 @@ impl AddressPayload {
             AddressPayload::Sh(hash) => ScriptPubkey::p2sh(hash),
             AddressPayload::Wpkh(hash) => ScriptPubkey::p2wpkh(hash),
             AddressPayload::Wsh(hash) => ScriptPubkey::p2wsh(hash),
-            AddressPayload::Tr(output_key) => ScriptPubkey::p2tr_tweaked(output_key.into()),
+            AddressPayload::Tr(output_key) => ScriptPubkey::p2tr_tweaked(output_key),
         }
     }
 }

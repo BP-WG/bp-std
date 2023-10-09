@@ -1,7 +1,7 @@
 [package]
-name = "bp-invoice"
+name = "descriptors"
 version = { workspace = true }
-description = "Invoces with Bitcoin protocol"
+description = "Bitcoin descriptors library (part of Bitcoin Protocol stack)"
 keywords = { workspace = true }
 categories = { workspace = true }
 readme = "../README.md"
@@ -13,15 +13,15 @@ edition = { workspace = true }
 license = { workspace = true }
 
 [lib]
-name = "bpinvoice"
+name = "descriptors"
 
 [dependencies]
 amplify = { workspace = true }
 bp-std = { path = "../std" }
-indexmap = "2.0.0"
-fluent-uri = "0.1.4"
-chrono = "0.4.24"
-percent-encoding = "2.2.0"
+indexmap = { workspace = true }
+serde_crate = { workspace = true, optional = true }
 
 [features]
 default = []
+all = ["serde"]
+serde = ["serde_crate", "bp-std/serde"]

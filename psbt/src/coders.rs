@@ -28,18 +28,17 @@ use amplify::{confinement, Array, Bytes, Bytes32, Bytes4, IoError, Wrapper};
 use bpstd::{
     Bip340Sig, ByteStr, CompressedPk, ConsensusDataError, ConsensusDecode, ConsensusDecodeError,
     ConsensusEncode, ControlBlock, DerivationPath, Idx, InternalPk, InvalidLeafVer, InvalidTree,
-    KeyOrigin, LeafInfo, LeafScript, LeafVer, LegacyPk, LegacySig, LockTime, NonStandardValue,
-    Outpoint, RedeemScript, Sats, ScriptBytes, ScriptPubkey, SeqNo, SigError, SigScript,
-    SighashType, TapDerivation, TapLeafHash, TapNodeHash, TapTree, TaprootPk, Tx, TxOut, TxVer,
-    Txid, UncompressedPk, VarInt, Vout, Witness, WitnessScript, Xpub, XpubDecodeError, XpubFp,
-    XpubOrigin,
+    KeyOrigin, LeafInfo, LeafScript, LeafVer, LegacyPk, LegacySig, LockHeight, LockTime,
+    LockTimestamp, NonStandardValue, Outpoint, RedeemScript, Sats, ScriptBytes, ScriptPubkey,
+    SeqNo, SigError, SigScript, SighashType, TapDerivation, TapLeafHash, TapNodeHash, TapTree, Tx,
+    TxOut, TxVer, Txid, UncompressedPk, VarInt, Vout, Witness, WitnessScript, XOnlyPk, Xpub,
+    XpubDecodeError, XpubFp, XpubOrigin,
 };
 
 use crate::keys::KeyValue;
 use crate::{
-    GlobalKey, InputKey, KeyData, KeyMap, KeyPair, KeyType, LockHeight, LockTimestamp, Map,
-    MapName, ModifiableFlags, OutputKey, PropKey, Psbt, PsbtUnsupportedVer, PsbtVer, UnsignedTx,
-    UnsignedTxIn, ValueData,
+    GlobalKey, InputKey, KeyData, KeyMap, KeyPair, KeyType, Map, MapName, ModifiableFlags,
+    OutputKey, PropKey, Psbt, PsbtUnsupportedVer, PsbtVer, UnsignedTx, UnsignedTxIn, ValueData,
 };
 
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
@@ -508,19 +507,19 @@ impl Decode for LegacyPk {
     }
 }
 
-impl Encode for TaprootPk {
+// TODO: Move key encoding to consensus
+impl Encode for XOnlyPk {
     fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
         writer.write_all(&self.to_byte_array())?;
         Ok(32)
     }
 }
 
-impl Decode for TaprootPk {
+impl Decode for XOnlyPk {
     fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
         let mut buf = [0u8; 32];
         reader.read_exact(&mut buf)?;
-        TaprootPk::from_byte_array(buf)
-            .map_err(|_| PsbtError::InvalidXonlyPubkey(buf.into()).into())
+        XOnlyPk::from_byte_array(buf).map_err(|_| PsbtError::InvalidXonlyPubkey(buf.into()).into())
     }
 }
 

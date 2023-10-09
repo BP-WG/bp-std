@@ -26,18 +26,17 @@ use std::io::{Read, Write};
 use amplify::{Bytes20, Bytes32, IoError};
 use bpstd::{
     Bip340Sig, ByteStr, CompressedPk, ControlBlock, InternalPk, KeyOrigin, LeafScript, LegacyPk,
-    LegacySig, LockTime, RedeemScript, Sats, ScriptPubkey, SeqNo, SigScript, SighashType,
-    TapDerivation, TapNodeHash, TapTree, TaprootPk, Tx, TxOut, TxVer, Txid, VarInt, Vout, Witness,
-    WitnessScript, Xpub, XpubOrigin,
+    LegacySig, LockHeight, LockTime, LockTimestamp, RedeemScript, Sats, ScriptPubkey, SeqNo,
+    SigScript, SighashType, TapDerivation, TapNodeHash, TapTree, Tx, TxOut, TxVer, Txid, VarInt,
+    Vout, Witness, WitnessScript, XOnlyPk, Xpub, XpubOrigin,
 };
 use indexmap::IndexMap;
 
 use crate::coders::RawBytes;
 use crate::keys::KeyValue;
 use crate::{
-    Decode, DecodeError, Encode, GlobalKey, Input, InputKey, KeyPair, KeyType, LockHeight,
-    LockTimestamp, ModifiableFlags, Output, OutputKey, PropKey, Psbt, PsbtError, PsbtVer,
-    UnsignedTx,
+    Decode, DecodeError, Encode, GlobalKey, Input, InputKey, KeyPair, KeyType, ModifiableFlags,
+    Output, OutputKey, PropKey, Psbt, PsbtError, PsbtVer, UnsignedTx,
 };
 
 pub type KeyData = ByteStr;
@@ -531,7 +530,7 @@ impl KeyMap for Input {
                 self.tap_leaf_script.insert(control_block, leaf_script);
             }
             InputKey::TapBip32Derivation => {
-                let pk = TaprootPk::deserialize(key_data)?;
+                let pk = XOnlyPk::deserialize(key_data)?;
                 let derivation = TapDerivation::deserialize(value_data)?;
                 self.tap_bip32_derivation.insert(pk, derivation);
             }
@@ -622,7 +621,7 @@ impl KeyMap for Output {
                 self.bip32_derivation.insert(pk, origin);
             }
             OutputKey::TapBip32Derivation => {
-                let pk = TaprootPk::deserialize(key_data)?;
+                let pk = XOnlyPk::deserialize(key_data)?;
                 let derivation = TapDerivation::deserialize(value_data)?;
                 self.tap_bip32_derivation.insert(pk, derivation);
             }
