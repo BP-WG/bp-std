@@ -1,6 +1,6 @@
 [package]
 name = "bp-std"
-version = { workspace = true }
+version = "0.10.0-beta.1"
 description = "Modern & lightweight implementation of bitcoin standards without rust-bitcoin/miniscript dependencies"
 keywords = { workspace = true }
 categories = { workspace = true }
