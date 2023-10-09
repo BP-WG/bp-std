@@ -577,6 +577,42 @@ mod _serde {
             }
         }
     }
+
+    impl Serialize for XpubSpec {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: Serializer {
+            serializer.serialize_str(&self.to_string())
+        }
+    }
+
+    impl<'de> Deserialize<'de> for XpubSpec {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where D: Deserializer<'de> {
+            let s = String::deserialize(deserializer)?;
+            XpubSpec::from_str(&s).map_err(|err| {
+                de::Error::custom(format!(
+                    "invalid xpub specification string representation; {err}"
+                ))
+            })
+        }
+    }
+
+    impl Serialize for XpubDerivable {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: Serializer {
+            serializer.serialize_str(&self.to_string())
+        }
+    }
+
+    impl<'de> Deserialize<'de> for XpubDerivable {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where D: Deserializer<'de> {
+            let s = String::deserialize(deserializer)?;
+            XpubDerivable::from_str(&s).map_err(|err| {
+                de::Error::custom(format!("invalid xpub derivation string representation; {err}"))
+            })
+        }
+    }
 }
 
 #[cfg(test)]

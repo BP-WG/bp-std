@@ -446,6 +446,31 @@ impl From<Chain> for AddressNetwork {
     }
 }
 
+mod _serde {
+    use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+
+    use super::*;
+
+    impl Serialize for Address {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: Serializer {
+            serializer.serialize_str(&self.to_string())
+        }
+    }
+
+    impl<'de> Deserialize<'de> for Address {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where D: Deserializer<'de> {
+            let s = String::deserialize(deserializer)?;
+            Address::from_str(&s).map_err(|err| {
+                de::Error::custom(format!(
+                    "invalid xpub specification string representation; {err}"
+                ))
+            })
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
