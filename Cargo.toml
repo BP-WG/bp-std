@@ -14,7 +14,7 @@ edition = "2021"
 license = "Apache-2.0"
 
 [workspace.dependencies]
-amplify = "4.2.0"
+amplify = "4.5.0"
 bitcoin_hashes = "0.13.0"  # TODO: Remove and replace with commit_verify
 bech32 = "0.9.1"
 bp-consensus = "0.10.10"
@@ -22,8 +22,6 @@ indexmap = "2.0.0"
 serde_crate = { package = "serde", version = "1", features = ["derive"] }
 
 [patch.crates-io]
-amplify_derive = { git = "https://github.com/rust-amplify/amplify-derive", branch = "wrapper" }
-commit_verify = { git = "https://github.com/LNP-BP/client_side_validation", branch = "develop" }
 bp-consensus = { git = "https://github.com/BP-WG/bp-core", branch = "consensus" }
 bp-dbc = { git = "https://github.com/BP-WG/bp-core", branch = "consensus" }
 bp-seals = { git = "https://github.com/BP-WG/bp-core", branch = "consensus" }
