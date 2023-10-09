@@ -67,7 +67,7 @@ impl<K: DeriveXOnly> Descriptor<K> for TrKey<K> {
         let mut map = IndexMap::with_capacity(1);
         let key = self.0.derive(terminal.keychain, terminal.index);
         map.insert(
-            key.into(),
+            key,
             TapDerivation::with_internal_pk(self.0.xpub_spec().origin().clone(), terminal),
         );
         map

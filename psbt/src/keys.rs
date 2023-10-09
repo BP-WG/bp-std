@@ -28,7 +28,7 @@ use crate::{Encode, KeyData, PsbtVer, ValueData};
 pub trait KeyType: Copy + Ord + Eq + Hash + Debug + 'static {
     const STANDARD: &'static [Self];
     fn unknown(val: u8) -> Self {
-        debug_assert!(!Self::STANDARD.into_iter().map(Self::to_u8).any(|x| x == val));
+        debug_assert!(!Self::STANDARD.iter().map(Self::to_u8).any(|x| x == val));
         Self::unknown_unchecked(val)
     }
     fn unknown_unchecked(val: u8) -> Self;

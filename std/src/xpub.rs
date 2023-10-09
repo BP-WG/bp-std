@@ -474,7 +474,7 @@ impl FromStr for XpubSpec {
         }
         if !origin.derivation.is_empty() {
             let network = if xpub.testnet { HardenedIndex::ONE } else { HardenedIndex::ZERO };
-            if origin.derivation.get(1) != Some(&network.into()) {
+            if origin.derivation.get(1) != Some(&network) {
                 return Err(XpubParseError::NetworkMismatch);
             }
             if origin.derivation.last().copied().map(DerivationIndex::Hardened)

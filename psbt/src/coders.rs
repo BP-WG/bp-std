@@ -497,8 +497,8 @@ impl Decode for LegacyPk {
         let mut buf = [0u8; 65];
         reader.read_exact(&mut buf[..33])?;
         match buf[0] {
-            02 | 03 => CompressedPk::decode(&mut Cursor::new(&buf[..33])).map(Self::from),
-            04 => {
+            0x02 | 0x03 => CompressedPk::decode(&mut Cursor::new(&buf[..33])).map(Self::from),
+            0x04 => {
                 reader.read_exact(&mut buf[33..])?;
                 UncompressedPk::decode(&mut Cursor::new(buf)).map(Self::from)
             }

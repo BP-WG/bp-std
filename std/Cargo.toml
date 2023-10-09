@@ -19,7 +19,7 @@ name = "bpstd"
 amplify = { workspace = true }
 bitcoin_hashes = { workspace = true }
 bech32 = { workspace = true }
-commit_verify = "0.10.5"
+commit_verify = "0.10.6"
 bp-consensus = { workspace = true }
 bp-core = { version = "0.10.10", optional = true }
 indexmap = { workspace = true }

@@ -45,12 +45,7 @@ pub struct Terminal {
 }
 
 impl Terminal {
-    pub fn new(keychain: u8, index: NormalIndex) -> Self {
-        Terminal {
-            keychain,
-            index: index.into(),
-        }
-    }
+    pub fn new(keychain: u8, index: NormalIndex) -> Self { Terminal { keychain, index } }
     pub fn change(index: NormalIndex) -> Self { Self::new(1, index) }
 }
 
@@ -236,7 +231,6 @@ pub trait Derive<D> {
     fn derive(&self, keychain: u8, index: impl Into<NormalIndex>) -> D;
 
     fn derive_batch(&self, keychain: u8, from: impl Into<NormalIndex>, max_count: u8) -> Vec<D> {
-        let keychain = keychain.into();
         let mut index = from.into();
         let mut count = 0u8;
         let mut batch = Vec::with_capacity(max_count as usize);

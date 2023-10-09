@@ -125,12 +125,10 @@ impl<K: KeyType> Map<K> {
             if key_type.is_required()
                 && version >= key_type.present_since()
                 && matches!(key_type.deprecated_since(), Some(depr) if version < depr)
+                && ((key_type.has_key_data() && !self.plural.contains_key(key_type))
+                    || (!key_type.has_key_data() && !self.singular.contains_key(key_type)))
             {
-                if (key_type.has_key_data() && !self.plural.contains_key(&key_type))
-                    || (!key_type.has_key_data() && !self.singular.contains_key(&key_type))
-                {
-                    return Err(PsbtError::RequiredKeyAbsent(self.name, key_type.to_u8(), version));
-                }
+                return Err(PsbtError::RequiredKeyAbsent(self.name, key_type.to_u8(), version));
             }
         }
         Ok(())
@@ -141,15 +139,11 @@ pub trait KeyMap: Sized {
     type Keys: KeyType;
     const PROPRIETARY_TYPE: Self::Keys;
 
-    fn encode_map<'enc>(
-        &'enc self,
-        version: PsbtVer,
-        writer: &mut dyn Write,
-    ) -> Result<usize, IoError> {
+    fn encode_map(&self, version: PsbtVer, writer: &mut dyn Write) -> Result<usize, IoError> {
         let mut counter = 0;
 
         for key_type in Self::Keys::STANDARD.iter().filter(|kt| kt.is_allowed(version)) {
-            let mut iter = unsafe {
+            let iter = unsafe {
                 // We need this hack since Rust borrower checker can't see that the
                 // reference actually doesn't escape the scope
                 ::core::mem::transmute::<
@@ -158,7 +152,7 @@ pub trait KeyMap: Sized {
                 >(self.retrieve_key_pair(version, *key_type))
             }
             .into_iter();
-            while let Some(pair) = iter.next() {
+            for pair in iter {
                 counter += pair.encode(writer)?;
             }
         }
@@ -212,6 +206,7 @@ pub trait KeyMap: Sized {
     fn proprietary_mut(&mut self) -> &mut IndexMap<PropKey, ValueData>;
     fn unknown_mut(&mut self) -> &mut IndexMap<u8, IndexMap<KeyData, ValueData>>;
 
+    #[allow(clippy::type_complexity)]
     fn retrieve_key_pair<'enc>(
         &'enc self,
         version: PsbtVer,
