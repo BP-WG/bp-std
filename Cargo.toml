@@ -20,9 +20,3 @@ bech32 = "0.9.1"
 bp-consensus = "0.10.10"
 indexmap = "2.0.0"
 serde_crate = { package = "serde", version = "1", features = ["derive"] }
-
-[patch.crates-io]
-bp-consensus = { git = "https://github.com/BP-WG/bp-core", branch = "consensus" }
-bp-dbc = { git = "https://github.com/BP-WG/bp-core", branch = "consensus" }
-bp-seals = { git = "https://github.com/BP-WG/bp-core", branch = "consensus" }
-bp-core = { git = "https://github.com/BP-WG/bp-core", branch = "consensus" }
