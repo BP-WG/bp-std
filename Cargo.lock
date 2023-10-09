@@ -366,7 +366,7 @@ dependencies = [
 
 [[package]]
 name = "descriptors"
-version = "0.11.0"
+version = "0.10.0-BP-beta.1"
 dependencies = [
  "amplify",
  "bp-std",
@@ -550,7 +550,7 @@ dependencies = [
 
 [[package]]
 name = "psbt"
-version = "0.11.0"
+version = "0.10.0-BP-beta.1"
 dependencies = [
  "amplify",
  "base64",

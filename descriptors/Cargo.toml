@@ -17,7 +17,7 @@ name = "descriptors"
 
 [dependencies]
 amplify = { workspace = true }
-bp-std = { path = "../std" }
+bp-std = { workspace = true }
 indexmap = { workspace = true }
 serde_crate = { workspace = true, optional = true }
 
