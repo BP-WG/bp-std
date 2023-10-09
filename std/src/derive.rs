@@ -38,6 +38,11 @@ use crate::{
 };
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
 #[display("&{keychain}/{index}")]
 pub struct Terminal {
     pub keychain: u8,
@@ -176,6 +181,11 @@ impl DerivedScript {
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(crate = "serde_crate", rename_all = "camelCase")
+)]
 #[display("{addr}{terminal}")]
 pub struct DerivedAddr {
     pub addr: Address,
