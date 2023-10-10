@@ -446,6 +446,7 @@ impl From<Chain> for AddressNetwork {
     }
 }
 
+#[cfg(feature = "serde")]
 mod _serde {
     use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
