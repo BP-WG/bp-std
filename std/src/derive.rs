@@ -189,6 +189,7 @@ impl DerivedScript {
 #[display("{addr}{terminal}")]
 pub struct DerivedAddr {
     pub addr: Address,
+    #[cfg_attr(feature = "serde", serde(flatten))]
     pub terminal: Terminal,
 }
 
