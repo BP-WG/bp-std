@@ -27,7 +27,7 @@ use std::fmt::{self, Debug, Display, Formatter};
 use std::str::FromStr;
 
 use bc::{
-    Chain, InvalidPubkey, OutputPk, PubkeyHash, ScriptHash, ScriptPubkey, WPubkeyHash, WScriptHash,
+    InvalidPubkey, OutputPk, PubkeyHash, ScriptHash, ScriptPubkey, WPubkeyHash, WScriptHash,
     WitnessVer,
 };
 use bech32::u5;
@@ -431,17 +431,6 @@ impl AddressNetwork {
             AddressNetwork::Mainnet => "bc",
             AddressNetwork::Testnet => "tb",
             AddressNetwork::Regtest => "bcrt",
-        }
-    }
-}
-
-impl From<Chain> for AddressNetwork {
-    fn from(chain: Chain) -> Self {
-        match chain {
-            Chain::Bitcoin => AddressNetwork::Mainnet,
-            Chain::Testnet3 => AddressNetwork::Testnet,
-            Chain::Regtest => AddressNetwork::Regtest,
-            Chain::Signet => AddressNetwork::Testnet,
         }
     }
 }

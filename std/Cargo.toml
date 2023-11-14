@@ -1,6 +1,6 @@
 [package]
 name = "bp-std"
-version = "0.10.0-beta.1"
+version = { workspace = true }
 description = "Modern & lightweight implementation of bitcoin standards without rust-bitcoin/miniscript dependencies"
 keywords = { workspace = true }
 categories = { workspace = true }
@@ -19,9 +19,9 @@ name = "bpstd"
 amplify = { workspace = true }
 bitcoin_hashes = { workspace = true }
 bech32 = { workspace = true }
-commit_verify = "0.10.6"
+commit_verify = "0.11.0-beta.1"
 bp-consensus = { workspace = true }
-bp-core = { version = "0.10.10", optional = true }
+bp-core = { version = "0.11.0-beta.1", optional = true }
 indexmap = { workspace = true }
 serde_crate = { workspace = true, optional = true }
 

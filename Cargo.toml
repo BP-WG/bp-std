@@ -3,7 +3,7 @@ members = ["std", "descriptors", "psbt", "."]
 resolver = "2"
 
 [workspace.package]
-version = "0.10.0-BP-beta.1"
+version = "0.11.0-beta.1"
 keywords = ["bitcoin", "wallet", "descriptors", "psbt", "taproot"]
 categories = ["cryptography::cryptocurrencies"]
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
@@ -17,8 +17,11 @@ license = "Apache-2.0"
 amplify = "4.5.0"
 bitcoin_hashes = "0.13.0"  # TODO: Remove and replace with commit_verify
 bech32 = "0.9.1"
-bp-consensus = "0.10.10"
-bp-std = { version = "0.10.0-beta.1", path = "std" }
-descriptors = { version = "=0.10.0-BP-beta.1", path = "descriptors" }
+bp-consensus = "0.11.0-beta.1"
+bp-std = { version = "0.11.0-beta.1", path = "std" }
+descriptors = { version = "0.11.0-beta.1", path = "descriptors" }
 indexmap = "2.0.0"
 serde_crate = { package = "serde", version = "1", features = ["derive"] }
+
+[patch.crates-io]
+bp-consensus = { git = "https://github.com/BP-WG/bp-core", branch = "v0.11" }
