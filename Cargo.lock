@@ -190,8 +190,9 @@ dependencies = [
 
 [[package]]
 name = "bp-consensus"
-version = "0.11.0-beta.1"
-source = "git+https://github.com/BP-WG/bp-core?branch=v0.11#7746cdd179ed4d5a6f27c9f8f2e4937897190456"
+version = "0.11.0-beta.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b50dbcec1e75163cdd1ba1cc265f1bb67ae4319b00469c36b3972a2eb49b879"
 dependencies = [
  "amplify",
  "chrono",
