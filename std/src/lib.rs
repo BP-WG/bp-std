@@ -29,6 +29,7 @@ pub extern crate bitcoin_hashes as hashes;
 
 mod base58;
 mod address;
+mod network;
 
 mod taptree;
 
@@ -51,6 +52,7 @@ pub use index::{
     DerivationIndex, HardenedIndex, Idx, IndexError, IndexParseError, NormalIndex,
     HARDENED_INDEX_BOUNDARY,
 };
+pub use network::{Network, UnknownNetwork};
 pub use path::{DerivationParseError, DerivationPath, DerivationSeg, SegParseError};
 pub use taptree::{
     ControlBlockFactory, FinalizedTree, InvalidTree, LeafInfo, TapDerivation, TapTree,
