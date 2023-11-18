@@ -67,7 +67,7 @@ pub trait Descriptor<K = XpubDerivable, V = ()>: DeriveScripts {
     )
 )]
 #[non_exhaustive]
-pub enum DescriptorStd<S: DeriveSet = XpubDerivable> {
+pub enum StdDescr<S: DeriveSet = XpubDerivable> {
     /*
     #[from]
     Bare(Bare<S::Legacy>),
@@ -139,24 +139,23 @@ pub enum DescriptorStd<S: DeriveSet = XpubDerivable> {
      */
 }
 
-impl<S: DeriveSet> Derive<DerivedScript> for DescriptorStd<S> {
+impl<S: DeriveSet> Derive<DerivedScript> for StdDescr<S> {
     fn keychains(&self) -> Range<u8> {
         match self {
-            DescriptorStd::Wpkh(d) => d.keychains(),
-            DescriptorStd::TrKey(d) => d.keychains(),
+            StdDescr::Wpkh(d) => d.keychains(),
+            StdDescr::TrKey(d) => d.keychains(),
         }
     }
 
     fn derive(&self, keychain: u8, index: impl Into<NormalIndex>) -> DerivedScript {
         match self {
-            DescriptorStd::Wpkh(d) => d.derive(keychain, index),
-            DescriptorStd::TrKey(d) => d.derive(keychain, index),
+            StdDescr::Wpkh(d) => d.derive(keychain, index),
+            StdDescr::TrKey(d) => d.derive(keychain, index),
         }
     }
 }
 
-impl<K: DeriveSet<Compr = K, XOnly = K> + DeriveCompr + DeriveXOnly> Descriptor<K>
-    for DescriptorStd<K>
+impl<K: DeriveSet<Compr = K, XOnly = K> + DeriveCompr + DeriveXOnly> Descriptor<K> for StdDescr<K>
 where Self: Derive<DerivedScript>
 {
     type KeyIter<'k> = vec::IntoIter<&'k K> where Self: 'k, K: 'k;
@@ -165,8 +164,8 @@ where Self: Derive<DerivedScript>
 
     fn keys(&self) -> Self::KeyIter<'_> {
         match self {
-            DescriptorStd::Wpkh(d) => d.keys().collect::<Vec<_>>(),
-            DescriptorStd::TrKey(d) => d.keys().collect::<Vec<_>>(),
+            StdDescr::Wpkh(d) => d.keys().collect::<Vec<_>>(),
+            StdDescr::TrKey(d) => d.keys().collect::<Vec<_>>(),
         }
         .into_iter()
     }
@@ -175,23 +174,23 @@ where Self: Derive<DerivedScript>
 
     fn xpubs(&self) -> Self::XpubIter<'_> {
         match self {
-            DescriptorStd::Wpkh(d) => d.xpubs().collect::<Vec<_>>(),
-            DescriptorStd::TrKey(d) => d.xpubs().collect::<Vec<_>>(),
+            StdDescr::Wpkh(d) => d.xpubs().collect::<Vec<_>>(),
+            StdDescr::TrKey(d) => d.xpubs().collect::<Vec<_>>(),
         }
         .into_iter()
     }
 
     fn compr_keyset(&self, terminal: Terminal) -> IndexMap<CompressedPk, KeyOrigin> {
         match self {
-            DescriptorStd::Wpkh(d) => d.compr_keyset(terminal),
-            DescriptorStd::TrKey(d) => d.compr_keyset(terminal),
+            StdDescr::Wpkh(d) => d.compr_keyset(terminal),
+            StdDescr::TrKey(d) => d.compr_keyset(terminal),
         }
     }
 
     fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation> {
         match self {
-            DescriptorStd::Wpkh(d) => d.xonly_keyset(terminal),
-            DescriptorStd::TrKey(d) => d.xonly_keyset(terminal),
+            StdDescr::Wpkh(d) => d.xonly_keyset(terminal),
+            StdDescr::TrKey(d) => d.xonly_keyset(terminal),
         }
     }
 }
