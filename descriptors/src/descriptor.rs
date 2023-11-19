@@ -147,7 +147,7 @@ impl<S: DeriveSet> Derive<DerivedScript> for StdDescr<S> {
         }
     }
 
-    fn keychains(&self) -> &BTreeSet<Keychain> {
+    fn keychains(&self) -> BTreeSet<Keychain> {
         match self {
             StdDescr::Wpkh(d) => d.keychains(),
             StdDescr::TrKey(d) => d.keychains(),

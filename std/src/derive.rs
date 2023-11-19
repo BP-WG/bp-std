@@ -283,7 +283,7 @@ impl FromStr for DerivedAddr {
 pub trait Derive<D> {
     fn default_keychain(&self) -> Keychain;
 
-    fn keychains(&self) -> &BTreeSet<Keychain>;
+    fn keychains(&self) -> BTreeSet<Keychain>;
 
     fn derive(&self, keychain: impl Into<Keychain>, index: impl Into<NormalIndex>) -> D;
 
@@ -364,7 +364,7 @@ impl Derive<LegacyPk> for XpubDerivable {
     fn default_keychain(&self) -> Keychain { self.keychains.first() }
 
     #[inline]
-    fn keychains(&self) -> &BTreeSet<Keychain> { self.keychains.as_ref() }
+    fn keychains(&self) -> BTreeSet<Keychain> { self.keychains.to_set() }
 
     fn derive(&self, keychain: impl Into<Keychain>, index: impl Into<NormalIndex>) -> LegacyPk {
         self.xpub().derive_pub([keychain.into().into(), index.into()]).to_legacy_pub()
@@ -376,7 +376,7 @@ impl Derive<CompressedPk> for XpubDerivable {
     fn default_keychain(&self) -> Keychain { self.keychains.first() }
 
     #[inline]
-    fn keychains(&self) -> &BTreeSet<Keychain> { self.keychains.as_ref() }
+    fn keychains(&self) -> BTreeSet<Keychain> { self.keychains.to_set() }
 
     fn derive(&self, keychain: impl Into<Keychain>, index: impl Into<NormalIndex>) -> CompressedPk {
         self.xpub().derive_pub([keychain.into().into(), index.into()]).to_compr_pub()
@@ -388,7 +388,7 @@ impl Derive<XOnlyPk> for XpubDerivable {
     fn default_keychain(&self) -> Keychain { self.keychains.first() }
 
     #[inline]
-    fn keychains(&self) -> &BTreeSet<Keychain> { self.keychains.as_ref() }
+    fn keychains(&self) -> BTreeSet<Keychain> { self.keychains.to_set() }
 
     fn derive(&self, keychain: impl Into<Keychain>, index: impl Into<NormalIndex>) -> XOnlyPk {
         self.xpub().derive_pub([keychain.into().into(), index.into()]).to_xonly_pub()

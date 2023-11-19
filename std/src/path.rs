@@ -66,15 +66,19 @@ impl<I: IdxBase> DerivationSeg<I> {
             .first()
             .expect("confined type guarantees that there is at least one item in the collection")
     }
+
+    #[inline]
+    pub fn into_set(self) -> BTreeSet<I> { self.0.into_inner() }
+
+    #[inline]
+    pub fn to_set(&self) -> BTreeSet<I> { self.0.to_inner() }
+
+    #[inline]
+    pub fn as_set(&self) -> &BTreeSet<I> { self.0.as_inner() }
 }
 
 impl DerivationSeg<NormalIndex> {
     pub fn standard() -> Self { DerivationSeg(confined_bset![NormalIndex::ZERO, NormalIndex::ONE]) }
-}
-
-impl<I: IdxBase> AsRef<BTreeSet<I>> for DerivationSeg<I> {
-    #[inline]
-    fn as_ref(&self) -> &BTreeSet<I> { &self.0.as_inner() }
 }
 
 impl<I: IdxBase> Index<u8> for DerivationSeg<I> {
