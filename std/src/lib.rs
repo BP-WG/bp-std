@@ -27,7 +27,7 @@ extern crate amplify;
 extern crate serde_crate as serde;
 pub extern crate bitcoin_hashes as hashes;
 
-mod base58;
+pub mod base58;
 mod address;
 mod network;
 
@@ -46,10 +46,10 @@ pub use address::{
 pub use bc::{secp256k1, *};
 pub use derive::{
     Derive, DeriveCompr, DeriveKey, DeriveScripts, DeriveSet, DeriveXOnly, DerivedAddr,
-    DerivedAddrParseError, DerivedScript, Terminal, TerminalParseError,
+    DerivedAddrParseError, DerivedScript, Keychain, Terminal, TerminalParseError,
 };
 pub use index::{
-    DerivationIndex, HardenedIndex, Idx, IndexError, IndexParseError, NormalIndex,
+    DerivationIndex, HardenedIndex, Idx, IdxBase, IndexError, IndexParseError, NormalIndex,
     HARDENED_INDEX_BOUNDARY,
 };
 pub use network::{Network, UnknownNetwork};

@@ -20,11 +20,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::BTreeSet;
 use std::iter;
-use std::ops::Range;
 
 use bpstd::{
-    CompressedPk, Derive, DeriveXOnly, DerivedScript, InternalPk, KeyOrigin, NormalIndex,
+    CompressedPk, Derive, DeriveXOnly, DerivedScript, InternalPk, KeyOrigin, Keychain, NormalIndex,
     TapDerivation, Terminal, XOnlyPk, XpubDerivable, XpubSpec,
 };
 use indexmap::IndexMap;
@@ -42,9 +42,16 @@ impl<K: DeriveXOnly> TrKey<K> {
 
 impl<K: DeriveXOnly> Derive<DerivedScript> for TrKey<K> {
     #[inline]
-    fn keychains(&self) -> Range<u8> { self.0.keychains() }
+    fn default_keychain(&self) -> Keychain { self.0.default_keychain() }
 
-    fn derive(&self, keychain: u8, index: impl Into<NormalIndex>) -> DerivedScript {
+    #[inline]
+    fn keychains(&self) -> BTreeSet<Keychain> { self.0.keychains() }
+
+    fn derive(
+        &self,
+        keychain: impl Into<Keychain>,
+        index: impl Into<NormalIndex>,
+    ) -> DerivedScript {
         let internal_key = self.0.derive(keychain, index);
         DerivedScript::TaprootKeyOnly(InternalPk::from_unchecked(internal_key))
     }

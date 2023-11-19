@@ -31,7 +31,7 @@ use hashes::{hash160, sha512, Hash, HashEngine, Hmac, HmacEngine};
 use crate::secp256k1::SECP256K1;
 use crate::{
     base58, DerivationIndex, DerivationParseError, DerivationPath, DerivationSeg, HardenedIndex,
-    Idx, IndexParseError, NormalIndex, SegParseError, Terminal,
+    Idx, IdxBase, IndexParseError, Keychain, NormalIndex, SegParseError, Terminal,
 };
 
 pub const XPUB_MAINNET_MAGIC: [u8; 4] = [0x04u8, 0x88, 0xB2, 0x1E];
@@ -429,7 +429,7 @@ impl KeyOrigin {
     pub fn with(xpub_origin: XpubOrigin, terminal: Terminal) -> Self {
         let mut derivation = DerivationPath::new();
         derivation.extend(xpub_origin.derivation().iter().copied().map(DerivationIndex::from));
-        derivation.push(DerivationIndex::normal(terminal.keychain as u16));
+        derivation.push(terminal.keychain.into());
         derivation.push(DerivationIndex::Normal(terminal.index));
         KeyOrigin {
             master_fp: xpub_origin.master_fp(),
@@ -492,7 +492,7 @@ impl FromStr for XpubSpec {
 pub struct XpubDerivable {
     spec: XpubSpec,
     variant: Option<NormalIndex>,
-    pub(crate) keychains: DerivationSeg,
+    pub(crate) keychains: DerivationSeg<Keychain>,
 }
 
 impl XpubDerivable {

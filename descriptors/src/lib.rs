@@ -32,7 +32,7 @@ mod multisig;
 mod segwit;
 mod taproot;
 
-pub use descriptor::{Descriptor, DescriptorStd};
+pub use descriptor::{Descriptor, StdDescr};
 pub use factory::AddressFactory;
 pub use segwit::Wpkh;
 pub use taproot::TrKey;

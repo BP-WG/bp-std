@@ -20,12 +20,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::BTreeSet;
 use std::iter;
-use std::ops::Range;
 
 use bpstd::{
-    CompressedPk, Derive, DeriveCompr, DerivedScript, KeyOrigin, NormalIndex, ScriptPubkey,
-    TapDerivation, Terminal, WPubkeyHash, XOnlyPk, XpubDerivable, XpubSpec,
+    CompressedPk, Derive, DeriveCompr, DerivedScript, KeyOrigin, Keychain, NormalIndex,
+    ScriptPubkey, TapDerivation, Terminal, WPubkeyHash, XOnlyPk, XpubDerivable, XpubSpec,
 };
 use indexmap::IndexMap;
 
@@ -42,9 +42,16 @@ impl<K: DeriveCompr> Wpkh<K> {
 
 impl<K: DeriveCompr> Derive<DerivedScript> for Wpkh<K> {
     #[inline]
-    fn keychains(&self) -> Range<u8> { self.0.keychains() }
+    fn default_keychain(&self) -> Keychain { self.0.default_keychain() }
 
-    fn derive(&self, keychain: u8, index: impl Into<NormalIndex>) -> DerivedScript {
+    #[inline]
+    fn keychains(&self) -> BTreeSet<Keychain> { self.0.keychains() }
+
+    fn derive(
+        &self,
+        keychain: impl Into<Keychain>,
+        index: impl Into<NormalIndex>,
+    ) -> DerivedScript {
         let key = self.0.derive(keychain, index);
         DerivedScript::Bare(ScriptPubkey::p2wpkh(WPubkeyHash::from(key)))
     }
