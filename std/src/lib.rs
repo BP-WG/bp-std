@@ -27,7 +27,7 @@ extern crate amplify;
 extern crate serde_crate as serde;
 pub extern crate bitcoin_hashes as hashes;
 
-mod base58;
+pub mod base58;
 mod address;
 mod network;
 
