@@ -17,7 +17,7 @@ amplify = { workspace = true }
 bp-std = { workspace = true }
 descriptors = { workspace = true }
 indexmap = { workspace = true }
-base64 = "0.21.4"
+base64 = "0.21.5"
 chrono = "0.4.31"
 serde_crate = { workspace = true, optional = true }
 
