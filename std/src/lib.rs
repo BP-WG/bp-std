@@ -46,7 +46,7 @@ pub use address::{
 pub use bc::{secp256k1, *};
 pub use derive::{
     Derive, DeriveCompr, DeriveKey, DeriveScripts, DeriveSet, DeriveXOnly, DerivedAddr,
-    DerivedAddrParseError, DerivedScript, Terminal, TerminalParseError,
+    DerivedAddrParseError, DerivedScript, Keychain, Terminal, TerminalParseError,
 };
 pub use index::{
     DerivationIndex, HardenedIndex, Idx, IndexError, IndexParseError, NormalIndex,

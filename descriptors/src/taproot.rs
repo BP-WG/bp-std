@@ -24,7 +24,7 @@ use std::iter;
 use std::ops::Range;
 
 use bpstd::{
-    CompressedPk, Derive, DeriveXOnly, DerivedScript, InternalPk, KeyOrigin, NormalIndex,
+    CompressedPk, Derive, DeriveXOnly, DerivedScript, InternalPk, KeyOrigin, Keychain, NormalIndex,
     TapDerivation, Terminal, XOnlyPk, XpubDerivable, XpubSpec,
 };
 use indexmap::IndexMap;
@@ -44,7 +44,11 @@ impl<K: DeriveXOnly> Derive<DerivedScript> for TrKey<K> {
     #[inline]
     fn keychains(&self) -> Range<u8> { self.0.keychains() }
 
-    fn derive(&self, keychain: u8, index: impl Into<NormalIndex>) -> DerivedScript {
+    fn derive(
+        &self,
+        keychain: impl Into<Keychain>,
+        index: impl Into<NormalIndex>,
+    ) -> DerivedScript {
         let internal_key = self.0.derive(keychain, index);
         DerivedScript::TaprootKeyOnly(InternalPk::from_unchecked(internal_key))
     }

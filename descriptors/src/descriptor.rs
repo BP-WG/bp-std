@@ -25,7 +25,7 @@ use std::{iter, vec};
 
 use bpstd::{
     CompressedPk, Derive, DeriveCompr, DeriveScripts, DeriveSet, DeriveXOnly, DerivedScript,
-    KeyOrigin, NormalIndex, TapDerivation, Terminal, XOnlyPk, XpubDerivable, XpubSpec,
+    KeyOrigin, Keychain, NormalIndex, TapDerivation, Terminal, XOnlyPk, XpubDerivable, XpubSpec,
 };
 use indexmap::IndexMap;
 
@@ -147,7 +147,11 @@ impl<S: DeriveSet> Derive<DerivedScript> for StdDescr<S> {
         }
     }
 
-    fn derive(&self, keychain: u8, index: impl Into<NormalIndex>) -> DerivedScript {
+    fn derive(
+        &self,
+        keychain: impl Into<Keychain>,
+        index: impl Into<NormalIndex>,
+    ) -> DerivedScript {
         match self {
             StdDescr::Wpkh(d) => d.derive(keychain, index),
             StdDescr::TrKey(d) => d.derive(keychain, index),

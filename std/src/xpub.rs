@@ -429,7 +429,7 @@ impl KeyOrigin {
     pub fn with(xpub_origin: XpubOrigin, terminal: Terminal) -> Self {
         let mut derivation = DerivationPath::new();
         derivation.extend(xpub_origin.derivation().iter().copied().map(DerivationIndex::from));
-        derivation.push(DerivationIndex::normal(terminal.keychain as u16));
+        derivation.push(terminal.keychain.into());
         derivation.push(DerivationIndex::Normal(terminal.index));
         KeyOrigin {
             master_fp: xpub_origin.master_fp(),

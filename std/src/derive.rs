@@ -33,9 +33,29 @@ use indexmap::IndexMap;
 
 use crate::address::AddressError;
 use crate::{
-    Address, AddressNetwork, AddressParseError, ControlBlockFactory, Idx, IndexParseError,
-    NormalIndex, TapTree, XpubDerivable, XpubSpec,
+    Address, AddressNetwork, AddressParseError, ControlBlockFactory, DerivationIndex, Idx,
+    IndexParseError, NormalIndex, TapTree, XpubDerivable, XpubSpec,
 };
+
+#[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default, Debug, Display, From)]
+#[wrapper(FromStr)]
+#[display(inner)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(crate = "serde_crate", transparent)
+)]
+pub struct Keychain(u8);
+
+impl From<Keychain> for NormalIndex {
+    #[inline]
+    fn from(keychain: Keychain) -> Self { NormalIndex::from(keychain.0) }
+}
+
+impl From<Keychain> for DerivationIndex {
+    #[inline]
+    fn from(keychain: Keychain) -> Self { DerivationIndex::Normal(keychain.into()) }
+}
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
 #[cfg_attr(
@@ -45,12 +65,17 @@ use crate::{
 )]
 #[display("&{keychain}/{index}")]
 pub struct Terminal {
-    pub keychain: u8,
+    pub keychain: Keychain,
     pub index: NormalIndex,
 }
 
 impl Terminal {
-    pub fn new(keychain: u8, index: NormalIndex) -> Self { Terminal { keychain, index } }
+    pub fn new(keychain: impl Into<Keychain>, index: NormalIndex) -> Self {
+        Terminal {
+            keychain: keychain.into(),
+            index,
+        }
+    }
     pub fn change(index: NormalIndex) -> Self { Self::new(1, index) }
 }
 
@@ -82,7 +107,10 @@ impl FromStr for Terminal {
                 if !keychain.starts_with('&') {
                     return Err(TerminalParseError::NoKeychain);
                 }
-                Ok(Terminal::new(keychain.trim_start_matches('&').parse()?, index.parse()?))
+                Ok(Terminal::new(
+                    Keychain::from_str(keychain.trim_start_matches('&'))?,
+                    index.parse()?,
+                ))
             }
             _ => Err(TerminalParseError::InvalidComponents(s.to_owned())),
         }
@@ -239,12 +267,18 @@ impl FromStr for DerivedAddr {
 pub trait Derive<D> {
     fn keychains(&self) -> Range<u8>;
 
-    fn derive(&self, keychain: u8, index: impl Into<NormalIndex>) -> D;
+    fn derive(&self, keychain: impl Into<Keychain>, index: impl Into<NormalIndex>) -> D;
 
-    fn derive_batch(&self, keychain: u8, from: impl Into<NormalIndex>, max_count: u8) -> Vec<D> {
+    fn derive_batch(
+        &self,
+        keychain: impl Into<Keychain>,
+        from: impl Into<NormalIndex>,
+        max_count: u8,
+    ) -> Vec<D> {
         let mut index = from.into();
         let mut count = 0u8;
         let mut batch = Vec::with_capacity(max_count as usize);
+        let keychain = keychain.into();
         loop {
             batch.push(self.derive(keychain, index));
             count += 1;
@@ -311,8 +345,8 @@ impl Derive<LegacyPk> for XpubDerivable {
     #[inline]
     fn keychains(&self) -> Range<u8> { 0..self.keychains.count() }
 
-    fn derive(&self, keychain: u8, index: impl Into<NormalIndex>) -> LegacyPk {
-        self.xpub().derive_pub([keychain.into(), index.into()]).to_legacy_pub()
+    fn derive(&self, keychain: impl Into<Keychain>, index: impl Into<NormalIndex>) -> LegacyPk {
+        self.xpub().derive_pub([keychain.into().into(), index.into()]).to_legacy_pub()
     }
 }
 
@@ -320,8 +354,8 @@ impl Derive<CompressedPk> for XpubDerivable {
     #[inline]
     fn keychains(&self) -> Range<u8> { 0..self.keychains.count() }
 
-    fn derive(&self, keychain: u8, index: impl Into<NormalIndex>) -> CompressedPk {
-        self.xpub().derive_pub([keychain.into(), index.into()]).to_compr_pub()
+    fn derive(&self, keychain: impl Into<Keychain>, index: impl Into<NormalIndex>) -> CompressedPk {
+        self.xpub().derive_pub([keychain.into().into(), index.into()]).to_compr_pub()
     }
 }
 
@@ -329,8 +363,8 @@ impl Derive<XOnlyPk> for XpubDerivable {
     #[inline]
     fn keychains(&self) -> Range<u8> { 0..self.keychains.count() }
 
-    fn derive(&self, keychain: u8, index: impl Into<NormalIndex>) -> XOnlyPk {
-        self.xpub().derive_pub([keychain.into(), index.into()]).to_xonly_pub()
+    fn derive(&self, keychain: impl Into<Keychain>, index: impl Into<NormalIndex>) -> XOnlyPk {
+        self.xpub().derive_pub([keychain.into().into(), index.into()]).to_xonly_pub()
     }
 }
 
