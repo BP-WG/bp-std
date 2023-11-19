@@ -54,11 +54,25 @@ pub enum IndexParseError {
     HardenedRequired(String),
 }
 
+/// Trait defining basic index functionality without mathematics operations.
+pub trait IdxBase: Sized + Eq + Ord + Copy {
+    /// Detects whether path segment uses hardened index(es)
+    fn is_hardened(&self) -> bool;
+
+    /// Returns child number corresponding to this index.
+    ///
+    /// Child number is always a value in range of `0..`[`HARDENED_INDEX_BOUNDARY`]
+    fn child_number(&self) -> u32;
+
+    /// Returns value used during derivation, which for normal indexes must lie
+    /// in range `0..`[`HARDENED_INDEX_BOUNDARY`] and for hardened in range
+    /// of [`HARDENED_INDEX_BOUNDARY`]`..=u32::MAX`
+    fn index(&self) -> u32;
+}
+
 /// Trait defining common API for different types of indexes which may be
 /// present in a certain derivation path segment: hardened, unhardened, mixed.
-pub trait Idx
-where Self: Sized + Eq + Ord + Copy
-{
+pub trait Idx: IdxBase {
     /// Derivation path segment with index equal to minimal value.
     const MIN: Self = Self::ZERO;
 
@@ -87,20 +101,10 @@ where Self: Sized + Eq + Ord + Copy
     /// Child number is always a value in range of `0..`[`HARDENED_INDEX_BOUNDARY`]
     fn try_from_child_number(index: impl Into<u32>) -> Result<Self, IndexError>;
 
-    /// Returns child number corresponding to this index.
-    ///
-    /// Child number is always a value in range of `0..`[`HARDENED_INDEX_BOUNDARY`]
-    fn child_number(&self) -> u32;
-
     /// Constructs derivation path segment with specific derivation value, which
     /// for normal indexes must lie in range `0..`[`HARDENED_INDEX_BOUNDARY`]
     /// and for hardened in range of [`HARDENED_INDEX_BOUNDARY`]`..=u32::MAX`
     fn try_from_index(value: u32) -> Result<Self, IndexError>;
-
-    /// Returns value used during derivation, which for normal indexes must lie
-    /// in range `0..`[`HARDENED_INDEX_BOUNDARY`] and for hardened in range
-    /// of [`HARDENED_INDEX_BOUNDARY`]`..=u32::MAX`
-    fn index(&self) -> u32;
 
     fn to_be_bytes(&self) -> [u8; 4] { self.index().to_be_bytes() }
 
@@ -223,9 +227,6 @@ where Self: Sized + Eq + Ord + Copy
             true
         }
     }
-
-    /// Detects whether path segment uses hardened index(es)
-    fn is_hardened(&self) -> bool;
 }
 
 fn checked_add_assign(index: &mut u32, add: impl Into<u32>) -> Option<u32> {
@@ -282,6 +283,18 @@ impl NormalIndex {
     pub const fn normal(child_number: u16) -> Self { NormalIndex(child_number as u32) }
 }
 
+impl IdxBase for NormalIndex {
+    #[inline]
+    fn index(&self) -> u32 { self.child_number() }
+
+    /// Returns unhardened index number.
+    #[inline]
+    fn child_number(&self) -> u32 { self.0 }
+
+    #[inline]
+    fn is_hardened(&self) -> bool { false }
+}
+
 impl Idx for NormalIndex {
     const ZERO: Self = Self(0);
 
@@ -307,10 +320,6 @@ impl Idx for NormalIndex {
         }
     }
 
-    /// Returns unhardened index number.
-    #[inline]
-    fn child_number(&self) -> u32 { self.0 }
-
     #[inline]
     fn try_from_index(value: u32) -> Result<Self, IndexError> {
         Self::try_from_child_number(value).map_err(|mut err| {
@@ -318,9 +327,6 @@ impl Idx for NormalIndex {
             err
         })
     }
-
-    #[inline]
-    fn index(&self) -> u32 { self.child_number() }
 
     #[inline]
     fn checked_add_assign(&mut self, add: impl Into<u32>) -> Option<Self> {
@@ -331,9 +337,6 @@ impl Idx for NormalIndex {
     fn checked_sub_assign(&mut self, sub: impl Into<u32>) -> Option<Self> {
         checked_sub_assign(&mut self.0, sub).map(|_| *self)
     }
-
-    #[inline]
-    fn is_hardened(&self) -> bool { false }
 }
 
 impl FromStr for NormalIndex {
@@ -380,6 +383,21 @@ impl HardenedIndex {
     pub const fn hardened(child_number: u16) -> Self { HardenedIndex(child_number as u32) }
 }
 
+impl IdxBase for HardenedIndex {
+    /// Returns hardened index number not offset by [`HARDENED_INDEX_BOUNDARY`]
+    /// (i.e. zero-based).
+    #[inline]
+    fn child_number(&self) -> u32 { self.0 }
+
+    /// Returns hardened index number offset by [`HARDENED_INDEX_BOUNDARY`]
+    /// (i.e. zero-based).
+    #[inline]
+    fn index(&self) -> u32 { self.0 + HARDENED_INDEX_BOUNDARY }
+
+    #[inline]
+    fn is_hardened(&self) -> bool { true }
+}
+
 impl Idx for HardenedIndex {
     const ZERO: Self = Self(HARDENED_INDEX_BOUNDARY);
 
@@ -405,11 +423,6 @@ impl Idx for HardenedIndex {
         }
     }
 
-    /// Returns hardened index number not offset by [`HARDENED_INDEX_BOUNDARY`]
-    /// (i.e. zero-based).
-    #[inline]
-    fn child_number(&self) -> u32 { self.0 }
-
     #[inline]
     fn try_from_index(child_no: u32) -> Result<Self, IndexError> {
         if child_no < HARDENED_INDEX_BOUNDARY {
@@ -423,11 +436,6 @@ impl Idx for HardenedIndex {
         })
     }
 
-    /// Returns hardened index number offset by [`HARDENED_INDEX_BOUNDARY`]
-    /// (i.e. zero-based).
-    #[inline]
-    fn index(&self) -> u32 { self.0 + HARDENED_INDEX_BOUNDARY }
-
     #[inline]
     fn checked_add_assign(&mut self, add: impl Into<u32>) -> Option<Self> {
         checked_add_assign(&mut self.0, add).map(|_| *self)
@@ -437,9 +445,6 @@ impl Idx for HardenedIndex {
     fn checked_sub_assign(&mut self, sub: impl Into<u32>) -> Option<Self> {
         checked_sub_assign(&mut self.0, sub).map(|_| *self)
     }
-
-    #[inline]
-    fn is_hardened(&self) -> bool { true }
 }
 
 impl FromStr for HardenedIndex {
@@ -488,6 +493,29 @@ impl DerivationIndex {
     }
 }
 
+impl IdxBase for DerivationIndex {
+    fn child_number(&self) -> u32 {
+        match self {
+            DerivationIndex::Normal(idx) => idx.child_number(),
+            DerivationIndex::Hardened(idx) => idx.child_number(),
+        }
+    }
+
+    fn index(&self) -> u32 {
+        match self {
+            DerivationIndex::Normal(idx) => idx.index(),
+            DerivationIndex::Hardened(idx) => idx.index(),
+        }
+    }
+
+    fn is_hardened(&self) -> bool {
+        match self {
+            DerivationIndex::Normal(_) => false,
+            DerivationIndex::Hardened(_) => true,
+        }
+    }
+}
+
 impl Idx for DerivationIndex {
     const ZERO: Self = DerivationIndex::Normal(NormalIndex::ZERO);
     const ONE: Self = DerivationIndex::Normal(NormalIndex::ONE);
@@ -501,21 +529,7 @@ impl Idx for DerivationIndex {
         panic!("method must not be used")
     }
 
-    fn child_number(&self) -> u32 {
-        match self {
-            DerivationIndex::Normal(idx) => idx.child_number(),
-            DerivationIndex::Hardened(idx) => idx.child_number(),
-        }
-    }
-
     fn try_from_index(index: u32) -> Result<Self, IndexError> { Ok(Self::from_index(index)) }
-
-    fn index(&self) -> u32 {
-        match self {
-            DerivationIndex::Normal(idx) => idx.index(),
-            DerivationIndex::Hardened(idx) => idx.index(),
-        }
-    }
 
     fn checked_add_assign(&mut self, add: impl Into<u32>) -> Option<Self> {
         match self {
@@ -536,13 +550,6 @@ impl Idx for DerivationIndex {
             DerivationIndex::Hardened(idx) => {
                 idx.checked_sub_assign(sub).map(DerivationIndex::Hardened)
             }
-        }
-    }
-
-    fn is_hardened(&self) -> bool {
-        match self {
-            DerivationIndex::Normal(_) => false,
-            DerivationIndex::Hardened(_) => true,
         }
     }
 }

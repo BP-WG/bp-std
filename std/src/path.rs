@@ -21,14 +21,15 @@
 // limitations under the License.
 
 use core::fmt::{self, Display, Formatter};
+use core::num::ParseIntError;
+use core::ops::Index;
 use core::str::FromStr;
 use std::collections::BTreeSet;
-use std::ops::Index;
 
 use amplify::confinement;
 use amplify::confinement::Confined;
 
-use crate::{DerivationIndex, Idx, IndexParseError, NormalIndex};
+use crate::{DerivationIndex, Idx, IdxBase, IndexParseError, NormalIndex};
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error)]
 #[display(doc_comments)]
@@ -40,9 +41,9 @@ pub enum DerivationParseError {
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub struct DerivationSeg<I: Idx = NormalIndex>(Confined<BTreeSet<I>, 1, 8>);
+pub struct DerivationSeg<I: IdxBase = NormalIndex>(Confined<BTreeSet<I>, 1, 8>);
 
-impl<I: Idx> DerivationSeg<I> {
+impl<I: IdxBase> DerivationSeg<I> {
     pub fn new(index: I) -> Self { DerivationSeg(confined_bset![index]) }
 
     pub fn with(iter: impl IntoIterator<Item = I>) -> Result<Self, confinement::Error> {
@@ -63,7 +64,12 @@ impl DerivationSeg<NormalIndex> {
     pub fn standard() -> Self { DerivationSeg(confined_bset![NormalIndex::ZERO, NormalIndex::ONE]) }
 }
 
-impl<I: Idx> Index<u8> for DerivationSeg<I> {
+impl<I: IdxBase> AsRef<BTreeSet<I>> for DerivationSeg<I> {
+    #[inline]
+    fn as_ref(&self) -> &BTreeSet<I> { &self.0.as_inner() }
+}
+
+impl<I: IdxBase> Index<u8> for DerivationSeg<I> {
     type Output = I;
 
     fn index(&self, index: u8) -> &Self::Output {
@@ -74,7 +80,7 @@ impl<I: Idx> Index<u8> for DerivationSeg<I> {
     }
 }
 
-impl<I: Idx + Display> Display for DerivationSeg<I> {
+impl<I: IdxBase + Display> Display for DerivationSeg<I> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         if self.count() == 1 {
             write!(f, "{}", self[0])
@@ -98,6 +104,7 @@ impl<I: Idx + Display> Display for DerivationSeg<I> {
 pub enum SegParseError {
     /// derivation contains invalid index - {0}.
     #[from]
+    #[from(ParseIntError)]
     InvalidFormat(IndexParseError),
 
     /// derivation segment contains too many variants.
@@ -105,7 +112,7 @@ pub enum SegParseError {
     Confinement(confinement::Error),
 }
 
-impl<I: Idx> FromStr for DerivationSeg<I>
+impl<I: IdxBase> FromStr for DerivationSeg<I>
 where
     I: FromStr,
     SegParseError: From<I::Err>,

@@ -31,7 +31,7 @@ use hashes::{hash160, sha512, Hash, HashEngine, Hmac, HmacEngine};
 use crate::secp256k1::SECP256K1;
 use crate::{
     base58, DerivationIndex, DerivationParseError, DerivationPath, DerivationSeg, HardenedIndex,
-    Idx, IndexParseError, NormalIndex, SegParseError, Terminal,
+    Idx, IdxBase, IndexParseError, Keychain, NormalIndex, SegParseError, Terminal,
 };
 
 pub const XPUB_MAINNET_MAGIC: [u8; 4] = [0x04u8, 0x88, 0xB2, 0x1E];
@@ -492,7 +492,7 @@ impl FromStr for XpubSpec {
 pub struct XpubDerivable {
     spec: XpubSpec,
     variant: Option<NormalIndex>,
-    pub(crate) keychains: DerivationSeg,
+    pub(crate) keychains: DerivationSeg<Keychain>,
 }
 
 impl XpubDerivable {

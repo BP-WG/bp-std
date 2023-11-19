@@ -20,7 +20,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::ops::Range;
+use std::collections::BTreeSet;
 use std::{iter, vec};
 
 use bpstd::{
@@ -140,7 +140,7 @@ pub enum StdDescr<S: DeriveSet = XpubDerivable> {
 }
 
 impl<S: DeriveSet> Derive<DerivedScript> for StdDescr<S> {
-    fn keychains(&self) -> Range<u8> {
+    fn keychains(&self) -> &BTreeSet<Keychain> {
         match self {
             StdDescr::Wpkh(d) => d.keychains(),
             StdDescr::TrKey(d) => d.keychains(),

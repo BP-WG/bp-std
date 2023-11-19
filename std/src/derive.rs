@@ -21,8 +21,8 @@
 // limitations under the License.
 
 use std::cmp::Ordering;
+use std::collections::BTreeSet;
 use std::num::ParseIntError;
-use std::ops::Range;
 use std::str::FromStr;
 
 use bc::{
@@ -33,7 +33,7 @@ use indexmap::IndexMap;
 
 use crate::address::AddressError;
 use crate::{
-    Address, AddressNetwork, AddressParseError, ControlBlockFactory, DerivationIndex, Idx,
+    Address, AddressNetwork, AddressParseError, ControlBlockFactory, DerivationIndex, Idx, IdxBase,
     IndexParseError, NormalIndex, TapTree, XpubDerivable, XpubSpec,
 };
 
@@ -55,6 +55,22 @@ impl From<Keychain> for NormalIndex {
 impl From<Keychain> for DerivationIndex {
     #[inline]
     fn from(keychain: Keychain) -> Self { DerivationIndex::Normal(keychain.into()) }
+}
+
+impl Keychain {
+    pub const OUTER: Self = Keychain(0);
+    pub const INNER: Self = Keychain(1);
+}
+
+impl IdxBase for Keychain {
+    #[inline]
+    fn is_hardened(&self) -> bool { false }
+
+    #[inline]
+    fn child_number(&self) -> u32 { self.0 as u32 }
+
+    #[inline]
+    fn index(&self) -> u32 { self.0 as u32 }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
@@ -230,7 +246,7 @@ impl PartialOrd for DerivedAddr {
 }
 
 impl DerivedAddr {
-    pub fn new(addr: Address, keychain: u8, index: NormalIndex) -> Self {
+    pub fn new(addr: Address, keychain: Keychain, index: NormalIndex) -> Self {
         DerivedAddr {
             addr,
             terminal: Terminal::new(keychain, index),
@@ -265,7 +281,7 @@ impl FromStr for DerivedAddr {
 }
 
 pub trait Derive<D> {
-    fn keychains(&self) -> Range<u8>;
+    fn keychains(&self) -> &BTreeSet<Keychain>;
 
     fn derive(&self, keychain: impl Into<Keychain>, index: impl Into<NormalIndex>) -> D;
 
@@ -306,7 +322,7 @@ pub trait DeriveScripts: Derive<DerivedScript> {
     fn derive_address(
         &self,
         network: AddressNetwork,
-        keychain: u8,
+        keychain: impl Into<Keychain>,
         index: impl Into<NormalIndex>,
     ) -> Result<Address, AddressError> {
         let spk = self.derive(keychain, index).to_script_pubkey();
@@ -316,7 +332,7 @@ pub trait DeriveScripts: Derive<DerivedScript> {
     fn derive_address_batch(
         &self,
         network: AddressNetwork,
-        keychain: u8,
+        keychain: impl Into<Keychain>,
         from: impl Into<NormalIndex>,
         max_count: u8,
     ) -> Result<Vec<Address>, AddressError> {
@@ -343,7 +359,7 @@ impl DeriveKey<XOnlyPk> for XpubDerivable {
 
 impl Derive<LegacyPk> for XpubDerivable {
     #[inline]
-    fn keychains(&self) -> Range<u8> { 0..self.keychains.count() }
+    fn keychains(&self) -> &BTreeSet<Keychain> { self.keychains.as_ref() }
 
     fn derive(&self, keychain: impl Into<Keychain>, index: impl Into<NormalIndex>) -> LegacyPk {
         self.xpub().derive_pub([keychain.into().into(), index.into()]).to_legacy_pub()
@@ -352,7 +368,7 @@ impl Derive<LegacyPk> for XpubDerivable {
 
 impl Derive<CompressedPk> for XpubDerivable {
     #[inline]
-    fn keychains(&self) -> Range<u8> { 0..self.keychains.count() }
+    fn keychains(&self) -> &BTreeSet<Keychain> { self.keychains.as_ref() }
 
     fn derive(&self, keychain: impl Into<Keychain>, index: impl Into<NormalIndex>) -> CompressedPk {
         self.xpub().derive_pub([keychain.into().into(), index.into()]).to_compr_pub()
@@ -361,7 +377,7 @@ impl Derive<CompressedPk> for XpubDerivable {
 
 impl Derive<XOnlyPk> for XpubDerivable {
     #[inline]
-    fn keychains(&self) -> Range<u8> { 0..self.keychains.count() }
+    fn keychains(&self) -> &BTreeSet<Keychain> { self.keychains.as_ref() }
 
     fn derive(&self, keychain: impl Into<Keychain>, index: impl Into<NormalIndex>) -> XOnlyPk {
         self.xpub().derive_pub([keychain.into().into(), index.into()]).to_xonly_pub()

@@ -20,8 +20,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::BTreeSet;
 use std::iter;
-use std::ops::Range;
 
 use bpstd::{
     CompressedPk, Derive, DeriveCompr, DerivedScript, KeyOrigin, Keychain, NormalIndex,
@@ -42,7 +42,7 @@ impl<K: DeriveCompr> Wpkh<K> {
 
 impl<K: DeriveCompr> Derive<DerivedScript> for Wpkh<K> {
     #[inline]
-    fn keychains(&self) -> Range<u8> { self.0.keychains() }
+    fn keychains(&self) -> &BTreeSet<Keychain> { self.0.keychains() }
 
     fn derive(
         &self,

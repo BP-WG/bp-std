@@ -49,7 +49,7 @@ pub use derive::{
     DerivedAddrParseError, DerivedScript, Keychain, Terminal, TerminalParseError,
 };
 pub use index::{
-    DerivationIndex, HardenedIndex, Idx, IndexError, IndexParseError, NormalIndex,
+    DerivationIndex, HardenedIndex, Idx, IdxBase, IndexError, IndexParseError, NormalIndex,
     HARDENED_INDEX_BOUNDARY,
 };
 pub use network::{Network, UnknownNetwork};
