@@ -140,6 +140,13 @@ pub enum StdDescr<S: DeriveSet = XpubDerivable> {
 }
 
 impl<S: DeriveSet> Derive<DerivedScript> for StdDescr<S> {
+    fn default_keychain(&self) -> Keychain {
+        match self {
+            StdDescr::Wpkh(d) => d.default_keychain(),
+            StdDescr::TrKey(d) => d.default_keychain(),
+        }
+    }
+
     fn keychains(&self) -> &BTreeSet<Keychain> {
         match self {
             StdDescr::Wpkh(d) => d.keychains(),

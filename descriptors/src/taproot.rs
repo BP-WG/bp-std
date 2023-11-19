@@ -42,6 +42,9 @@ impl<K: DeriveXOnly> TrKey<K> {
 
 impl<K: DeriveXOnly> Derive<DerivedScript> for TrKey<K> {
     #[inline]
+    fn default_keychain(&self) -> Keychain { self.0.default_keychain() }
+
+    #[inline]
     fn keychains(&self) -> &BTreeSet<Keychain> { self.0.keychains() }
 
     fn derive(

@@ -58,6 +58,14 @@ impl<I: IdxBase> DerivationSeg<I> {
 
     #[inline]
     pub fn at(&self, index: u8) -> Option<I> { self.0.iter().nth(index as usize).copied() }
+
+    #[inline]
+    pub fn first(&self) -> I {
+        *self
+            .0
+            .first()
+            .expect("confined type guarantees that there is at least one item in the collection")
+    }
 }
 
 impl DerivationSeg<NormalIndex> {
