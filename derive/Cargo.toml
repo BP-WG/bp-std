@@ -1,0 +1,30 @@
+[package]
+name = "bp-derive"
+description = "Bitcoin addresses and invoices"
+readme = "../README.md"
+version.workspace = true
+keywords.workspace = true
+categories.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "derive"
+
+[dependencies]
+amplify = { workspace = true }
+bitcoin_hashes = { workspace = true }
+commit_verify = { workspace = true }
+bp-consensus = { workspace = true }
+bp-invoice = { workspace = true }
+indexmap = { workspace = true }
+serde_crate = { workspace = true, optional = true }
+
+[features]
+default = []
+all = []
+serde = ["serde_crate", "bp-consensus/serde"]

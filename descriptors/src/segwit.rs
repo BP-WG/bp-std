@@ -23,7 +23,7 @@
 use std::collections::BTreeSet;
 use std::iter;
 
-use bpstd::{
+use derive::{
     CompressedPk, Derive, DeriveCompr, DerivedScript, KeyOrigin, Keychain, NormalIndex,
     ScriptPubkey, TapDerivation, Terminal, WPubkeyHash, XOnlyPk, XpubDerivable, XpubSpec,
 };

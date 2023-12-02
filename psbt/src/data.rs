@@ -22,7 +22,7 @@
 
 use amplify::num::u5;
 use amplify::{Bytes20, Bytes32};
-use bpstd::{
+use derive::{
     Bip340Sig, ByteStr, CompressedPk, ControlBlock, InternalPk, KeyOrigin, LeafScript, LegacyPk,
     LegacySig, LockHeight, LockTime, LockTimestamp, NormalIndex, Outpoint, RedeemScript, Sats,
     ScriptPubkey, SeqNo, SigScript, SighashType, TapDerivation, TapNodeHash, TapTree, Terminal, Tx,

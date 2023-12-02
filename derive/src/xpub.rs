@@ -25,10 +25,10 @@ use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 
 use amplify::{hex, ByteArray, Bytes20, Bytes32, Bytes4, Wrapper};
+use bc::secp256k1::SECP256K1;
 use bc::{secp256k1, CompressedPk, InvalidPubkey, LegacyPk, XOnlyPk};
-use hashes::{hash160, sha512, Hash, HashEngine, Hmac, HmacEngine};
+use bitcoin_hashes::{hash160, sha512, Hash, HashEngine, Hmac, HmacEngine};
 
-use crate::secp256k1::SECP256K1;
 use crate::{
     base58, DerivationIndex, DerivationParseError, DerivationPath, DerivationSeg, HardenedIndex,
     Idx, IdxBase, IndexParseError, Keychain, NormalIndex, SegParseError, Terminal,

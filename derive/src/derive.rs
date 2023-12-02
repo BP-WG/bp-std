@@ -30,8 +30,8 @@ use bc::{
     TapNodeHash, WitnessScript, XOnlyPk,
 };
 use indexmap::IndexMap;
+use invoice::AddressError;
 
-use crate::address::AddressError;
 use crate::{
     Address, AddressNetwork, AddressParseError, ControlBlockFactory, DerivationIndex, Idx, IdxBase,
     IndexParseError, NormalIndex, TapTree, XpubDerivable, XpubSpec,

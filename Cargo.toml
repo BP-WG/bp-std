@@ -1,5 +1,5 @@
 [workspace]
-members = ["std", "descriptors", "psbt", "."]
+members = ["invoice", "derive", "descriptors", "psbt", "."]
 resolver = "2"
 
 [workspace.package]
@@ -15,10 +15,46 @@ license = "Apache-2.0"
 
 [workspace.dependencies]
 amplify = "4.5.0"
-bitcoin_hashes = "0.13.0"  # TODO: Remove and replace with commit_verify
 bech32 = "0.9.1"
+bitcoin_hashes = "0.13.0"  # TODO: Remove and replace with commit_verify
+commit_verify = "0.11.0-beta.1"
 bp-consensus = "0.11.0-beta.2"
-bp-std = { version = "0.11.0-beta.2", path = "std" }
+bp-invoice = { version = "0.11.0-beta.2", path = "invoice" }
+bp-derive = { version = "0.11.0-beta.2", path = "derive" }
 descriptors = { version = "0.11.0-beta.2", path = "descriptors" }
+psbt = { version = "0.11.0-beta.2", path = "psbt" }
 indexmap = "2.0.0"
 serde_crate = { package = "serde", version = "1", features = ["derive"] }
+
+[package]
+name = "bp-std"
+description = "Modern & lightweight implementation of bitcoin standards without rust-bitcoin/miniscript dependencies"
+readme = "README.md"
+version.workspace = true
+keywords.workspace = true
+categories.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "bpstd"
+
+[dependencies]
+amplify = { workspace = true }
+bp-consensus = { workspace = true }
+bp-core = { version = "0.11.0-beta.1", optional = true }
+bp-invoice = { workspace = true }
+bp-derive = { workspace = true }
+descriptors = { workspace = true }
+psbt = { workspace = true }
+serde_crate = { workspace = true, optional = true }
+
+[features]
+default = []
+all = ["core", "serde"]
+core = ["bp-core"]
+serde = ["serde_crate", "bp-consensus/serde", "bp-invoice/serde", "bp-derive/serde", "descriptors/serde", "psbt/serde"]

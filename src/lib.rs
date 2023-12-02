@@ -20,29 +20,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use derive::{Address, AddressError, AddressNetwork, DeriveScripts, Idx, Keychain, NormalIndex};
-
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub struct AddressFactory<D: DeriveScripts> {
-    pub descriptor: D,
-    pub network: AddressNetwork,
-    pub keychain: Keychain,
-    pub unused_tip: NormalIndex,
-}
-
-impl<D: DeriveScripts> Iterator for AddressFactory<D> {
-    type Item = Address;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let addr =
-            self.descriptor.derive_address(self.network, self.keychain, self.unused_tip).ok()?;
-        self.unused_tip.wrapping_inc_assign();
-        Some(addr)
-    }
-}
-
-impl<D: DeriveScripts> AddressFactory<D> {
-    pub fn address(&self, index: NormalIndex) -> Result<Address, AddressError> {
-        self.descriptor.derive_address(self.network, self.keychain, index)
-    }
-}
+#[cfg(feature = "core")]
+pub use ::bp::{dbc, seals};
+pub use bc::{secp256k1, *};
+pub use derive::*;
+pub use descriptors::*;
+pub use psbt::{self, Prevout, Psbt, PsbtError, PsbtParseError, PsbtUnsupportedVer, PsbtVer};

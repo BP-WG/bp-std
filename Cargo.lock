@@ -213,7 +213,6 @@ dependencies = [
  "bp-dbc",
  "bp-seals",
  "commit_verify",
- "serde",
  "single_use_seals",
  "strict_encoding",
 ]
@@ -229,8 +228,31 @@ dependencies = [
  "bp-consensus",
  "commit_verify",
  "secp256k1",
- "serde",
  "strict_encoding",
+]
+
+[[package]]
+name = "bp-derive"
+version = "0.11.0-beta.2"
+dependencies = [
+ "amplify",
+ "bitcoin_hashes",
+ "bp-consensus",
+ "bp-invoice",
+ "commit_verify",
+ "indexmap",
+ "serde",
+]
+
+[[package]]
+name = "bp-invoice"
+version = "0.11.0-beta.2"
+dependencies = [
+ "amplify",
+ "bech32",
+ "bitcoin_hashes",
+ "bp-consensus",
+ "serde",
 ]
 
 [[package]]
@@ -245,7 +267,6 @@ dependencies = [
  "bp-dbc",
  "commit_verify",
  "rand",
- "serde",
  "single_use_seals",
  "strict_encoding",
 ]
@@ -255,12 +276,12 @@ name = "bp-std"
 version = "0.11.0-beta.2"
 dependencies = [
  "amplify",
- "bech32",
- "bitcoin_hashes",
  "bp-consensus",
  "bp-core",
- "commit_verify",
- "indexmap",
+ "bp-derive",
+ "bp-invoice",
+ "descriptors",
+ "psbt",
  "serde",
 ]
 
@@ -328,7 +349,6 @@ dependencies = [
  "commit_encoding_derive",
  "rand",
  "ripemd",
- "serde",
  "sha2",
  "strict_encoding",
 ]
@@ -369,7 +389,7 @@ name = "descriptors"
 version = "0.11.0-beta.2"
 dependencies = [
  "amplify",
- "bp-std",
+ "bp-derive",
  "indexmap",
  "serde",
 ]
@@ -554,7 +574,7 @@ version = "0.11.0-beta.2"
 dependencies = [
  "amplify",
  "base64",
- "bp-std",
+ "bp-derive",
  "chrono",
  "descriptors",
  "indexmap",

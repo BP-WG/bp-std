@@ -24,7 +24,7 @@ use std::collections::BTreeMap;
 use std::io::{Read, Write};
 
 use amplify::{Bytes20, Bytes32, IoError};
-use bpstd::{
+use derive::{
     Bip340Sig, ByteStr, CompressedPk, ControlBlock, InternalPk, KeyOrigin, LeafScript, LegacyPk,
     LegacySig, LockHeight, LockTime, LockTimestamp, RedeemScript, Sats, ScriptPubkey, SeqNo,
     SigScript, SighashType, TapDerivation, TapNodeHash, TapTree, Tx, TxOut, TxVer, Txid, VarInt,

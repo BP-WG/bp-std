@@ -25,7 +25,7 @@ use std::string::FromUtf8Error;
 
 use amplify::num::u7;
 use amplify::{confinement, Array, Bytes, Bytes32, Bytes4, IoError, Wrapper};
-use bpstd::{
+use derive::{
     Bip340Sig, ByteStr, CompressedPk, ConsensusDataError, ConsensusDecode, ConsensusDecodeError,
     ConsensusEncode, ControlBlock, DerivationPath, Idx, InternalPk, InvalidLeafVer, InvalidTree,
     KeyOrigin, LeafInfo, LeafScript, LeafVer, LegacyPk, LegacySig, LockHeight, LockTime,
