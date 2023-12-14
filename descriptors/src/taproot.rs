@@ -29,7 +29,7 @@ use derive::{
 };
 use indexmap::IndexMap;
 
-use crate::Descriptor;
+use crate::{Descriptor, SpkClass};
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate",))]
 #[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
@@ -61,6 +61,8 @@ impl<K: DeriveXOnly> Descriptor<K> for TrKey<K> {
     type KeyIter<'k> = iter::Once<&'k K> where Self: 'k, K: 'k;
     type VarIter<'v> = iter::Empty<&'v ()> where Self: 'v, (): 'v;
     type XpubIter<'x> = iter::Once<&'x XpubSpec> where Self: 'x;
+
+    fn class(&self) -> SpkClass { SpkClass::P2tr }
 
     fn keys(&self) -> Self::KeyIter<'_> { iter::once(&self.0) }
     fn vars(&self) -> Self::VarIter<'_> { iter::empty() }
