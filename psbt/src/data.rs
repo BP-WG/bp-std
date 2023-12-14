@@ -243,9 +243,23 @@ impl Psbt {
         }
     }
 
+    pub fn input(&self, index: usize) -> Option<&Input> { self.inputs.get(index) }
+
+    pub fn input_mut(&mut self, index: usize) -> Option<&mut Input> { self.inputs.get_mut(index) }
+
     pub fn inputs(&self) -> impl Iterator<Item = &Input> { self.inputs.iter() }
 
+    pub fn inputs_mut(&mut self) -> impl Iterator<Item = &mut Input> { self.inputs.iter_mut() }
+
+    pub fn output(&self, index: usize) -> Option<&Output> { self.outputs.get(index) }
+
+    pub fn output_mut(&mut self, index: usize) -> Option<&mut Output> {
+        self.outputs.get_mut(index)
+    }
+
     pub fn outputs(&self) -> impl Iterator<Item = &Output> { self.outputs.iter() }
+
+    pub fn outputs_mut(&mut self) -> impl Iterator<Item = &mut Output> { self.outputs.iter_mut() }
 
     pub fn lock_time(&self) -> LockTime {
         // TODO: Compute correct LockTime
