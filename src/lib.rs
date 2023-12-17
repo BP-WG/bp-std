@@ -20,7 +20,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[cfg(feature = "core")]
+#[cfg(feature = "client-side-validation")]
 pub use ::bp::{dbc, seals};
 pub use bc::{secp256k1, *};
 pub use derive::*;

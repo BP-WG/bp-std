@@ -111,6 +111,18 @@ impl UnsignedTx {
             lock_time: tx.lock_time,
         }
     }
+
+    pub fn txid(&self) -> Txid { self.clone().finalize().txid() }
+
+    pub fn finalize(self) -> Tx {
+        Tx {
+            version: self.version,
+            inputs: VarIntArray::try_from_iter(self.inputs.into_iter().map(UnsignedTxIn::finalize))
+                .expect("varint"),
+            outputs: VarIntArray::from_collection_unsafe(self.outputs),
+            lock_time: self.lock_time,
+        }
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
@@ -149,6 +161,8 @@ impl UnsignedTxIn {
             sequence: txin.sequence,
         }
     }
+
+    pub fn finalize(self) -> TxIn { self.into() }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -243,6 +257,8 @@ impl Psbt {
         }
     }
 
+    pub fn txid(&self) -> Txid { self.to_unsigned_tx().txid() }
+
     pub fn input(&self, index: usize) -> Option<&Input> { self.inputs.get(index) }
 
     pub fn input_mut(&mut self, index: usize) -> Option<&mut Input> { self.inputs.get_mut(index) }
@@ -276,6 +292,10 @@ impl Psbt {
     pub fn fee(&self) -> Option<Sats> { self.input_sum().checked_sub(self.output_sum()) }
 
     pub fn xpubs(&self) -> impl Iterator<Item = (&Xpub, &XpubOrigin)> { self.xpubs.iter() }
+
+    pub fn is_modifiable(&self) -> bool {
+        self.tx_modifiable.as_ref().map(ModifiableFlags::is_modifiable).unwrap_or_default()
+    }
 
     pub fn are_inputs_modifiable(&self) -> bool {
         self.tx_modifiable
@@ -882,5 +902,9 @@ impl ModifiableFlags {
         (self.inputs_modifiable as u8)
             | ((self.outputs_modifiable as u8) << 1)
             | ((self.sighash_single as u8) << 2)
+    }
+
+    pub const fn is_modifiable(&self) -> bool {
+        self.inputs_modifiable | self.outputs_modifiable | self.sighash_single
     }
 }

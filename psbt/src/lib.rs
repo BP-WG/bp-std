@@ -30,13 +30,17 @@ mod data;
 mod keys;
 mod maps;
 mod coders;
+#[cfg(feature = "client-side-validation")]
+mod csval;
 
 pub use coders::{Decode, DecodeError, Encode, PsbtError};
+#[cfg(feature = "client-side-validation")]
+pub use csval::*;
 pub use data::{
     Input, ModifiableFlags, Output, Prevout, Psbt, PsbtParseError, UnsignedTx, UnsignedTxIn,
 };
 pub use keys::{GlobalKey, InputKey, KeyPair, KeyType, OutputKey, PropKey};
-pub use maps::{KeyData, KeyMap, Map, MapName, ValueData};
+pub use maps::{KeyAlreadyPresent, KeyData, KeyMap, Map, MapName, ValueData};
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error)]
 #[display("unsupported version of PSBT v{0}")]

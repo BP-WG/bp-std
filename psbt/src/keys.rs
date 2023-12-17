@@ -733,9 +733,9 @@ impl<'a, T: KeyType> KeyPair<T, Box<dyn Encode + 'a>, Box<dyn Encode + 'a>> {
     derive(Serialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-#[display("{identifier} {subtype:#x}")]
+#[display("{identifier} {subtype:#x} {data:#x}")]
 pub struct PropKey {
     pub identifier: String,
     pub subtype: u64,
-    pub data: Vec<u8>,
+    pub data: KeyData,
 }

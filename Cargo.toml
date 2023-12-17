@@ -18,7 +18,9 @@ amplify = "4.5.0"
 bech32 = "0.9.1"
 bitcoin_hashes = "0.13.0"  # TODO: Remove and replace with commit_verify
 commit_verify = "0.11.0-beta.1"
+strict_encoding = "2.6.1"
 bp-consensus = "0.11.0-beta.2"
+bp-core = { version = "0.11.0-beta.1" }
 bp-invoice = { version = "0.11.0-beta.2", path = "invoice" }
 bp-derive = { version = "0.11.0-beta.2", path = "derive" }
 descriptors = { version = "0.11.0-beta.2", path = "descriptors" }
@@ -46,7 +48,7 @@ name = "bpstd"
 [dependencies]
 amplify = { workspace = true }
 bp-consensus = { workspace = true }
-bp-core = { version = "0.11.0-beta.1", optional = true }
+bp-core = { workspace = true, optional = true }
 bp-invoice = { workspace = true }
 bp-derive = { workspace = true }
 descriptors = { workspace = true }
@@ -55,6 +57,13 @@ serde_crate = { workspace = true, optional = true }
 
 [features]
 default = []
-all = ["core", "serde"]
-core = ["bp-core"]
+all = ["client-side-validation", "serde"]
+client-side-validation = ["bp-core", "psbt/client-side-validation"]
 serde = ["serde_crate", "bp-consensus/serde", "bp-invoice/serde", "bp-derive/serde", "descriptors/serde", "psbt/serde"]
+
+[patch.crates-io]
+commit_verify = { git = "https://github.com/LNP-BP/client_side_validation", branch = "v0.11" }
+bp-consensus = { git = "https://github.com/BP-WG/bp-core", branch = "doubleanchors" }
+bp-dbc = { git = "https://github.com/BP-WG/bp-core", branch = "doubleanchors" }
+bp-seals = { git = "https://github.com/BP-WG/bp-core", branch = "doubleanchors" }
+bp-core = { git = "https://github.com/BP-WG/bp-core", branch = "doubleanchors" }

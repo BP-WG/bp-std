@@ -32,70 +32,80 @@
 //! commitments.
 
 use amplify::confinement::{Confined, U16};
-use bitcoin::psbt::raw::ProprietaryKey;
-use bitcoin::psbt::Output;
-use bp::dbc::tapret::TapretPathProof;
-use commit_verify::mpc;
+use bp::dbc::tapret::{TapretCommitment, TapretPathProof, TapretProof};
+use bp::ByteStr;
+use commit_verify::{mpc, CommitVerify};
+use derive::{ScriptPubkey, TapScript, TapTree};
 use strict_encoding::{StrictDeserialize, StrictSerialize};
 
+use crate::{KeyMap, Output, PropKey, Psbt, ValueData};
+
 /// PSBT proprietary key prefix used for tapreturn commitment.
-pub const PSBT_TAPRET_PREFIX: &[u8] = b"TAPRET";
+pub const PSBT_TAPRET_PREFIX: &str = "TAPRET";
 
 /// Proprietary key subtype for PSBT inputs containing the applied tapret tweak
 /// information.
-pub const PSBT_IN_TAPRET_TWEAK: u8 = 0x00;
+pub const PSBT_IN_TAPRET_TWEAK: u64 = 0x00;
 
 /// Proprietary key subtype marking PSBT outputs which may host tapreturn
 /// commitment.
-pub const PSBT_OUT_TAPRET_HOST: u8 = 0x00;
+pub const PSBT_OUT_TAPRET_HOST: u64 = 0x00;
 /// Proprietary key subtype holding 32-byte commitment which will be put into
 /// tapreturn tweak.
-pub const PSBT_OUT_TAPRET_COMMITMENT: u8 = 0x01;
+pub const PSBT_OUT_TAPRET_COMMITMENT: u64 = 0x01;
 /// Proprietary key subtype holding merkle branch path to tapreturn tweak inside
 /// the taptree structure.
-pub const PSBT_OUT_TAPRET_PROOF: u8 = 0x02;
+pub const PSBT_OUT_TAPRET_PROOF: u64 = 0x02;
 
 /// Extension trait for static functions returning tapreturn-related proprietary
 /// keys.
-pub trait ProprietaryKeyTapret {
+impl PropKey {
     /// Constructs [`PSBT_IN_TAPRET_TWEAK`] proprietary key.
-    fn tapret_tweak() -> ProprietaryKey {
-        ProprietaryKey {
-            prefix: PSBT_TAPRET_PREFIX.to_vec(),
+    pub fn tapret_tweak() -> PropKey {
+        PropKey {
+            identifier: PSBT_TAPRET_PREFIX.to_owned(),
             subtype: PSBT_IN_TAPRET_TWEAK,
-            key: vec![],
+            data: none!(),
         }
     }
 
     /// Constructs [`PSBT_OUT_TAPRET_HOST`] proprietary key.
-    fn tapret_host() -> ProprietaryKey {
-        ProprietaryKey {
-            prefix: PSBT_TAPRET_PREFIX.to_vec(),
+    pub fn tapret_host() -> PropKey {
+        PropKey {
+            identifier: PSBT_TAPRET_PREFIX.to_owned(),
             subtype: PSBT_OUT_TAPRET_HOST,
-            key: vec![],
+            data: none!(),
         }
     }
 
     /// Constructs [`PSBT_OUT_TAPRET_COMMITMENT`] proprietary key.
-    fn tapret_commitment() -> ProprietaryKey {
-        ProprietaryKey {
-            prefix: PSBT_TAPRET_PREFIX.to_vec(),
+    pub fn tapret_commitment() -> PropKey {
+        PropKey {
+            identifier: PSBT_TAPRET_PREFIX.to_owned(),
             subtype: PSBT_OUT_TAPRET_COMMITMENT,
-            key: vec![],
+            data: none!(),
         }
     }
 
     /// Constructs [`PSBT_OUT_TAPRET_PROOF`] proprietary key.
-    fn tapret_proof() -> ProprietaryKey {
-        ProprietaryKey {
-            prefix: PSBT_TAPRET_PREFIX.to_vec(),
+    pub fn tapret_proof() -> PropKey {
+        PropKey {
+            identifier: PSBT_TAPRET_PREFIX.to_owned(),
             subtype: PSBT_OUT_TAPRET_PROOF,
-            key: vec![],
+            data: none!(),
         }
     }
 }
 
-impl ProprietaryKeyTapret for ProprietaryKey {}
+impl Psbt {
+    pub fn tapret_hosts(&self) -> impl Iterator<Item = &Output> {
+        self.outputs.iter().filter(|o| o.is_tapret_host())
+    }
+
+    pub fn tapret_hosts_mut(&mut self) -> impl Iterator<Item = &mut Output> {
+        self.outputs.iter_mut().filter(|o| o.is_tapret_host())
+    }
+}
 
 /// Errors processing tapret-related proprietary PSBT keys and their values.
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, Error, From)]
@@ -109,53 +119,43 @@ pub enum TapretKeyError {
     /// PSBT_OUT_TAPRET_HOST flag.
     TapretProhibited,
 
-    /// the provided tapret proof is invalid: it has a script longer than 64KiB.
-    InvalidProof,
-
     /// the provided output is not a taproot output and can't host a tapret
     /// commitment.
     NotTaprootOutput,
+
+    /// the output contains no valid tapret commitment.
+    NoCommitment,
+
+    /// the value of tapret commitment has invalid length.
+    InvalidCommitment,
+
+    /// Using non-empty taptree is not supported in RGB v0.10. Please update.
+    TapTreeNonEmpty,
+
+    /// taproot output doesn't specify internal key.
+    NoInternalKey,
 }
 
-pub trait OutputTapret {
-    fn is_tapret_host(&self) -> bool;
-    fn set_tapret_host(&mut self) -> Result<(), TapretKeyError>;
-    fn has_tapret_commitment(&self) -> bool;
-    fn tapret_commitment(&self) -> Option<mpc::Commitment>;
-    fn set_tapret_commitment(
-        &mut self,
-        commitment: mpc::Commitment,
-        proof: &TapretPathProof,
-    ) -> Result<(), TapretKeyError>;
-    fn has_tapret_proof(&self) -> bool;
-    fn tapret_proof(&self) -> Option<TapretPathProof>;
-}
-
-impl OutputTapret for Output {
+impl Output {
     /// Returns whether this output may contain tapret commitment. This is
     /// detected by the presence of [`PSBT_OUT_TAPRET_HOST`] key.
     #[inline]
-    fn is_tapret_host(&self) -> bool {
-        self.proprietary
-            .contains_key(&ProprietaryKey::tapret_host())
+    pub fn is_tapret_host(&self) -> bool {
+        self.has_proprietary(&PropKey::tapret_host()) && self.script.is_p2tr()
     }
 
-    /// Sets [`PSBT_OUT_TAPRET_HOST`] key.
+    /// Allows tapret commitments for this output. Returns whether tapret
+    /// commitments were enabled before.
     ///
     /// # Errors
     ///
     /// Errors with [`TapretKeyError::NotTaprootOutput`] if the output is not a
     /// taproot output.
-    fn set_tapret_host(&mut self) -> Result<(), TapretKeyError> {
-        // TODO: With new PSBT library check scriptPubkey directly
-        if self.tap_internal_key.is_none() {
+    pub fn set_tapret_host(&mut self) -> Result<bool, TapretKeyError> {
+        if !self.script.is_p2tr() {
             return Err(TapretKeyError::NotTaprootOutput);
         }
-
-        self.proprietary
-            .insert(ProprietaryKey::tapret_host(), vec![]);
-
-        Ok(())
+        Ok(self.push_proprietary(PropKey::tapret_host(), vec![]).is_err())
     }
 
     /// Detects presence of a valid [`PSBT_OUT_TAPRET_COMMITMENT`].
@@ -166,20 +166,30 @@ impl OutputTapret for Output {
     /// will error at deserialization and this function will return `false`
     /// only in cases when the output does not have
     /// `PSBT_OUT_TAPRET_COMMITMENT`.
-    fn has_tapret_commitment(&self) -> bool { self.tapret_commitment().is_some() }
+    pub fn has_tapret_commitment(&self) -> Result<bool, TapretKeyError> {
+        if !self.script.is_p2tr() {
+            return Err(TapretKeyError::NotTaprootOutput);
+        }
+        Ok(self.has_proprietary(&PropKey::tapret_commitment()))
+    }
 
     /// Returns valid tapret commitment from the [`PSBT_OUT_TAPRET_COMMITMENT`]
     /// key, if present. If the commitment is absent or invalid, returns
-    /// `None`.
+    /// [`TapretKeyError::NoCommitment`].
     ///
     /// We do not error on invalid commitments in order to support future update
     /// of this proprietary key to the standard one. In this case, the
     /// invalid commitments (having non-32 bytes) will be filtered at the
     /// moment of PSBT deserialization and this function will return `None`
     /// only in situations when the commitment is absent.
-    fn tapret_commitment(&self) -> Option<mpc::Commitment> {
-        let data = self.proprietary.get(&ProprietaryKey::tapret_commitment())?;
-        mpc::Commitment::from_slice(data)
+    pub fn tapret_commitment(&self) -> Result<mpc::Commitment, TapretKeyError> {
+        if !self.script.is_p2tr() {
+            return Err(TapretKeyError::NotTaprootOutput);
+        }
+        let data =
+            self.proprietary(&PropKey::opret_commitment()).ok_or(TapretKeyError::NoCommitment)?;
+        mpc::Commitment::copy_from_slice(data.as_slice())
+            .map_err(|_| TapretKeyError::InvalidCommitment)
     }
 
     /// Assigns value of the tapreturn commitment to this PSBT output, by
@@ -192,29 +202,39 @@ impl OutputTapret for Output {
     /// commitment is already present in the output, and with
     /// [`TapretKeyError::TapretProhibited`] if tapret commitments are not
     /// enabled for this output.
-    fn set_tapret_commitment(
+    pub fn tapret_commit(
         &mut self,
         commitment: mpc::Commitment,
-        proof: &TapretPathProof,
-    ) -> Result<(), TapretKeyError> {
+    ) -> Result<TapretProof, TapretKeyError> {
+        if !self.script.is_p2tr() {
+            return Err(TapretKeyError::NotTaprootOutput);
+        }
         if !self.is_tapret_host() {
             return Err(TapretKeyError::TapretProhibited);
         }
 
-        if self.has_tapret_commitment() {
-            return Err(TapretKeyError::OutputAlreadyHasCommitment);
+        // TODO: support non-empty tap trees
+        if self.tap_tree.is_some() {
+            return Err(TapretKeyError::TapTreeNonEmpty);
         }
+        let nonce = 0;
+        let tapret_commitment = &TapretCommitment::with(commitment, nonce);
+        let script_commitment = TapScript::commit(tapret_commitment);
+        let tap_tree = TapTree::with_single_leaf(script_commitment);
+        let internal_pk = self.tap_internal_key.ok_or(TapretKeyError::NoInternalKey)?;
+        let tapret_proof = TapretProof {
+            path_proof: TapretPathProof::root(nonce),
+            internal_pk: internal_pk.into(),
+        };
 
-        self.proprietary
-            .insert(ProprietaryKey::tapret_commitment(), commitment.to_vec());
+        self.push_proprietary(PropKey::tapret_commitment(), commitment)
+            .and_then(|_| self.push_proprietary(PropKey::tapret_proof(), &tapret_proof))
+            .map_err(|_| TapretKeyError::OutputAlreadyHasCommitment)?;
 
-        let val = proof
-            .to_strict_serialized::<U16>()
-            .map_err(|_| TapretKeyError::InvalidProof)?;
-        self.proprietary
-            .insert(ProprietaryKey::tapret_proof(), val.into_inner());
+        self.script = ScriptPubkey::p2tr(internal_pk, Some(tap_tree.merkle_root()));
+        self.tap_tree = Some(tap_tree);
 
-        Ok(())
+        Ok(tapret_proof)
     }
 
     /// Detects presence of a valid [`PSBT_OUT_TAPRET_PROOF`].
@@ -224,7 +244,7 @@ impl OutputTapret for Output {
     /// become a standard and non-custom key, PSBTs with invalid key values
     /// will error at deserialization and this function will return `false`
     /// only in cases when the output does not have `PSBT_OUT_TAPRET_PROOF`.
-    fn has_tapret_proof(&self) -> bool { self.tapret_proof().is_some() }
+    pub fn has_tapret_proof(&self) -> bool { self.tapret_proof().is_some() }
 
     /// Returns valid tapret commitment proof from the [`PSBT_OUT_TAPRET_PROOF`]
     /// key, if present. If the commitment is absent or invalid, returns `None`.
@@ -238,9 +258,16 @@ impl OutputTapret for Output {
     /// Function returns generic type since the real type will create dependency
     /// on `bp-dpc` crate, which will result in circular dependency with the
     /// current crate.
-    fn tapret_proof(&self) -> Option<TapretPathProof> {
-        let data = self.proprietary.get(&ProprietaryKey::tapret_proof())?;
+    pub fn tapret_proof(&self) -> Option<TapretPathProof> {
+        let data = self.proprietary(&PropKey::tapret_proof())?;
         let vec = Confined::try_from_iter(data.iter().copied()).ok()?;
         TapretPathProof::from_strict_serialized::<U16>(vec).ok()
+    }
+}
+
+impl From<&TapretProof> for ValueData {
+    fn from(proof: &TapretProof) -> Self {
+        let val = proof.to_strict_serialized::<U16>().expect("tapret proof longer than 64KB");
+        ByteStr::from(val).into()
     }
 }

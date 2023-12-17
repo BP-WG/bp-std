@@ -40,7 +40,24 @@ use crate::{
 };
 
 pub type KeyData = ByteStr;
-pub type ValueData = ByteStr;
+
+#[derive(Wrapper, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default, Debug, Display, From)]
+#[wrapper(Deref, Index, RangeOps, AsSlice, BorrowSlice, Hex)]
+#[display(LowerHex)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", transparent)
+)]
+pub struct ValueData(ByteStr);
+
+impl From<Vec<u8>> for ValueData {
+    fn from(vec: Vec<u8>) -> Self { ByteStr::from(vec).into() }
+}
+
+#[derive(Clone, Eq, PartialEq, Debug, Display, Error)]
+#[display("proprietary key '{0}' is already present")]
+pub struct KeyAlreadyPresent(PropKey);
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display)]
 #[display(lowercase)]
@@ -157,7 +174,7 @@ pub trait KeyMap: Sized {
             }
         }
 
-        for (key_type, submap) in self.unknown() {
+        for (key_type, submap) in self._unknown_map() {
             for (key_data, value_data) in submap {
                 let pair = KeyPair::new(
                     Self::Keys::unknown(*key_type),
@@ -168,7 +185,7 @@ pub trait KeyMap: Sized {
             }
         }
 
-        for (key_data, value_data) in self.proprietary() {
+        for (key_data, value_data) in self._proprietary_map() {
             let pair = KeyPair::new(Self::PROPRIETARY_TYPE, key_data, RawBytes(value_data));
             counter += pair.encode(writer)?;
         }
@@ -201,10 +218,35 @@ pub trait KeyMap: Sized {
         Ok(())
     }
 
-    fn proprietary(&self) -> &IndexMap<PropKey, ValueData>;
-    fn unknown(&self) -> &IndexMap<u8, IndexMap<KeyData, ValueData>>;
-    fn proprietary_mut(&mut self) -> &mut IndexMap<PropKey, ValueData>;
-    fn unknown_mut(&mut self) -> &mut IndexMap<u8, IndexMap<KeyData, ValueData>>;
+    #[doc(hidden)]
+    fn _proprietary_map(&self) -> &IndexMap<PropKey, ValueData>;
+    #[doc(hidden)]
+    fn _proprietary_map_mut(&mut self) -> &mut IndexMap<PropKey, ValueData>;
+
+    fn has_proprietary(&self, key: &PropKey) -> bool { self.proprietary(&key).is_some() }
+    fn proprietary(&self, key: &PropKey) -> Option<&ValueData> { self._proprietary_map().get(key) }
+    fn proprietary_mut(&mut self, key: &PropKey) -> Option<&mut ValueData> {
+        self._proprietary_map_mut().get_mut(key)
+    }
+    fn push_proprietary(
+        &mut self,
+        key: PropKey,
+        value: impl Into<ValueData>,
+    ) -> Result<(), KeyAlreadyPresent> {
+        if self.has_proprietary(&key) {
+            return Err(KeyAlreadyPresent(key));
+        }
+        self._proprietary_map_mut().insert(key, value.into());
+        Ok(())
+    }
+    fn remove_proprietary(&mut self, key: &PropKey) -> Option<ValueData> {
+        self._proprietary_map_mut().remove(key)
+    }
+
+    #[doc(hidden)]
+    fn _unknown_map(&self) -> &IndexMap<u8, IndexMap<KeyData, ValueData>>;
+    #[doc(hidden)]
+    fn _unknown_map_mut(&mut self) -> &mut IndexMap<u8, IndexMap<KeyData, ValueData>>;
 
     #[allow(clippy::type_complexity)]
     fn retrieve_key_pair<'enc>(
@@ -227,11 +269,11 @@ pub trait KeyMap: Sized {
     ) -> Result<(), PsbtError>;
 
     fn insert_proprietary(&mut self, prop_key: PropKey, value_data: ValueData) {
-        self.proprietary_mut().insert(prop_key, value_data);
+        self._proprietary_map_mut().insert(prop_key, value_data);
     }
 
     fn insert_unknown(&mut self, key_type: u8, key_data: KeyData, value_data: ValueData) {
-        self.unknown_mut().entry(key_type).or_default().insert(key_data, value_data);
+        self._unknown_map_mut().entry(key_type).or_default().insert(key_data, value_data);
     }
 }
 
@@ -269,10 +311,12 @@ impl KeyMap for Psbt {
     type Keys = GlobalKey;
     const PROPRIETARY_TYPE: Self::Keys = GlobalKey::Proprietary;
 
-    fn proprietary(&self) -> &IndexMap<PropKey, ValueData> { &self.proprietary }
-    fn unknown(&self) -> &IndexMap<u8, IndexMap<KeyData, ValueData>> { &self.unknown }
-    fn proprietary_mut(&mut self) -> &mut IndexMap<PropKey, ValueData> { &mut self.proprietary }
-    fn unknown_mut(&mut self) -> &mut IndexMap<u8, IndexMap<KeyData, ValueData>> {
+    fn _proprietary_map(&self) -> &IndexMap<PropKey, ValueData> { &self.proprietary }
+    fn _unknown_map(&self) -> &IndexMap<u8, IndexMap<KeyData, ValueData>> { &self.unknown }
+    fn _proprietary_map_mut(&mut self) -> &mut IndexMap<PropKey, ValueData> {
+        &mut self.proprietary
+    }
+    fn _unknown_map_mut(&mut self) -> &mut IndexMap<u8, IndexMap<KeyData, ValueData>> {
         &mut self.unknown
     }
 
@@ -356,10 +400,12 @@ impl KeyMap for Input {
     type Keys = InputKey;
     const PROPRIETARY_TYPE: Self::Keys = InputKey::Proprietary;
 
-    fn proprietary(&self) -> &IndexMap<PropKey, ValueData> { &self.proprietary }
-    fn unknown(&self) -> &IndexMap<u8, IndexMap<KeyData, ValueData>> { &self.unknown }
-    fn proprietary_mut(&mut self) -> &mut IndexMap<PropKey, ValueData> { &mut self.proprietary }
-    fn unknown_mut(&mut self) -> &mut IndexMap<u8, IndexMap<KeyData, ValueData>> {
+    fn _proprietary_map(&self) -> &IndexMap<PropKey, ValueData> { &self.proprietary }
+    fn _unknown_map(&self) -> &IndexMap<u8, IndexMap<KeyData, ValueData>> { &self.unknown }
+    fn _proprietary_map_mut(&mut self) -> &mut IndexMap<PropKey, ValueData> {
+        &mut self.proprietary
+    }
+    fn _unknown_map_mut(&mut self) -> &mut IndexMap<u8, IndexMap<KeyData, ValueData>> {
         &mut self.unknown
     }
 
@@ -500,19 +546,19 @@ impl KeyMap for Input {
             }
             InputKey::Ripemd160 => {
                 let hash = Bytes20::deserialize(key_data)?;
-                self.ripemd160.insert(hash, value_data);
+                self.ripemd160.insert(hash, value_data.into());
             }
             InputKey::Sha256 => {
                 let hash = Bytes32::deserialize(key_data)?;
-                self.sha256.insert(hash, value_data);
+                self.sha256.insert(hash, value_data.into());
             }
             InputKey::Hash160 => {
                 let hash = Bytes20::deserialize(key_data)?;
-                self.hash160.insert(hash, value_data);
+                self.hash160.insert(hash, value_data.into());
             }
             InputKey::Hash256 => {
                 let hash = Bytes32::deserialize(key_data)?;
-                self.hash256.insert(hash, value_data);
+                self.hash256.insert(hash, value_data.into());
             }
             InputKey::TapScriptSig => {
                 let (internal_pk, leaf_hash) = <(InternalPk, Bytes32)>::deserialize(key_data)?;
@@ -540,10 +586,13 @@ impl KeyMap for Output {
     type Keys = OutputKey;
     const PROPRIETARY_TYPE: Self::Keys = OutputKey::Proprietary;
 
-    fn proprietary(&self) -> &IndexMap<PropKey, ValueData> { &self.proprietary }
-    fn unknown(&self) -> &IndexMap<u8, IndexMap<KeyData, ValueData>> { &self.unknown }
-    fn proprietary_mut(&mut self) -> &mut IndexMap<PropKey, ValueData> { &mut self.proprietary }
-    fn unknown_mut(&mut self) -> &mut IndexMap<u8, IndexMap<KeyData, ValueData>> {
+    fn _proprietary_map(&self) -> &IndexMap<PropKey, ValueData> { &self.proprietary }
+    fn _proprietary_map_mut(&mut self) -> &mut IndexMap<PropKey, ValueData> {
+        &mut self.proprietary
+    }
+
+    fn _unknown_map(&self) -> &IndexMap<u8, IndexMap<KeyData, ValueData>> { &self.unknown }
+    fn _unknown_map_mut(&mut self) -> &mut IndexMap<u8, IndexMap<KeyData, ValueData>> {
         &mut self.unknown
     }
 

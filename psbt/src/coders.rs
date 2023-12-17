@@ -351,7 +351,7 @@ impl Decode for PropKey {
         Ok(PropKey {
             identifier,
             subtype,
-            data,
+            data: data.into(),
         })
     }
 }
