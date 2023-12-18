@@ -57,7 +57,7 @@ impl From<Vec<u8>> for ValueData {
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error)]
 #[display("proprietary key '{0}' is already present")]
-pub struct KeyAlreadyPresent(PropKey);
+pub struct KeyAlreadyPresent(pub PropKey);
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display)]
 #[display(lowercase)]
