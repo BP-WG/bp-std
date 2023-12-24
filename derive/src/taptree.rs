@@ -140,8 +140,11 @@ impl TapTree {
     }
 
     pub fn merkle_root(&self) -> TapNodeHash {
-        // TODO: implement TapTree::merkle_root
-        todo!()
+        if self.0.len() == 1 {
+            TapLeafHash::with_leaf_script(&self.0[0].script).into()
+        } else {
+            todo!("implement TapTree::merkle_root for trees with more than one leaf")
+        }
     }
 
     pub fn into_vec(self) -> Vec<LeafInfo> { self.0 }
