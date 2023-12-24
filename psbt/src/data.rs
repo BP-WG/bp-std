@@ -449,6 +449,19 @@ impl Psbt {
             .expect("PSBT outputs are expected to be modifiable")
     }
 
+    pub fn sort_outputs_by<K: Ord>(
+        &mut self,
+        f: impl FnMut(&Output) -> K,
+    ) -> Result<(), Unmodifiable> {
+        if !self.are_outputs_modifiable() {
+            return Err(Unmodifiable);
+        }
+
+        self.outputs.sort_by_key(f);
+
+        Ok(())
+    }
+
     pub fn complete_construction(&mut self) {
         // TODO: Check all inputs have witness_utxo or non_witness_tx
         self.tx_modifiable = Some(ModifiableFlags::unmodifiable())

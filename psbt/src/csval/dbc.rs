@@ -29,7 +29,7 @@ use crate::{MpcPsbtError, OpretKeyError, Output, Psbt, TapretKeyError};
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum DbcPsbtError {
-    /// the first output valid DBC commitment is not marked as a commitment host.
+    /// the first output valid for a DBC commitment is not marked as a commitment host.
     NoHostOutput,
 
     /// the transactions contains no output valid for {0} DBC commitment.
