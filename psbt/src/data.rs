@@ -71,14 +71,19 @@ impl Prevout {
 /// [`Tx`]: bpstd::Tx
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 #[cfg_attr(
+    feature = "strict_encoding",
+    derive(StrictType, StrictDumb, StrictEncode, StrictDecode),
+    strict_type(lib = crate::LIB_NAME_PSBT)
+)]
+#[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct UnsignedTx {
     pub version: TxVer,
-    pub inputs: Vec<UnsignedTxIn>,
-    pub outputs: Vec<TxOut>,
+    pub inputs: VarIntArray<UnsignedTxIn>,
+    pub outputs: VarIntArray<TxOut>,
     pub lock_time: LockTime,
 }
 
@@ -95,7 +100,7 @@ impl From<UnsignedTx> for Tx {
             inputs: VarIntArray::from_collection_unsafe(
                 unsigned_tx.inputs.into_iter().map(TxIn::from).collect(),
             ),
-            outputs: VarIntArray::from_collection_unsafe(unsigned_tx.outputs),
+            outputs: unsigned_tx.outputs,
             lock_time: unsigned_tx.lock_time,
         }
     }
@@ -106,8 +111,10 @@ impl UnsignedTx {
     pub fn with_sigs_removed(tx: Tx) -> UnsignedTx {
         UnsignedTx {
             version: tx.version,
-            inputs: tx.inputs.into_iter().map(UnsignedTxIn::with_sigs_removed).collect(),
-            outputs: tx.outputs.into_inner(),
+            inputs: VarIntArray::from_collection_unsafe(
+                tx.inputs.into_iter().map(UnsignedTxIn::with_sigs_removed).collect(),
+            ),
+            outputs: tx.outputs,
             lock_time: tx.lock_time,
         }
     }
@@ -119,13 +126,18 @@ impl UnsignedTx {
             version: self.version,
             inputs: VarIntArray::try_from_iter(self.inputs.into_iter().map(UnsignedTxIn::finalize))
                 .expect("varint"),
-            outputs: VarIntArray::from_collection_unsafe(self.outputs),
+            outputs: self.outputs,
             lock_time: self.lock_time,
         }
     }
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[cfg_attr(
+    feature = "strict_encoding",
+    derive(StrictType, StrictDumb, StrictEncode, StrictDecode),
+    strict_type(lib = crate::LIB_NAME_PSBT)
+)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
@@ -251,8 +263,12 @@ impl Psbt {
     pub fn to_unsigned_tx(&self) -> UnsignedTx {
         UnsignedTx {
             version: self.tx_version,
-            inputs: self.inputs().map(Input::to_unsigned_txin).collect(),
-            outputs: self.outputs().map(Output::to_txout).collect(),
+            inputs: VarIntArray::from_collection_unsafe(
+                self.inputs().map(Input::to_unsigned_txin).collect(),
+            ),
+            outputs: VarIntArray::from_collection_unsafe(
+                self.outputs().map(Output::to_txout).collect(),
+            ),
             lock_time: self.lock_time(),
         }
     }

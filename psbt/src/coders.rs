@@ -25,6 +25,7 @@ use std::string::FromUtf8Error;
 
 use amplify::num::u7;
 use amplify::{confinement, Array, Bytes, Bytes32, Bytes4, IoError, Wrapper};
+use bp::VarIntArray;
 use derive::{
     Bip340Sig, ByteStr, CompressedPk, ConsensusDataError, ConsensusDecode, ConsensusDecodeError,
     ConsensusEncode, ControlBlock, DerivationPath, Idx, InternalPk, InvalidLeafVer, InvalidTree,
@@ -638,8 +639,8 @@ impl Decode for UnsignedTx {
 
         Ok(UnsignedTx {
             version,
-            inputs,
-            outputs,
+            inputs: VarIntArray::try_from(inputs)?,
+            outputs: VarIntArray::try_from(outputs)?,
             lock_time,
         })
     }

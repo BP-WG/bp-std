@@ -22,6 +22,9 @@
 
 #[macro_use]
 extern crate amplify;
+#[cfg(feature = "strict_encoding")]
+#[macro_use]
+extern crate strict_encoding;
 #[cfg(feature = "serde")]
 #[macro_use]
 extern crate serde_crate as serde;
@@ -41,6 +44,9 @@ pub use data::{
 };
 pub use keys::{GlobalKey, InputKey, KeyPair, KeyType, OutputKey, PropKey};
 pub use maps::{KeyAlreadyPresent, KeyData, KeyMap, Map, MapName, ValueData};
+
+#[cfg(feature = "strict_encoding")]
+pub const LIB_NAME_PSBT: &str = "Psbt";
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error)]
 #[display("unsupported version of PSBT v{0}")]

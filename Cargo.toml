@@ -57,7 +57,8 @@ serde_crate = { workspace = true, optional = true }
 
 [features]
 default = []
-all = ["client-side-validation", "serde"]
+all = ["client-side-validation", "strict_encoding", "serde"]
+strict_encoding = ["psbt/strict_encoding"]
 client-side-validation = ["bp-core", "psbt/client-side-validation"]
 serde = ["serde_crate", "bp-consensus/serde", "bp-invoice/serde", "bp-derive/serde", "descriptors/serde", "psbt/serde"]
 
