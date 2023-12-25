@@ -51,7 +51,7 @@ pub const PSBT_IN_TAPRET_TWEAK: u64 = 0x00;
 /// commitment.
 pub const PSBT_OUT_TAPRET_HOST: u64 = 0x00;
 /// Proprietary key subtype holding 32-byte commitment which will be put into
-/// tapreturn tweak.
+/// tapret tweak.
 pub const PSBT_OUT_TAPRET_COMMITMENT: u64 = 0x01;
 /// Proprietary key subtype holding merkle branch path to tapreturn tweak inside
 /// the taptree structure.

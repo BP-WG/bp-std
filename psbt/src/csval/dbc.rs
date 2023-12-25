@@ -56,6 +56,20 @@ pub enum DbcPsbtError {
 }
 
 impl Psbt {
+    pub fn dbc_output<D: DbcPsbtProof>(&mut self) -> Option<&Output> {
+        self.outputs().find(|output| {
+            (output.script.is_p2tr() && D::METHOD == Method::TapretFirst)
+                || (output.script.is_op_return() && D::METHOD == Method::OpretFirst)
+        })
+    }
+
+    pub fn dbc_output_mut<D: DbcPsbtProof>(&mut self) -> Option<&mut Output> {
+        self.outputs_mut().find(|output| {
+            (output.script.is_p2tr() && D::METHOD == Method::TapretFirst)
+                || (output.script.is_op_return() && D::METHOD == Method::OpretFirst)
+        })
+    }
+
     pub fn dbc_commit<D: DbcPsbtProof>(
         &mut self,
     ) -> Result<Anchor<mpc::MerkleBlock, D>, DbcPsbtError> {
@@ -63,13 +77,7 @@ impl Psbt {
             return Err(DbcPsbtError::TxOutputsModifiable);
         }
 
-        let output = self
-            .outputs_mut()
-            .find(|output| {
-                (output.script.is_p2tr() && D::METHOD == Method::TapretFirst)
-                    || (output.script.is_op_return() && D::METHOD == Method::OpretFirst)
-            })
-            .ok_or(DbcPsbtError::NoProperOutput(D::METHOD))?;
+        let output = self.dbc_output_mut::<D>().ok_or(DbcPsbtError::NoProperOutput(D::METHOD))?;
 
         let (mpc_proof, dbc_proof) = D::dbc_commit(output)?;
 
@@ -94,6 +102,7 @@ impl DbcPsbtProof for TapretProof {
             return Err(DbcPsbtError::NoHostOutput);
         }
         let tapret_proof = output.tapret_commit(commitment)?;
+
         Ok((mpc_proof, tapret_proof))
     }
 }
