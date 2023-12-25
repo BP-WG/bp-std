@@ -129,7 +129,8 @@ pub enum TapretKeyError {
     /// the value of tapret commitment has invalid length.
     InvalidCommitment,
 
-    /// Using non-empty taptree is not supported in RGB v0.10. Please update.
+    /// use of taproot script descriptors is not yet supported. You may also check the latest
+    /// version of the software which may already support this feature.
     TapTreeNonEmpty,
 
     /// taproot output doesn't specify internal key.
