@@ -20,6 +20,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::BTreeSet;
+
 use amplify::num::u5;
 use amplify::{Bytes20, Bytes32};
 use derive::{
@@ -871,6 +873,26 @@ impl Output {
 
     #[inline]
     pub fn index(&self) -> usize { self.index }
+
+    pub fn terminal_derivation(&self) -> Option<Terminal> {
+        if self.bip32_derivation.is_empty() && self.tap_bip32_derivation.is_empty() {
+            return None;
+        }
+        let terminal = self
+            .bip32_derivation
+            .values()
+            .flat_map(|origin| origin.derivation().terminal())
+            .chain(
+                self.tap_bip32_derivation
+                    .values()
+                    .flat_map(|derivation| derivation.origin.derivation().terminal()),
+            )
+            .collect::<BTreeSet<_>>();
+        if terminal.len() != 1 {
+            return None;
+        }
+        return terminal.first().copied();
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]

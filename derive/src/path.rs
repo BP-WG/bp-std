@@ -29,7 +29,7 @@ use std::collections::BTreeSet;
 use amplify::confinement;
 use amplify::confinement::Confined;
 
-use crate::{DerivationIndex, Idx, IdxBase, IndexParseError, NormalIndex};
+use crate::{DerivationIndex, Idx, IdxBase, IndexParseError, NormalIndex, Terminal};
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error)]
 #[display(doc_comments)]
@@ -211,7 +211,22 @@ impl<I> FromIterator<I> for DerivationPath<I> {
     fn from_iter<T: IntoIterator<Item = I>>(iter: T) -> Self { Self(iter.into_iter().collect()) }
 }
 
-impl<I> DerivationPath<I> {
+impl<I: Idx> DerivationPath<I> {
     /// Constructs empty derivation path.
     pub fn new() -> Self { Self(vec![]) }
+
+    pub fn terminal(&self) -> Option<Terminal> {
+        let mut iter = self.iter().rev();
+        let index = iter.next()?;
+        if index.is_hardened() {
+            return None;
+        }
+        let index = NormalIndex::normal(index.child_number() as u16);
+        let keychain = iter.next()?;
+        if keychain.is_hardened() {
+            return None;
+        }
+        let keychain = u8::try_from(keychain.child_number()).ok()?;
+        Some(Terminal::new(keychain, index))
+    }
 }
