@@ -27,4 +27,4 @@ serde_crate = { workspace = true, optional = true }
 [features]
 default = []
 all = []
-serde = ["serde_crate", "bp-consensus/serde"]
+serde = ["serde_crate", "bp-consensus/serde", "bp-invoice/serde"]
