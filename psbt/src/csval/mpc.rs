@@ -207,7 +207,7 @@ impl Output {
         let key = PropKey::mpc_message(protocol_id);
         let val = message.to_vec();
         if let Some(v) = self.proprietary(&key) {
-            if v.as_slice() != &val {
+            if v.as_slice() != val {
                 return Err(MpcPsbtError::InvalidKeyValue);
             }
             return Ok(false);
@@ -234,7 +234,7 @@ impl Output {
         let key = PropKey::mpc_entropy();
         let val = entropy.to_le_bytes().to_vec();
         if let Some(v) = self.proprietary.get(&key) {
-            if v.as_slice() != &val {
+            if v.as_slice() != val {
                 return Err(MpcPsbtError::InvalidKeyValue);
             }
             return Ok(false);

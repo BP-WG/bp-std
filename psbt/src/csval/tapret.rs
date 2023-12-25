@@ -227,7 +227,7 @@ impl Output {
         let internal_pk = self.tap_internal_key.ok_or(TapretKeyError::NoInternalKey)?;
         let tapret_proof = TapretProof {
             path_proof: TapretPathProof::root(nonce),
-            internal_pk: internal_pk.into(),
+            internal_pk,
         };
 
         self.push_proprietary(PropKey::tapret_commitment(), tapret_commitment)

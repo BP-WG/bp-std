@@ -223,7 +223,7 @@ pub trait KeyMap: Sized {
     #[doc(hidden)]
     fn _proprietary_map_mut(&mut self) -> &mut IndexMap<PropKey, ValueData>;
 
-    fn has_proprietary(&self, key: &PropKey) -> bool { self.proprietary(&key).is_some() }
+    fn has_proprietary(&self, key: &PropKey) -> bool { self.proprietary(key).is_some() }
     fn proprietary(&self, key: &PropKey) -> Option<&ValueData> { self._proprietary_map().get(key) }
     fn proprietary_mut(&mut self, key: &PropKey) -> Option<&mut ValueData> {
         self._proprietary_map_mut().get_mut(key)
