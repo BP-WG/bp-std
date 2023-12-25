@@ -31,43 +31,54 @@
 //! opret commitment and populating PSBT with the data related to opret
 //! commitments.
 
-use bitcoin::psbt::raw::ProprietaryKey;
-use bitcoin::psbt::Output;
+use bp::dbc::opret::OpretProof;
+use bp::opcodes::{OP_PUSHBYTES_0, OP_PUSHBYTES_32, OP_RETURN};
+use bp::ScriptPubkey;
 use commit_verify::mpc;
 
+use crate::{KeyMap, Output, PropKey, Psbt, ValueData};
+
 /// PSBT proprietary key prefix used for opret commitment.
-pub const PSBT_OPRET_PREFIX: &[u8] = b"OPRET";
+pub const PSBT_OPRET_PREFIX: &str = "OPRET";
 
 /// Proprietary key subtype marking PSBT outputs which may host opret
 /// commitment.
-pub const PSBT_OUT_OPRET_HOST: u8 = 0x00;
+pub const PSBT_OUT_OPRET_HOST: u64 = 0x00;
 /// Proprietary key subtype holding 32-byte commitment which will be put into
 /// opret data.
-pub const PSBT_OUT_OPRET_COMMITMENT: u8 = 0x01;
+pub const PSBT_OUT_OPRET_COMMITMENT: u64 = 0x01;
 
 /// Extension trait for static functions returning opret-related proprietary
 /// keys.
-pub trait ProprietaryKeyOpret {
+impl PropKey {
     /// Constructs [`PSBT_OUT_OPRET_HOST`] proprietary key.
-    fn opret_host() -> ProprietaryKey {
-        ProprietaryKey {
-            prefix: PSBT_OPRET_PREFIX.to_vec(),
+    pub fn opret_host() -> PropKey {
+        PropKey {
+            identifier: PSBT_OPRET_PREFIX.to_owned(),
             subtype: PSBT_OUT_OPRET_HOST,
-            key: vec![],
+            data: none!(),
         }
     }
 
     /// Constructs [`PSBT_OUT_OPRET_COMMITMENT`] proprietary key.
-    fn opret_commitment() -> ProprietaryKey {
-        ProprietaryKey {
-            prefix: PSBT_OPRET_PREFIX.to_vec(),
+    pub fn opret_commitment() -> PropKey {
+        PropKey {
+            identifier: PSBT_OPRET_PREFIX.to_owned(),
             subtype: PSBT_OUT_OPRET_COMMITMENT,
-            key: vec![],
+            data: none!(),
         }
     }
 }
 
-impl ProprietaryKeyOpret for ProprietaryKey {}
+impl Psbt {
+    pub fn opret_hosts(&self) -> impl Iterator<Item = &Output> {
+        self.outputs.iter().filter(|o| o.is_opret_host())
+    }
+
+    pub fn opret_hosts_mut(&mut self) -> impl Iterator<Item = &mut Output> {
+        self.outputs.iter_mut().filter(|o| o.is_opret_host())
+    }
+}
 
 /// Errors processing opret-related proprietary PSBT keys and their values.
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, Error)]
@@ -84,23 +95,33 @@ pub enum OpretKeyError {
     /// the output is not marked to host opret commitments. Please first set
     /// PSBT_OUT_OPRET_HOST flag.
     OpretProhibited,
+
+    /// the output contains no valid opret commitment.
+    NoCommitment,
+
+    /// the value of opret commitment has invalid length.
+    InvalidCommitment,
+
+    /// the script format doesn't match requirements for opret commitment.
+    InvalidOpReturnScript,
 }
 
-pub trait OutputOpret {
-    fn is_opret_host(&self) -> bool;
-    fn set_opret_host(&mut self) -> Result<bool, OpretKeyError>;
-    fn has_opret_commitment(&self) -> Result<bool, OpretKeyError>;
-    fn opret_commitment(&self) -> Option<mpc::Commitment>;
-    fn set_opret_commitment(&mut self, commitment: mpc::Commitment) -> Result<(), OpretKeyError>;
-}
+impl Output {
+    fn is_valid_opret_script(&self) -> bool {
+        matches!(&self.script.as_slice(), &[] | &[OP_RETURN] | &[OP_RETURN, OP_PUSHBYTES_0])
+    }
+    fn has_final_opret_script(&self, data: impl AsRef<[u8]>) -> bool {
+        self.script.len() == 34
+            && self.script[0] == OP_RETURN
+            && self.script[1] == OP_PUSHBYTES_32
+            && &self.script[2..] == data.as_ref()
+    }
 
-impl OutputOpret for Output {
     /// Returns whether this output may contain opret commitment. This is
     /// detected by the presence of [`PSBT_OUT_OPRET_HOST`] key.
     #[inline]
-    fn is_opret_host(&self) -> bool {
-        // TODO: Check that output is OP_RETURN
-        self.proprietary.contains_key(&ProprietaryKey::opret_host()) // && self.script.is_op_return()
+    pub fn is_opret_host(&self) -> bool {
+        self.has_proprietary(&PropKey::opret_host()) && self.is_valid_opret_script()
     }
 
     /// Allows opret commitments for this output. Returns whether opret
@@ -110,15 +131,11 @@ impl OutputOpret for Output {
     ///
     /// If output script is not OP_RETURN script
     #[inline]
-    fn set_opret_host(&mut self) -> Result<bool, OpretKeyError> {
-        // TODO: Check that output is OP_RETURN
-        /* if !self.script.is_op_return() {
+    pub fn set_opret_host(&mut self) -> Result<bool, OpretKeyError> {
+        if !self.is_valid_opret_script() {
             return Err(OpretKeyError::NonOpReturnOutput);
-        } */
-        Ok(self
-            .proprietary
-            .insert(ProprietaryKey::opret_host(), vec![])
-            .is_some())
+        }
+        Ok(self.push_proprietary(PropKey::opret_host(), vec![]).is_err())
     }
 
     /// Detects presence of a valid [`PSBT_OUT_OPRET_COMMITMENT`].
@@ -133,20 +150,22 @@ impl OutputOpret for Output {
     /// # Errors
     ///
     /// If output script is not OP_RETURN script
-    fn has_opret_commitment(&self) -> Result<bool, OpretKeyError> {
-        // TODO: Check that output is OP_RETURN
-        /*
+    pub fn has_opret_commitment(&self) -> Result<bool, OpretKeyError> {
         if !self.script.is_op_return() {
             return Err(OpretKeyError::NonOpReturnOutput);
-        }*/
-        Ok(self
-            .proprietary
-            .contains_key(&ProprietaryKey::opret_commitment()))
+        }
+        if let Some(data) = self.proprietary(&PropKey::opret_commitment()) {
+            if !self.has_final_opret_script(data) {
+                return Err(OpretKeyError::InvalidOpReturnScript);
+            }
+            return Ok(true);
+        }
+        Ok(false)
     }
 
     /// Returns valid opret commitment from the [`PSBT_OUT_OPRET_COMMITMENT`]
     /// key, if present. If the commitment is absent or invalid, returns
-    /// `None`.
+    /// [`OpretKeyError::NoCommitment`].
     ///
     /// We do not error on invalid commitments in order to support future update
     /// of this proprietary key to the standard one. In this case, the
@@ -156,19 +175,23 @@ impl OutputOpret for Output {
     ///
     /// # Errors
     ///
-    /// If output script is not OP_RETURN script
-    fn opret_commitment(&self) -> Option<mpc::Commitment> {
-        // TODO: Check that output is OP_RETURN
-        /*if !self.script.is_op_return() {
+    /// If output script is not a valid opret host script.
+    pub fn opret_commitment(&self) -> Result<mpc::Commitment, OpretKeyError> {
+        if !self.has_opret_commitment()? {
             return Err(OpretKeyError::NonOpReturnOutput);
-        }*/
-        let data = self.proprietary.get(&ProprietaryKey::opret_commitment())?;
-        mpc::Commitment::from_slice(data)
+        }
+        let data =
+            self.proprietary(&PropKey::opret_commitment()).ok_or(OpretKeyError::NoCommitment)?;
+        mpc::Commitment::copy_from_slice(data.as_slice())
+            .map_err(|_| OpretKeyError::InvalidCommitment)
     }
 
     /// Assigns value of the opreturn commitment to this PSBT output, by
     /// adding [`PSBT_OUT_OPRET_COMMITMENT`] proprietary key containing the
-    /// 32-byte commitment as its value.
+    /// 32-byte commitment as its value. Also modifies the output script and removes
+    /// [`PSBT_OUT_OPRET_HOST`] key.
+    ///
+    /// Opret commitment can be set only once.
     ///
     /// Errors with [`OpretKeyError::OutputAlreadyHasCommitment`] if the
     /// commitment is already present in the output.
@@ -177,18 +200,19 @@ impl OutputOpret for Output {
     ///
     /// If output script is not OP_RETURN script or opret commitments are not
     /// enabled for this output.
-    fn set_opret_commitment(&mut self, commitment: mpc::Commitment) -> Result<(), OpretKeyError> {
+    pub fn opret_commit(&mut self, commitment: mpc::Commitment) -> Result<(), OpretKeyError> {
         if !self.is_opret_host() {
             return Err(OpretKeyError::OpretProhibited);
         }
 
-        if self.has_opret_commitment()? {
-            return Err(OpretKeyError::OutputAlreadyHasCommitment);
-        }
-
-        self.proprietary
-            .insert(ProprietaryKey::opret_commitment(), commitment.to_vec());
-
+        self.script = ScriptPubkey::op_return(&commitment.to_byte_array());
+        self.push_proprietary(PropKey::opret_commitment(), commitment)
+            .map_err(|_| OpretKeyError::OutputAlreadyHasCommitment)?;
+        self.remove_proprietary(&PropKey::opret_host());
         Ok(())
     }
+}
+
+impl From<&OpretProof> for ValueData {
+    fn from(_: &OpretProof) -> Self { ValueData::default() }
 }

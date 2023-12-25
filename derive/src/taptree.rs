@@ -28,7 +28,7 @@ use bc::{
     ControlBlock, InternalPk, LeafScript, OutputPk, Parity, TapLeafHash, TapMerklePath,
     TapNodeHash, TapScript,
 };
-use commit_verify::mpc::MerkleBuoy;
+use commit_verify::merkle::MerkleBuoy;
 
 use crate::{KeyOrigin, Terminal, XpubOrigin};
 
@@ -63,6 +63,14 @@ pub struct TapTreeBuilder {
 
 impl TapTreeBuilder {
     pub fn new() -> Self { Self::default() }
+
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            leafs: Vec::with_capacity(capacity),
+            buoy: zero!(),
+            finalized: false,
+        }
+    }
 
     pub fn is_finalized(&self) -> bool { self.finalized }
 
@@ -112,6 +120,13 @@ impl<'a> IntoIterator for &'a TapTree {
 }
 
 impl TapTree {
+    pub fn with_single_leaf(leaf: impl Into<LeafScript>) -> TapTree {
+        Self(vec![LeafInfo {
+            depth: u7::ZERO,
+            script: leaf.into(),
+        }])
+    }
+
     pub fn from_leafs(leafs: impl IntoIterator<Item = LeafInfo>) -> Result<Self, InvalidTree> {
         let mut builder = TapTreeBuilder::new();
         for leaf in leafs {
@@ -125,8 +140,11 @@ impl TapTree {
     }
 
     pub fn merkle_root(&self) -> TapNodeHash {
-        // TODO: implement TapTree::merkle_root
-        todo!()
+        if self.0.len() == 1 {
+            TapLeafHash::with_leaf_script(&self.0[0].script).into()
+        } else {
+            todo!("implement TapTree::merkle_root for trees with more than one leaf")
+        }
     }
 
     pub fn into_vec(self) -> Vec<LeafInfo> { self.0 }

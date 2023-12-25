@@ -23,16 +23,13 @@
 #[macro_use]
 extern crate amplify;
 #[cfg(feature = "serde")]
-#[macro_use]
 extern crate serde_crate as serde;
 
-mod factory;
-mod descriptor;
-mod multisig;
-mod segwit;
-mod taproot;
+pub mod base58;
+mod address;
+mod network;
 
-pub use descriptor::{Descriptor, SpkClass, StdDescr};
-pub use factory::AddressFactory;
-pub use segwit::Wpkh;
-pub use taproot::TrKey;
+pub use address::{
+    Address, AddressError, AddressNetwork, AddressParseError, AddressPayload, AddressType,
+};
+pub use network::{Network, UnknownNetwork};

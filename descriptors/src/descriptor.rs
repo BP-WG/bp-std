@@ -23,13 +23,37 @@
 use std::collections::BTreeSet;
 use std::{iter, vec};
 
-use bpstd::{
+use derive::{
     CompressedPk, Derive, DeriveCompr, DeriveScripts, DeriveSet, DeriveXOnly, DerivedScript,
-    KeyOrigin, Keychain, NormalIndex, TapDerivation, Terminal, XOnlyPk, XpubDerivable, XpubSpec,
+    KeyOrigin, Keychain, NormalIndex, Sats, TapDerivation, Terminal, XOnlyPk, XpubDerivable,
+    XpubSpec,
 };
 use indexmap::IndexMap;
 
 use crate::{TrKey, Wpkh};
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
+#[display(lowercase)]
+pub enum SpkClass {
+    Bare,
+    P2pkh,
+    P2sh,
+    P2wpkh,
+    P2wsh,
+    P2tr,
+}
+
+impl SpkClass {
+    pub const fn dust_limit(self) -> Sats {
+        match self {
+            SpkClass::Bare => Sats(0),
+            SpkClass::P2pkh => Sats(546),
+            SpkClass::P2sh => Sats(540),
+            SpkClass::P2wpkh => Sats(294),
+            SpkClass::P2wsh | SpkClass::P2tr => Sats(330),
+        }
+    }
+}
 
 pub trait Descriptor<K = XpubDerivable, V = ()>: DeriveScripts {
     type KeyIter<'k>: Iterator<Item = &'k K>
@@ -44,6 +68,8 @@ pub trait Descriptor<K = XpubDerivable, V = ()>: DeriveScripts {
 
     type XpubIter<'x>: Iterator<Item = &'x XpubSpec>
     where Self: 'x;
+
+    fn class(&self) -> SpkClass;
 
     fn keys(&self) -> Self::KeyIter<'_>;
     fn vars(&self) -> Self::VarIter<'_>;
@@ -172,6 +198,13 @@ where Self: Derive<DerivedScript>
     type KeyIter<'k> = vec::IntoIter<&'k K> where Self: 'k, K: 'k;
     type VarIter<'v> = iter::Empty<&'v ()> where Self: 'v, (): 'v;
     type XpubIter<'x> = vec::IntoIter<&'x XpubSpec> where Self: 'x;
+
+    fn class(&self) -> SpkClass {
+        match self {
+            StdDescr::Wpkh(d) => d.class(),
+            StdDescr::TrKey(d) => d.class(),
+        }
+    }
 
     fn keys(&self) -> Self::KeyIter<'_> {
         match self {

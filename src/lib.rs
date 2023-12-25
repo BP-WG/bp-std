@@ -20,19 +20,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[macro_use]
-extern crate amplify;
-#[cfg(feature = "serde")]
-#[macro_use]
-extern crate serde_crate as serde;
-
-mod factory;
-mod descriptor;
-mod multisig;
-mod segwit;
-mod taproot;
-
-pub use descriptor::{Descriptor, SpkClass, StdDescr};
-pub use factory::AddressFactory;
-pub use segwit::Wpkh;
-pub use taproot::TrKey;
+#[cfg(feature = "client-side-validation")]
+pub use ::bp::{dbc, seals};
+pub use bc::{secp256k1, *};
+pub use derive::*;
+pub use descriptors::*;
+pub use psbt::{
+    self, Prevout, Psbt, PsbtError, PsbtParseError, PsbtUnsupportedVer, PsbtVer, UnsignedTx,
+    UnsignedTxIn,
+};

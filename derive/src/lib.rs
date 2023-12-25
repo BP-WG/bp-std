@@ -25,25 +25,14 @@ extern crate amplify;
 #[cfg(feature = "serde")]
 #[macro_use]
 extern crate serde_crate as serde;
-pub extern crate bitcoin_hashes as hashes;
-
-pub mod base58;
-mod address;
-mod network;
-
-mod taptree;
 
 mod index;
 mod path;
 mod xpub;
 mod derive;
+pub mod taptree;
 
-#[cfg(feature = "core")]
-pub use ::bp::{dbc, seals};
-pub use address::{
-    Address, AddressError, AddressNetwork, AddressParseError, AddressPayload, AddressType,
-};
-pub use bc::{secp256k1, *};
+pub use bc::*;
 pub use derive::{
     Derive, DeriveCompr, DeriveKey, DeriveScripts, DeriveSet, DeriveXOnly, DerivedAddr,
     DerivedAddrParseError, DerivedScript, Keychain, Terminal, TerminalParseError,
@@ -52,7 +41,7 @@ pub use index::{
     DerivationIndex, HardenedIndex, Idx, IdxBase, IndexError, IndexParseError, NormalIndex,
     HARDENED_INDEX_BOUNDARY,
 };
-pub use network::{Network, UnknownNetwork};
+pub use invoice::*;
 pub use path::{DerivationParseError, DerivationPath, DerivationSeg, SegParseError};
 pub use taptree::{
     ControlBlockFactory, FinalizedTree, InvalidTree, LeafInfo, TapDerivation, TapTree,

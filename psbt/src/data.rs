@@ -20,13 +20,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::collections::BTreeSet;
+
 use amplify::num::u5;
 use amplify::{Bytes20, Bytes32};
-use bpstd::{
+use derive::{
     Bip340Sig, ByteStr, CompressedPk, ControlBlock, InternalPk, KeyOrigin, LeafScript, LegacyPk,
-    LegacySig, LockHeight, LockTime, LockTimestamp, NormalIndex, Outpoint, RedeemScript, Sats,
-    ScriptPubkey, SeqNo, SigScript, SighashType, TapDerivation, TapNodeHash, TapTree, Terminal, Tx,
-    TxIn, TxOut, TxVer, Txid, VarIntArray, Vout, Witness, WitnessScript, XOnlyPk, Xpub, XpubOrigin,
+    LegacySig, LockHeight, LockTime, LockTimestamp, Outpoint, RedeemScript, Sats, ScriptPubkey,
+    SeqNo, SigScript, SighashType, TapDerivation, TapNodeHash, TapTree, Terminal, Tx, TxIn, TxOut,
+    TxVer, Txid, VarIntArray, Vout, Witness, WitnessScript, XOnlyPk, Xpub, XpubOrigin,
 };
 use descriptors::Descriptor;
 use indexmap::IndexMap;
@@ -71,14 +73,19 @@ impl Prevout {
 /// [`Tx`]: bpstd::Tx
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 #[cfg_attr(
+    feature = "strict_encoding",
+    derive(StrictType, StrictDumb, StrictEncode, StrictDecode),
+    strict_type(lib = crate::LIB_NAME_PSBT)
+)]
+#[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct UnsignedTx {
     pub version: TxVer,
-    pub inputs: Vec<UnsignedTxIn>,
-    pub outputs: Vec<TxOut>,
+    pub inputs: VarIntArray<UnsignedTxIn>,
+    pub outputs: VarIntArray<TxOut>,
     pub lock_time: LockTime,
 }
 
@@ -95,7 +102,7 @@ impl From<UnsignedTx> for Tx {
             inputs: VarIntArray::from_collection_unsafe(
                 unsigned_tx.inputs.into_iter().map(TxIn::from).collect(),
             ),
-            outputs: VarIntArray::from_collection_unsafe(unsigned_tx.outputs),
+            outputs: unsigned_tx.outputs,
             lock_time: unsigned_tx.lock_time,
         }
     }
@@ -106,14 +113,33 @@ impl UnsignedTx {
     pub fn with_sigs_removed(tx: Tx) -> UnsignedTx {
         UnsignedTx {
             version: tx.version,
-            inputs: tx.inputs.into_iter().map(UnsignedTxIn::with_sigs_removed).collect(),
-            outputs: tx.outputs.into_inner(),
+            inputs: VarIntArray::from_collection_unsafe(
+                tx.inputs.into_iter().map(UnsignedTxIn::with_sigs_removed).collect(),
+            ),
+            outputs: tx.outputs,
             lock_time: tx.lock_time,
+        }
+    }
+
+    pub fn txid(&self) -> Txid { self.clone().finalize().txid() }
+
+    pub fn finalize(self) -> Tx {
+        Tx {
+            version: self.version,
+            inputs: VarIntArray::try_from_iter(self.inputs.into_iter().map(UnsignedTxIn::finalize))
+                .expect("varint"),
+            outputs: self.outputs,
+            lock_time: self.lock_time,
         }
     }
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[cfg_attr(
+    feature = "strict_encoding",
+    derive(StrictType, StrictDumb, StrictEncode, StrictDecode),
+    strict_type(lib = crate::LIB_NAME_PSBT)
+)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
@@ -149,6 +175,8 @@ impl UnsignedTxIn {
             sequence: txin.sequence,
         }
     }
+
+    pub fn finalize(self) -> TxIn { self.into() }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -237,15 +265,35 @@ impl Psbt {
     pub fn to_unsigned_tx(&self) -> UnsignedTx {
         UnsignedTx {
             version: self.tx_version,
-            inputs: self.inputs().map(Input::to_unsigned_txin).collect(),
-            outputs: self.outputs().map(Output::to_txout).collect(),
+            inputs: VarIntArray::from_collection_unsafe(
+                self.inputs().map(Input::to_unsigned_txin).collect(),
+            ),
+            outputs: VarIntArray::from_collection_unsafe(
+                self.outputs().map(Output::to_txout).collect(),
+            ),
             lock_time: self.lock_time(),
         }
     }
 
+    pub fn txid(&self) -> Txid { self.to_unsigned_tx().txid() }
+
+    pub fn input(&self, index: usize) -> Option<&Input> { self.inputs.get(index) }
+
+    pub fn input_mut(&mut self, index: usize) -> Option<&mut Input> { self.inputs.get_mut(index) }
+
     pub fn inputs(&self) -> impl Iterator<Item = &Input> { self.inputs.iter() }
 
+    pub fn inputs_mut(&mut self) -> impl Iterator<Item = &mut Input> { self.inputs.iter_mut() }
+
+    pub fn output(&self, index: usize) -> Option<&Output> { self.outputs.get(index) }
+
+    pub fn output_mut(&mut self, index: usize) -> Option<&mut Output> {
+        self.outputs.get_mut(index)
+    }
+
     pub fn outputs(&self) -> impl Iterator<Item = &Output> { self.outputs.iter() }
+
+    pub fn outputs_mut(&mut self) -> impl Iterator<Item = &mut Output> { self.outputs.iter_mut() }
 
     pub fn lock_time(&self) -> LockTime {
         // TODO: Compute correct LockTime
@@ -262,6 +310,10 @@ impl Psbt {
     pub fn fee(&self) -> Option<Sats> { self.input_sum().checked_sub(self.output_sum()) }
 
     pub fn xpubs(&self) -> impl Iterator<Item = (&Xpub, &XpubOrigin)> { self.xpubs.iter() }
+
+    pub fn is_modifiable(&self) -> bool {
+        self.tx_modifiable.as_ref().map(ModifiableFlags::is_modifiable).unwrap_or_default()
+    }
 
     pub fn are_inputs_modifiable(&self) -> bool {
         self.tx_modifiable
@@ -364,24 +416,24 @@ impl Psbt {
     pub fn construct_change<K, D: Descriptor<K>>(
         &mut self,
         descriptor: &D,
-        index: NormalIndex,
+        change_terminal: Terminal,
         value: Sats,
     ) -> Result<&mut Output, Unmodifiable> {
         if !self.are_outputs_modifiable() {
             return Err(Unmodifiable);
         }
 
-        let scripts = descriptor.derive(1, index);
+        let scripts = descriptor.derive(change_terminal.keychain, change_terminal.index);
         let output = Output {
             index: self.outputs.len(),
             amount: value,
             script: scripts.to_script_pubkey(),
             redeem_script: scripts.to_redeem_script(),
             witness_script: scripts.to_witness_script(),
-            bip32_derivation: descriptor.compr_keyset(Terminal::change(index)),
+            bip32_derivation: descriptor.compr_keyset(change_terminal),
             tap_internal_key: scripts.to_internal_pk(),
             tap_tree: scripts.to_tap_tree(),
-            tap_bip32_derivation: descriptor.xonly_keyset(Terminal::change(index)),
+            tap_bip32_derivation: descriptor.xonly_keyset(change_terminal),
             proprietary: none!(),
             unknown: none!(),
         };
@@ -392,11 +444,24 @@ impl Psbt {
     pub fn construct_change_expect<K, D: Descriptor<K>>(
         &mut self,
         descriptor: &D,
-        index: NormalIndex,
+        change_terminal: Terminal,
         value: Sats,
     ) -> &mut Output {
-        self.construct_change(descriptor, index, value)
+        self.construct_change(descriptor, change_terminal, value)
             .expect("PSBT outputs are expected to be modifiable")
+    }
+
+    pub fn sort_outputs_by<K: Ord>(
+        &mut self,
+        f: impl FnMut(&Output) -> K,
+    ) -> Result<(), Unmodifiable> {
+        if !self.are_outputs_modifiable() {
+            return Err(Unmodifiable);
+        }
+
+        self.outputs.sort_by_key(f);
+
+        Ok(())
     }
 
     pub fn complete_construction(&mut self) {
@@ -808,6 +873,26 @@ impl Output {
 
     #[inline]
     pub fn index(&self) -> usize { self.index }
+
+    pub fn terminal_derivation(&self) -> Option<Terminal> {
+        if self.bip32_derivation.is_empty() && self.tap_bip32_derivation.is_empty() {
+            return None;
+        }
+        let terminal = self
+            .bip32_derivation
+            .values()
+            .flat_map(|origin| origin.derivation().terminal())
+            .chain(
+                self.tap_bip32_derivation
+                    .values()
+                    .flat_map(|derivation| derivation.origin.derivation().terminal()),
+            )
+            .collect::<BTreeSet<_>>();
+        if terminal.len() != 1 {
+            return None;
+        }
+        return terminal.first().copied();
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
@@ -868,5 +953,9 @@ impl ModifiableFlags {
         (self.inputs_modifiable as u8)
             | ((self.outputs_modifiable as u8) << 1)
             | ((self.sighash_single as u8) << 2)
+    }
+
+    pub const fn is_modifiable(&self) -> bool {
+        self.inputs_modifiable | self.outputs_modifiable | self.sighash_single
     }
 }

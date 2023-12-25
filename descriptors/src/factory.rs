@@ -20,7 +20,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use bpstd::{Address, AddressError, AddressNetwork, DeriveScripts, Idx, Keychain, NormalIndex};
+use derive::{Address, AddressError, AddressNetwork, DeriveScripts, Idx, Keychain, NormalIndex};
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct AddressFactory<D: DeriveScripts> {

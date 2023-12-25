@@ -1,9 +1,9 @@
 [workspace]
-members = ["std", "descriptors", "psbt", "."]
+members = ["invoice", "derive", "descriptors", "psbt", "."]
 resolver = "2"
 
 [workspace.package]
-version = "0.11.0-beta.2"
+version = "0.11.0-beta.3"
 keywords = ["bitcoin", "wallet", "descriptors", "psbt", "taproot"]
 categories = ["cryptography::cryptocurrencies"]
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
@@ -15,10 +15,49 @@ license = "Apache-2.0"
 
 [workspace.dependencies]
 amplify = "4.5.0"
-bitcoin_hashes = "0.13.0"  # TODO: Remove and replace with commit_verify
 bech32 = "0.9.1"
-bp-consensus = "0.11.0-beta.2"
-bp-std = { version = "0.11.0-beta.2", path = "std" }
-descriptors = { version = "0.11.0-beta.2", path = "descriptors" }
+bitcoin_hashes = "0.13.0"  # TODO: Remove and replace with commit_verify
+commit_verify = "0.11.0-beta.2"
+strict_encoding = "2.6.1"
+bp-consensus = "0.11.0-beta.3"
+bp-core = { version = "0.11.0-beta.2" }
+bp-invoice = { version = "0.11.0-beta.3", path = "invoice" }
+bp-derive = { version = "0.11.0-beta.3", path = "derive" }
+descriptors = { version = "0.11.0-beta.3", path = "descriptors" }
+psbt = { version = "0.11.0-beta.3", path = "psbt" }
 indexmap = "2.0.0"
 serde_crate = { package = "serde", version = "1", features = ["derive"] }
+
+[package]
+name = "bp-std"
+description = "Modern & lightweight implementation of bitcoin standards without rust-bitcoin/miniscript dependencies"
+readme = "README.md"
+version.workspace = true
+keywords.workspace = true
+categories.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "bpstd"
+
+[dependencies]
+amplify = { workspace = true }
+bp-consensus = { workspace = true }
+bp-core = { workspace = true, optional = true }
+bp-invoice = { workspace = true }
+bp-derive = { workspace = true }
+descriptors = { workspace = true }
+psbt = { workspace = true }
+serde_crate = { workspace = true, optional = true }
+
+[features]
+default = []
+all = ["client-side-validation", "strict_encoding", "serde"]
+strict_encoding = ["psbt/strict_encoding"]
+client-side-validation = ["bp-core", "psbt/client-side-validation"]
+serde = ["serde_crate", "bp-consensus/serde", "bp-invoice/serde", "bp-derive/serde", "descriptors/serde", "psbt/serde"]

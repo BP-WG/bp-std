@@ -25,14 +25,14 @@ use std::string::FromUtf8Error;
 
 use amplify::num::u7;
 use amplify::{confinement, Array, Bytes, Bytes32, Bytes4, IoError, Wrapper};
-use bpstd::{
+use derive::{
     Bip340Sig, ByteStr, CompressedPk, ConsensusDataError, ConsensusDecode, ConsensusDecodeError,
     ConsensusEncode, ControlBlock, DerivationPath, Idx, InternalPk, InvalidLeafVer, InvalidTree,
     KeyOrigin, LeafInfo, LeafScript, LeafVer, LegacyPk, LegacySig, LockHeight, LockTime,
     LockTimestamp, NonStandardValue, Outpoint, RedeemScript, Sats, ScriptBytes, ScriptPubkey,
     SeqNo, SigError, SigScript, SighashType, TapDerivation, TapLeafHash, TapNodeHash, TapTree, Tx,
-    TxOut, TxVer, Txid, UncompressedPk, VarInt, Vout, Witness, WitnessScript, XOnlyPk, Xpub,
-    XpubDecodeError, XpubFp, XpubOrigin,
+    TxOut, TxVer, Txid, UncompressedPk, VarInt, VarIntArray, Vout, Witness, WitnessScript, XOnlyPk,
+    Xpub, XpubDecodeError, XpubFp, XpubOrigin,
 };
 
 use crate::keys::KeyValue;
@@ -351,7 +351,7 @@ impl Decode for PropKey {
         Ok(PropKey {
             identifier,
             subtype,
-            data,
+            data: data.into(),
         })
     }
 }
@@ -638,8 +638,8 @@ impl Decode for UnsignedTx {
 
         Ok(UnsignedTx {
             version,
-            inputs,
-            outputs,
+            inputs: VarIntArray::try_from(inputs)?,
+            outputs: VarIntArray::try_from(outputs)?,
             lock_time,
         })
     }

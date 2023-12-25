@@ -30,8 +30,8 @@ use bc::{
     TapNodeHash, WitnessScript, XOnlyPk,
 };
 use indexmap::IndexMap;
+use invoice::AddressError;
 
-use crate::address::AddressError;
 use crate::{
     Address, AddressNetwork, AddressParseError, ControlBlockFactory, DerivationIndex, Idx, IdxBase,
     IndexParseError, NormalIndex, TapTree, XpubDerivable, XpubSpec,
@@ -141,7 +141,7 @@ pub enum DerivedScript {
     Segwit(WitnessScript),
     Nested(WitnessScript),
     TaprootKeyOnly(InternalPk),
-    Taproot(InternalPk, Option<TapTree>),
+    TaprootScript(InternalPk, TapTree),
 }
 
 impl DerivedScript {
@@ -156,10 +156,9 @@ impl DerivedScript {
             DerivedScript::TaprootKeyOnly(internal_key) => {
                 ScriptPubkey::p2tr_key_only(*internal_key)
             }
-            DerivedScript::Taproot(internal_pk, tap_tree) => internal_pk
-                .to_output_pk(tap_tree.as_ref().map(TapTree::merkle_root))
-                .0
-                .to_script_pubkey(),
+            DerivedScript::TaprootScript(internal_pk, tap_tree) => {
+                internal_pk.to_output_pk(Some(tap_tree.merkle_root())).0.to_script_pubkey()
+            }
         }
     }
 
@@ -170,7 +169,7 @@ impl DerivedScript {
             DerivedScript::Segwit(_) => None,
             DerivedScript::Nested(witness_script) => Some(witness_script.to_redeem_script()),
             DerivedScript::TaprootKeyOnly(_) => None,
-            DerivedScript::Taproot(_, _) => None,
+            DerivedScript::TaprootScript(_, _) => None,
         }
     }
     pub fn as_witness_script(&self) -> Option<&WitnessScript> {
@@ -181,7 +180,7 @@ impl DerivedScript {
                 Some(witness_script)
             }
             DerivedScript::TaprootKeyOnly(_) => None,
-            DerivedScript::Taproot(_, _) => None,
+            DerivedScript::TaprootScript(_, _) => None,
         }
     }
     pub fn to_witness_script(&self) -> Option<WitnessScript> { self.as_witness_script().cloned() }
@@ -193,7 +192,7 @@ impl DerivedScript {
             | DerivedScript::Segwit(_)
             | DerivedScript::Nested(_) => None,
             DerivedScript::TaprootKeyOnly(internal_key) => Some(*internal_key),
-            DerivedScript::Taproot(internal_key, _) => Some(*internal_key),
+            DerivedScript::TaprootScript(internal_key, _) => Some(*internal_key),
         }
     }
 
@@ -204,7 +203,7 @@ impl DerivedScript {
             | DerivedScript::Segwit(_)
             | DerivedScript::Nested(_)
             | DerivedScript::TaprootKeyOnly(_) => None,
-            DerivedScript::Taproot(_, tap_tree) => tap_tree.as_ref(),
+            DerivedScript::TaprootScript(_, tap_tree) => Some(tap_tree),
         }
     }
 
