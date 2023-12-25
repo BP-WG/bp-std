@@ -182,14 +182,16 @@ impl Output {
     /// invalid commitments (having non-32 bytes) will be filtered at the
     /// moment of PSBT deserialization and this function will return `None`
     /// only in situations when the commitment is absent.
-    pub fn tapret_commitment(&self) -> Result<mpc::Commitment, TapretKeyError> {
+    pub fn tapret_commitment(&self) -> Result<TapretCommitment, TapretKeyError> {
         if !self.script.is_p2tr() {
             return Err(TapretKeyError::NotTaprootOutput);
         }
         let data =
             self.proprietary(&PropKey::opret_commitment()).ok_or(TapretKeyError::NoCommitment)?;
-        mpc::Commitment::copy_from_slice(data.as_slice())
-            .map_err(|_| TapretKeyError::InvalidCommitment)
+        TapretCommitment::from_strict_serialized::<U16>(
+            Confined::try_from(data.to_vec()).map_err(|_| TapretKeyError::InvalidCommitment)?,
+        )
+        .map_err(|_| TapretKeyError::InvalidCommitment)
     }
 
     /// Assigns value of the tapreturn commitment to this PSBT output, by
@@ -227,7 +229,7 @@ impl Output {
             internal_pk: internal_pk.into(),
         };
 
-        self.push_proprietary(PropKey::tapret_commitment(), commitment)
+        self.push_proprietary(PropKey::tapret_commitment(), tapret_commitment)
             .and_then(|_| self.push_proprietary(PropKey::tapret_proof(), &tapret_proof))
             .map_err(|_| TapretKeyError::OutputAlreadyHasCommitment)?;
 
@@ -268,6 +270,13 @@ impl Output {
 impl From<&TapretProof> for ValueData {
     fn from(proof: &TapretProof) -> Self {
         let val = proof.to_strict_serialized::<U16>().expect("tapret proof longer than 64KB");
+        ByteStr::from(val).into()
+    }
+}
+
+impl From<&TapretCommitment> for ValueData {
+    fn from(commitment: &TapretCommitment) -> Self {
+        let val = commitment.to_strict_serialized::<U16>().expect("tapret proof longer than 64KB");
         ByteStr::from(val).into()
     }
 }
