@@ -24,9 +24,9 @@ use amplify::num::u5;
 use amplify::{Bytes20, Bytes32};
 use derive::{
     Bip340Sig, ByteStr, CompressedPk, ControlBlock, InternalPk, KeyOrigin, LeafScript, LegacyPk,
-    LegacySig, LockHeight, LockTime, LockTimestamp, NormalIndex, Outpoint, RedeemScript, Sats,
-    ScriptPubkey, SeqNo, SigScript, SighashType, TapDerivation, TapNodeHash, TapTree, Terminal, Tx,
-    TxIn, TxOut, TxVer, Txid, VarIntArray, Vout, Witness, WitnessScript, XOnlyPk, Xpub, XpubOrigin,
+    LegacySig, LockHeight, LockTime, LockTimestamp, Outpoint, RedeemScript, Sats, ScriptPubkey,
+    SeqNo, SigScript, SighashType, TapDerivation, TapNodeHash, TapTree, Terminal, Tx, TxIn, TxOut,
+    TxVer, Txid, VarIntArray, Vout, Witness, WitnessScript, XOnlyPk, Xpub, XpubOrigin,
 };
 use descriptors::Descriptor;
 use indexmap::IndexMap;
@@ -414,24 +414,24 @@ impl Psbt {
     pub fn construct_change<K, D: Descriptor<K>>(
         &mut self,
         descriptor: &D,
-        index: NormalIndex,
+        change_terminal: Terminal,
         value: Sats,
     ) -> Result<&mut Output, Unmodifiable> {
         if !self.are_outputs_modifiable() {
             return Err(Unmodifiable);
         }
 
-        let scripts = descriptor.derive(1, index);
+        let scripts = descriptor.derive(change_terminal.keychain, change_terminal.index);
         let output = Output {
             index: self.outputs.len(),
             amount: value,
             script: scripts.to_script_pubkey(),
             redeem_script: scripts.to_redeem_script(),
             witness_script: scripts.to_witness_script(),
-            bip32_derivation: descriptor.compr_keyset(Terminal::change(index)),
+            bip32_derivation: descriptor.compr_keyset(change_terminal),
             tap_internal_key: scripts.to_internal_pk(),
             tap_tree: scripts.to_tap_tree(),
-            tap_bip32_derivation: descriptor.xonly_keyset(Terminal::change(index)),
+            tap_bip32_derivation: descriptor.xonly_keyset(change_terminal),
             proprietary: none!(),
             unknown: none!(),
         };
@@ -442,10 +442,10 @@ impl Psbt {
     pub fn construct_change_expect<K, D: Descriptor<K>>(
         &mut self,
         descriptor: &D,
-        index: NormalIndex,
+        change_terminal: Terminal,
         value: Sats,
     ) -> &mut Output {
-        self.construct_change(descriptor, index, value)
+        self.construct_change(descriptor, change_terminal, value)
             .expect("PSBT outputs are expected to be modifiable")
     }
 
