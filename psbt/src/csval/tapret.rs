@@ -188,7 +188,7 @@ impl Output {
             return Err(TapretKeyError::NotTaprootOutput);
         }
         let data =
-            self.proprietary(&PropKey::opret_commitment()).ok_or(TapretKeyError::NoCommitment)?;
+            self.proprietary(&PropKey::tapret_commitment()).ok_or(TapretKeyError::NoCommitment)?;
         TapretCommitment::from_strict_serialized::<U16>(
             Confined::try_from(data.to_vec()).map_err(|_| TapretKeyError::InvalidCommitment)?,
         )
