@@ -460,6 +460,9 @@ impl Psbt {
         }
 
         self.outputs.sort_by_key(f);
+        for (index, output) in self.outputs.iter_mut().enumerate() {
+            output.index = index;
+        }
 
         Ok(())
     }
