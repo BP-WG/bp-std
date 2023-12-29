@@ -460,6 +460,9 @@ impl Psbt {
         }
 
         self.outputs.sort_by_key(f);
+        for (index, output) in self.outputs.iter_mut().enumerate() {
+            output.index = index;
+        }
 
         Ok(())
     }
@@ -873,6 +876,9 @@ impl Output {
 
     #[inline]
     pub fn index(&self) -> usize { self.index }
+
+    #[inline]
+    pub fn vout(&self) -> Vout { Vout::from_u32(self.index as u32) }
 
     pub fn terminal_derivation(&self) -> Option<Terminal> {
         if self.bip32_derivation.is_empty() && self.tap_bip32_derivation.is_empty() {
