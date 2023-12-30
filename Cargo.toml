@@ -61,3 +61,11 @@ all = ["client-side-validation", "strict_encoding", "serde"]
 strict_encoding = ["psbt/strict_encoding"]
 client-side-validation = ["bp-core", "psbt/client-side-validation"]
 serde = ["serde_crate", "bp-consensus/serde", "bp-invoice/serde", "bp-derive/serde", "descriptors/serde", "psbt/serde"]
+
+[patch.crates-io]
+strict_encoding = { git = "https://github.com/strict-types/strict-encoding", branch = "phantom" }
+commit_verify = { git = "https://github.com/LNP-BP/client_side_validation", branch = "v0.11" }
+bp-consensus = { git = "https://github.com/BP-WG/bp-core", branch = "v0.11" }
+bp-dbc = { git = "https://github.com/BP-WG/bp-core", branch = "v0.11" }
+bp-seals = { git = "https://github.com/BP-WG/bp-core", branch = "v0.11" }
+bp-core = { git = "https://github.com/BP-WG/bp-core", branch = "v0.11" }

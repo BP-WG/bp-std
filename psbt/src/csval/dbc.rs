@@ -85,6 +85,7 @@ impl Psbt {
             txid: self.txid(),
             mpc_proof,
             dbc_proof,
+            _method: default!(),
         };
 
         Ok(anchor)
