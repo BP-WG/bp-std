@@ -49,5 +49,5 @@ pub use taptree::{
 };
 pub use xpub::{
     KeyOrigin, OriginParseError, Xpub, XpubDecodeError, XpubDerivable, XpubFp, XpubId, XpubMeta,
-    XpubOrigin, XpubSpec,
+    XpubOrigin, XpubParseError, XpubSpec,
 };
