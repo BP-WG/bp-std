@@ -230,3 +230,18 @@ impl<I: Idx> DerivationPath<I> {
         Some(Terminal::new(keychain, index))
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::HardenedIndex;
+
+    #[test]
+    fn altstr() {
+        let path1 = DerivationPath::<HardenedIndex>::from_str("86h/1h/0h").unwrap();
+        let path2 = DerivationPath::<HardenedIndex>::from_str("86'/1'/0'").unwrap();
+        let path3 = DerivationPath::<HardenedIndex>::from_str("86'/1h/0h").unwrap();
+        assert_eq!(path1, path2);
+        assert_eq!(path1, path3);
+    }
+}

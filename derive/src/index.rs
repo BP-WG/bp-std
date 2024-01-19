@@ -452,7 +452,7 @@ impl FromStr for HardenedIndex {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s
-            .strip_suffix(['h', 'H', '*'])
+            .strip_suffix(['h', 'H', '\''])
             .ok_or_else(|| IndexParseError::HardenedRequired(s.to_owned()))?;
         Ok(HardenedIndex::try_from_child_number(u32::from_str(s)?)?)
     }
