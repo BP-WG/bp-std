@@ -60,6 +60,8 @@ impl From<Keychain> for DerivationIndex {
 impl Keychain {
     pub const OUTER: Self = Keychain(0);
     pub const INNER: Self = Keychain(1);
+
+    pub const fn with(idx: u8) -> Self { Keychain(idx) }
 }
 
 impl IdxBase for Keychain {
