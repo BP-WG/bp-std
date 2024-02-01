@@ -90,10 +90,36 @@ impl Psbt {
 
         Ok(anchor)
     }
+
+    pub fn dbc_commit_deterministic<D: DbcPsbtProof>(
+        &mut self,
+        static_entropy: u64,
+    ) -> Result<Anchor<mpc::MerkleBlock, D>, DbcPsbtError> {
+        if self.are_outputs_modifiable() {
+            return Err(DbcPsbtError::TxOutputsModifiable);
+        }
+
+        let output = self.dbc_output_mut::<D>().ok_or(DbcPsbtError::NoProperOutput(D::METHOD))?;
+
+        let (mpc_proof, dbc_proof) = D::dbc_commit_deterministic(output, static_entropy)?;
+
+        let anchor = Anchor {
+            txid: self.txid(),
+            mpc_proof,
+            dbc_proof,
+            _method: default!(),
+        };
+
+        Ok(anchor)
+    }
 }
 
 pub trait DbcPsbtProof: dbc::Proof {
     fn dbc_commit(output: &mut Output) -> Result<(mpc::MerkleBlock, Self), DbcPsbtError>;
+    fn dbc_commit_deterministic(
+        output: &mut Output,
+        static_entropy: u64,
+    ) -> Result<(mpc::MerkleBlock, Self), DbcPsbtError>;
 }
 
 impl DbcPsbtProof for TapretProof {
@@ -106,11 +132,36 @@ impl DbcPsbtProof for TapretProof {
 
         Ok((mpc_proof, tapret_proof))
     }
+
+    fn dbc_commit_deterministic(
+        output: &mut Output,
+        static_entropy: u64,
+    ) -> Result<(mpc::MerkleBlock, Self), DbcPsbtError> {
+        let (commitment, mpc_proof) = output.mpc_commit_deterministic(static_entropy)?;
+        if !output.is_tapret_host() {
+            return Err(DbcPsbtError::NoHostOutput);
+        }
+        let tapret_proof = output.tapret_commit(commitment)?;
+
+        Ok((mpc_proof, tapret_proof))
+    }
 }
 
 impl DbcPsbtProof for OpretProof {
     fn dbc_commit(output: &mut Output) -> Result<(mpc::MerkleBlock, Self), DbcPsbtError> {
         let (commitment, mpc_proof) = output.mpc_commit()?;
+        if !output.is_opret_host() {
+            return Err(DbcPsbtError::NoHostOutput);
+        }
+        output.opret_commit(commitment)?;
+        Ok((mpc_proof, OpretProof::default()))
+    }
+
+    fn dbc_commit_deterministic(
+        output: &mut Output,
+        static_entropy: u64,
+    ) -> Result<(mpc::MerkleBlock, Self), DbcPsbtError> {
+        let (commitment, mpc_proof) = output.mpc_commit_deterministic(static_entropy)?;
         if !output.is_opret_host() {
             return Err(DbcPsbtError::NoHostOutput);
         }

@@ -280,6 +280,28 @@ impl Output {
 
         Ok((commitment, mpc_proof))
     }
+
+    pub fn mpc_commit_deterministic(
+        &mut self,
+        static_entropy: u64,
+    ) -> Result<(Commitment, mpc::MerkleBlock), MpcPsbtError> {
+        let messages = self.mpc_message_map()?;
+        let min_depth = self.mpc_min_tree_depth().map(u5::with).unwrap_or(MPC_MINIMAL_DEPTH);
+        let source = mpc::MultiSource {
+            min_depth,
+            messages,
+            static_entropy: Some(static_entropy),
+        };
+        let merkle_tree = mpc::MerkleTree::try_commit(&source)?;
+        let commitment = merkle_tree.commitment_id();
+        let mpc_proof = mpc::MerkleBlock::from(merkle_tree);
+
+        self.push_proprietary(PropKey::mpc_commitment(), commitment)
+            .and_then(|_| self.push_proprietary(PropKey::mpc_proof(), &mpc_proof))
+            .map_err(|_| MpcPsbtError::OutputAlreadyHasCommitment)?;
+
+        Ok((commitment, mpc_proof))
+    }
 }
 
 impl From<&mpc::MerkleBlock> for ValueData {
