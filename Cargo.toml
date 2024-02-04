@@ -9,7 +9,7 @@ categories = ["cryptography::cryptocurrencies"]
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
 homepage = "https://lnp-bp.org"
 repository = "https://github.com/BP-WG/bp-wallet"
-rust-version = "1.67" # Due to strict encoding library
+rust-version = "1.69.0" # Due to TOML dependency in amplify crate
 edition = "2021"
 license = "Apache-2.0"
 
