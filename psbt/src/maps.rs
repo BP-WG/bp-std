@@ -240,7 +240,7 @@ pub trait KeyMap: Sized {
         Ok(())
     }
     fn remove_proprietary(&mut self, key: &PropKey) -> Option<ValueData> {
-        self._proprietary_map_mut().remove(key)
+        self._proprietary_map_mut().shift_remove(key)
     }
 
     #[doc(hidden)]

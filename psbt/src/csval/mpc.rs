@@ -25,7 +25,7 @@ use amplify::confinement::{Confined, U32};
 use amplify::num::u5;
 use amplify::{confinement, FromSliceError};
 use commit_verify::mpc::{self, Commitment, Message, ProtocolId, MPC_MINIMAL_DEPTH};
-use commit_verify::{CommitmentId, TryCommitVerify};
+use commit_verify::{CommitId, TryCommitVerify};
 use derive::ByteStr;
 use strict_encoding::StrictSerialize;
 
@@ -271,7 +271,7 @@ impl Output {
         let merkle_tree = mpc::MerkleTree::try_commit(&source)?;
         let entropy = merkle_tree.entropy();
         self.set_mpc_entropy(entropy)?;
-        let commitment = merkle_tree.commitment_id();
+        let commitment = merkle_tree.commit_id();
         let mpc_proof = mpc::MerkleBlock::from(merkle_tree);
 
         self.push_proprietary(PropKey::mpc_commitment(), commitment)
