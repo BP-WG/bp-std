@@ -49,7 +49,7 @@ pub const PSBT_OUT_MPC_PROOF: u64 = 0x11;
 
 impl PropKey {
     /// Constructs [`PSBT_OUT_MPC_MESSAGE`] proprietary key.
-    fn mpc_message(protocol_id: ProtocolId) -> PropKey {
+    pub fn mpc_message(protocol_id: ProtocolId) -> PropKey {
         PropKey {
             identifier: PSBT_MPC_PREFIX.to_owned(),
             subtype: PSBT_OUT_MPC_MESSAGE,
@@ -58,7 +58,7 @@ impl PropKey {
     }
 
     /// Constructs [`PSBT_OUT_MPC_ENTROPY`] proprietary key.
-    fn mpc_entropy() -> PropKey {
+    pub fn mpc_entropy() -> PropKey {
         PropKey {
             identifier: PSBT_MPC_PREFIX.to_owned(),
             subtype: PSBT_OUT_MPC_ENTROPY,
@@ -67,7 +67,7 @@ impl PropKey {
     }
 
     /// Constructs [`PSBT_OUT_MPC_MIN_TREE_DEPTH`] proprietary key.
-    fn mpc_min_tree_depth() -> PropKey {
+    pub fn mpc_min_tree_depth() -> PropKey {
         PropKey {
             identifier: PSBT_MPC_PREFIX.to_owned(),
             subtype: PSBT_OUT_MPC_MIN_TREE_DEPTH,
@@ -76,7 +76,7 @@ impl PropKey {
     }
 
     /// Constructs [`PSBT_OUT_MPC_COMMITMENT`] proprietary key.
-    fn mpc_commitment() -> PropKey {
+    pub fn mpc_commitment() -> PropKey {
         PropKey {
             identifier: PSBT_MPC_PREFIX.to_owned(),
             subtype: PSBT_OUT_MPC_COMMITMENT,
@@ -85,7 +85,7 @@ impl PropKey {
     }
 
     /// Constructs [`PSBT_OUT_MPC_PROOF`] proprietary key.
-    fn mpc_proof() -> PropKey {
+    pub fn mpc_proof() -> PropKey {
         PropKey {
             identifier: PSBT_MPC_PREFIX.to_owned(),
             subtype: PSBT_OUT_MPC_PROOF,
