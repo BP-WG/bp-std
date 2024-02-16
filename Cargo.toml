@@ -3,7 +3,7 @@ members = ["invoice", "derive", "descriptors", "psbt", "."]
 resolver = "2"
 
 [workspace.package]
-version = "0.11.0-beta.3.1"
+version = "0.11.0-beta.4"
 keywords = ["bitcoin", "wallet", "descriptors", "psbt", "taproot"]
 categories = ["cryptography::cryptocurrencies"]
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
@@ -14,11 +14,11 @@ edition = "2021"
 license = "Apache-2.0"
 
 [workspace.dependencies]
-amplify = "4.5.1"
+amplify = "4.6.0"
 bech32 = "0.9.1"
 bitcoin_hashes = "0.13.0"  # TODO: Remove and replace with commit_verify
 commit_verify = "0.11.0-beta.3"
-strict_encoding = "2.7.0"
+strict_encoding = "2.7.0-beta.1"
 bp-consensus = "0.11.0-beta.3"
 bp-core = { version = "0.11.0-beta.3" }
 bp-invoice = { version = "0.11.0-beta.3", path = "invoice" }
@@ -63,8 +63,6 @@ client-side-validation = ["bp-core", "psbt/client-side-validation"]
 serde = ["serde_crate", "bp-consensus/serde", "bp-invoice/serde", "bp-derive/serde", "descriptors/serde", "psbt/serde"]
 
 [patch.crates-io]
-strict_encoding = { git = "https://github.com/strict-types/strict-encoding", branch = "refactor/io" }
-strict_types = { git = "https://github.com/strict-types/strict-types", branch = "refactor/io" }
 commit_verify = { git = "https://github.com/LNP-BP/client_side_validation", branch = "v0.11" }
 bp-consensus = { git = "https://github.com/BP-WG/bp-core", branch = "v0.11" }
 bp-dbc = { git = "https://github.com/BP-WG/bp-core", branch = "v0.11" }
