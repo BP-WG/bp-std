@@ -133,7 +133,7 @@ where
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let t = s.trim_start_matches('<').trim_end_matches('>');
-        if t.len() == s.len() - 2 {
+        if t.len() + 2 == s.len() {
             let set = t.split(';').map(I::from_str).collect::<Result<BTreeSet<_>, _>>()?;
             Ok(Self(Confined::try_from_iter(set)?))
         } else {
