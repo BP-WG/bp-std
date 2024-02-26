@@ -2,10 +2,10 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-// Written in 2019-2023 by
+// Written in 2019-2024 by
 //     Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
 //
-// Copyright (C) 2019-2023 LNP/BP Standards Association. All rights reserved.
+// Copyright (C) 2019-2024 LNP/BP Standards Association. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -80,15 +80,7 @@ impl Psbt {
         let output = self.dbc_output_mut::<D>().ok_or(DbcPsbtError::NoProperOutput(D::METHOD))?;
 
         let (mpc_proof, dbc_proof) = D::dbc_commit(output)?;
-
-        let anchor = Anchor {
-            txid: self.txid(),
-            mpc_proof,
-            dbc_proof,
-            _method: default!(),
-        };
-
-        Ok(anchor)
+        Ok(Anchor::new(self.txid(), mpc_proof, dbc_proof))
     }
 }
 

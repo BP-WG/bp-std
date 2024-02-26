@@ -2,11 +2,11 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-// Written in 2020-2023 by
+// Written in 2020-2024 by
 //     Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
 //
-// Copyright (C) 2020-2023 LNP/BP Standards Association. All rights reserved.
-// Copyright (C) 2020-2023 Dr Maxim Orlovsky. All rights reserved.
+// Copyright (C) 2020-2024 LNP/BP Standards Association. All rights reserved.
+// Copyright (C) 2020-2024 Dr Maxim Orlovsky. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -620,9 +620,23 @@ mod test {
     use super::*;
 
     #[test]
-    fn display_from_str() {
+    fn test_xpub_derivable_from_str_with_hardened_index() {
         let s = "[643a7adc/86h/1h/0h]tpubDCNiWHaiSkgnQjuhsg9kjwaUzaxQjUcmhagvYzqQ3TYJTgFGJstVaqnu4yhtFktBhCVFmBNLQ5sN53qKzZbMksm3XEyGJsEhQPfVZdWmTE2/<0;1>/*";
         let xpub = XpubDerivable::from_str(s).unwrap();
         assert_eq!(s, xpub.to_string());
+    }
+
+    #[test]
+    fn test_xpub_derivable_from_str_with_normal_index() {
+        let s = "[643a7adc/86'/1'/0']tpubDCNiWHaiSkgnQjuhsg9kjwaUzaxQjUcmhagvYzqQ3TYJTgFGJstVaqnu4yhtFktBhCVFmBNLQ5sN53qKzZbMksm3XEyGJsEhQPfVZdWmTE2/<0;1>/*";
+        let xpub = XpubDerivable::from_str(s).unwrap();
+        assert_eq!(s, format!("{xpub:#}"));
+    }
+
+    #[test]
+    fn test_xpub_derivable_from_str_with_normal_index_rgb_keychain() {
+        let s = "[643a7adc/86'/1'/0']tpubDCNiWHaiSkgnQjuhsg9kjwaUzaxQjUcmhagvYzqQ3TYJTgFGJstVaqnu4yhtFktBhCVFmBNLQ5sN53qKzZbMksm3XEyGJsEhQPfVZdWmTE2/<0;1;9;10>/*";
+        let xpub = XpubDerivable::from_str(s).unwrap();
+        assert_eq!(s, format!("{xpub:#}"));
     }
 }

@@ -2,10 +2,10 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //
-// Written in 2019-2023 by
+// Written in 2019-2024 by
 //     Dr Maxim Orlovsky <orlovsky@lnp-bp.org>
 //
-// Copyright (C) 2019-2023 LNP/BP Standards Association. All rights reserved.
+// Copyright (C) 2019-2024 LNP/BP Standards Association. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ use amplify::confinement::{Confined, U32};
 use amplify::num::u5;
 use amplify::{confinement, FromSliceError};
 use commit_verify::mpc::{self, Commitment, Message, ProtocolId, MPC_MINIMAL_DEPTH};
-use commit_verify::{CommitmentId, TryCommitVerify};
+use commit_verify::{CommitId, TryCommitVerify};
 use derive::ByteStr;
 use strict_encoding::StrictSerialize;
 
@@ -271,7 +271,7 @@ impl Output {
         let merkle_tree = mpc::MerkleTree::try_commit(&source)?;
         let entropy = merkle_tree.entropy();
         self.set_mpc_entropy(entropy)?;
-        let commitment = merkle_tree.commitment_id();
+        let commitment = merkle_tree.commit_id();
         let mpc_proof = mpc::MerkleBlock::from(merkle_tree);
 
         self.push_proprietary(PropKey::mpc_commitment(), commitment)
