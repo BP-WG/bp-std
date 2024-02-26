@@ -17,14 +17,14 @@ license = "Apache-2.0"
 amplify = "4.6.0"
 bech32 = "0.9.1"
 bitcoin_hashes = "0.13.0"  # TODO: Remove and replace with commit_verify
-commit_verify = "0.11.0-beta.3"
+commit_verify = "0.11.0-beta.4"
 strict_encoding = "2.7.0-beta.1"
-bp-consensus = "0.11.0-beta.3"
-bp-core = { version = "0.11.0-beta.3" }
-bp-invoice = { version = "0.11.0-beta.3", path = "invoice" }
-bp-derive = { version = "0.11.0-beta.3", path = "derive" }
-descriptors = { version = "0.11.0-beta.3", path = "descriptors" }
-psbt = { version = "0.11.0-beta.3", path = "psbt" }
+bp-consensus = "0.11.0-beta.4"
+bp-core = { version = "0.11.0-beta.4" }
+bp-invoice = { version = "0.11.0-beta.4", path = "invoice" }
+bp-derive = { version = "0.11.0-beta.4", path = "derive" }
+descriptors = { version = "0.11.0-beta.4", path = "descriptors" }
+psbt = { version = "0.11.0-beta.4", path = "psbt" }
 indexmap = "2.0.0"
 serde_crate = { package = "serde", version = "1", features = ["derive"] }
 
@@ -61,10 +61,3 @@ all = ["client-side-validation", "strict_encoding", "serde"]
 strict_encoding = ["psbt/strict_encoding"]
 client-side-validation = ["bp-core", "psbt/client-side-validation"]
 serde = ["serde_crate", "bp-consensus/serde", "bp-invoice/serde", "bp-derive/serde", "descriptors/serde", "psbt/serde"]
-
-[patch.crates-io]
-commit_verify = { git = "https://github.com/LNP-BP/client_side_validation", branch = "v0.11" }
-bp-consensus = { git = "https://github.com/BP-WG/bp-core", branch = "v0.11" }
-bp-dbc = { git = "https://github.com/BP-WG/bp-core", branch = "v0.11" }
-bp-seals = { git = "https://github.com/BP-WG/bp-core", branch = "v0.11" }
-bp-core = { git = "https://github.com/BP-WG/bp-core", branch = "v0.11" }
