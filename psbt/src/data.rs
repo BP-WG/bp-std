@@ -69,8 +69,6 @@ impl Prevout {
 /// of inputs) fail to parse outputs (for transactions containing just a one output).
 ///
 /// `UnsignedTx` also ensures invariant that none of its inputs contain witnesses or sigscripts.
-///
-/// [`Tx`]: bpstd::Tx
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 #[cfg_attr(
     feature = "strict_encoding",
