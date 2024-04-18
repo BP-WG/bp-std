@@ -80,7 +80,7 @@ impl Psbt {
         let output = self.dbc_output_mut::<D>().ok_or(DbcPsbtError::NoProperOutput(D::METHOD))?;
 
         let (mpc_proof, dbc_proof) = D::dbc_commit(output)?;
-        Ok(Anchor::new(self.txid(), mpc_proof, dbc_proof))
+        Ok(Anchor::new(mpc_proof, dbc_proof))
     }
 }
 
