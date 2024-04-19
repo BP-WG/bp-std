@@ -76,11 +76,6 @@ impl IdxBase for Keychain {
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
-#[cfg_attr(
-    feature = "serde",
-    derive(serde::Serialize, serde::Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
 #[display("&{keychain}/{index}")]
 pub struct Terminal {
     pub keychain: Keychain,
@@ -131,6 +126,42 @@ impl FromStr for Terminal {
                 ))
             }
             _ => Err(TerminalParseError::InvalidComponents(s.to_owned())),
+        }
+    }
+}
+
+#[cfg(feature = "serde")]
+mod _serde {
+    use serde_crate::de::Error;
+    use serde_crate::{Deserialize, Deserializer, Serialize, Serializer};
+
+    use super::*;
+
+    impl Serialize for Terminal {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: Serializer {
+            if serializer.is_human_readable() {
+                self.to_string().serialize(serializer)
+            } else {
+                let tuple = (self.keychain, self.index);
+                tuple.serialize(serializer)
+            }
+        }
+    }
+
+    impl<'de> Deserialize<'de> for Terminal {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where D: Deserializer<'de> {
+            if deserializer.is_human_readable() {
+                let s = <&str>::deserialize(deserializer)?;
+                Self::from_str(s).map_err(D::Error::custom)
+            } else {
+                let d = <(Keychain, NormalIndex)>::deserialize(deserializer)?;
+                Ok(Self {
+                    keychain: d.0,
+                    index: d.1,
+                })
+            }
         }
     }
 }
