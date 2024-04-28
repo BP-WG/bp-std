@@ -24,8 +24,8 @@ use std::num::ParseIntError;
 use std::str::FromStr;
 
 use derive::{
-    Address, AddressParseError, Keychain, LockTime, NormalIndex, Outpoint, Sats, ScriptPubkey,
-    SeqNo, Terminal, Vout,
+    Address, AddressParseError, Keychain, LockTime, Network, NormalIndex, Outpoint, Sats,
+    ScriptPubkey, SeqNo, Terminal, Vout,
 };
 use descriptors::Descriptor;
 
@@ -196,6 +196,7 @@ pub trait PsbtConstructor {
 
     fn descriptor(&self) -> &Self::Descr;
     fn utxo(&self, outpoint: Outpoint) -> Option<Utxo>;
+    fn network(&self) -> Network;
     fn next_derivation_index(&mut self, keychain: impl Into<Keychain>, shift: bool) -> NormalIndex;
 
     fn construct_psbt<'a, 'b>(
