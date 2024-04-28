@@ -58,15 +58,17 @@ impl<K: DeriveCompr> Derive<DerivedScript> for Wpkh<K> {
 }
 
 impl<K: DeriveCompr> Descriptor<K> for Wpkh<K> {
-    type KeyIter<'k> = iter::Once<&'k K> where Self: 'k, K: 'k;
-    type VarIter<'v> = iter::Empty<&'v ()> where Self: 'v, (): 'v;
-    type XpubIter<'x> = iter::Once<&'x XpubSpec> where Self: 'x;
-
     fn class(&self) -> SpkClass { SpkClass::P2wpkh }
 
-    fn keys(&self) -> Self::KeyIter<'_> { iter::once(&self.0) }
-    fn vars(&self) -> Self::VarIter<'_> { iter::empty() }
-    fn xpubs(&self) -> Self::XpubIter<'_> { iter::once(self.0.xpub_spec()) }
+    fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
+    where K: 'a {
+        iter::once(&self.0)
+    }
+    fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
+    where (): 'a {
+        iter::empty()
+    }
+    fn xpubs(&self) -> impl Iterator<Item = &XpubSpec> { iter::once(self.0.xpub_spec()) }
 
     fn compr_keyset(&self, terminal: Terminal) -> IndexMap<CompressedPk, KeyOrigin> {
         let mut map = IndexMap::with_capacity(1);
