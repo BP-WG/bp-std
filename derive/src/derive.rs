@@ -40,11 +40,6 @@ use crate::{
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default, Debug, Display, From)]
 #[wrapper(FromStr)]
 #[display(inner)]
-#[cfg_attr(
-    feature = "serde",
-    derive(serde::Serialize, serde::Deserialize),
-    serde(crate = "serde_crate", transparent)
-)]
 pub struct Keychain(u8);
 
 impl From<Keychain> for NormalIndex {
@@ -136,6 +131,29 @@ mod _serde {
     use serde_crate::{Deserialize, Deserializer, Serialize, Serializer};
 
     use super::*;
+
+    impl Serialize for Keychain {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: Serializer {
+            if serializer.is_human_readable() {
+                self.0.to_string().serialize(serializer)
+            } else {
+                self.0.serialize(serializer)
+            }
+        }
+    }
+
+    impl<'de> Deserialize<'de> for Keychain {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where D: Deserializer<'de> {
+            if deserializer.is_human_readable() {
+                let s = String::deserialize(deserializer)?;
+                Self::from_str(&s).map_err(D::Error::custom)
+            } else {
+                Ok(Self(u8::deserialize(deserializer)?))
+            }
+        }
+    }
 
     impl Serialize for Terminal {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
