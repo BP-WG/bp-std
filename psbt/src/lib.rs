@@ -35,8 +35,13 @@ mod maps;
 mod coders;
 #[cfg(feature = "client-side-validation")]
 mod csval;
+pub mod constructor;
 
 pub use coders::{Decode, DecodeError, Encode, PsbtError};
+pub use constructor::{
+    Beneficiary, BeneficiaryParseError, ConstructionError, Payment, PsbtConstructor, PsbtMeta,
+    TxParams, Utxo,
+};
 #[cfg(feature = "client-side-validation")]
 pub use csval::*;
 pub use data::{

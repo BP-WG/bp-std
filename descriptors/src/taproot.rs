@@ -58,15 +58,17 @@ impl<K: DeriveXOnly> Derive<DerivedScript> for TrKey<K> {
 }
 
 impl<K: DeriveXOnly> Descriptor<K> for TrKey<K> {
-    type KeyIter<'k> = iter::Once<&'k K> where Self: 'k, K: 'k;
-    type VarIter<'v> = iter::Empty<&'v ()> where Self: 'v, (): 'v;
-    type XpubIter<'x> = iter::Once<&'x XpubSpec> where Self: 'x;
-
     fn class(&self) -> SpkClass { SpkClass::P2tr }
 
-    fn keys(&self) -> Self::KeyIter<'_> { iter::once(&self.0) }
-    fn vars(&self) -> Self::VarIter<'_> { iter::empty() }
-    fn xpubs(&self) -> Self::XpubIter<'_> { iter::once(self.0.xpub_spec()) }
+    fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
+    where K: 'a {
+        iter::once(&self.0)
+    }
+    fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
+    where (): 'a {
+        iter::empty()
+    }
+    fn xpubs(&self) -> impl Iterator<Item = &XpubSpec> { iter::once(self.0.xpub_spec()) }
 
     fn compr_keyset(&self, _terminal: Terminal) -> IndexMap<CompressedPk, KeyOrigin> {
         IndexMap::new()

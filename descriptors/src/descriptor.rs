@@ -21,7 +21,7 @@
 // limitations under the License.
 
 use std::collections::BTreeSet;
-use std::{iter, vec};
+use std::iter;
 
 use derive::{
     CompressedPk, Derive, DeriveCompr, DeriveScripts, DeriveSet, DeriveXOnly, DerivedScript,
@@ -56,24 +56,13 @@ impl SpkClass {
 }
 
 pub trait Descriptor<K = XpubDerivable, V = ()>: DeriveScripts {
-    type KeyIter<'k>: Iterator<Item = &'k K>
-    where
-        Self: 'k,
-        K: 'k;
-
-    type VarIter<'v>: Iterator<Item = &'v V>
-    where
-        Self: 'v,
-        V: 'v;
-
-    type XpubIter<'x>: Iterator<Item = &'x XpubSpec>
-    where Self: 'x;
-
     fn class(&self) -> SpkClass;
 
-    fn keys(&self) -> Self::KeyIter<'_>;
-    fn vars(&self) -> Self::VarIter<'_>;
-    fn xpubs(&self) -> Self::XpubIter<'_>;
+    fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
+    where K: 'a;
+    fn vars<'a>(&'a self) -> impl Iterator<Item = &'a V>
+    where V: 'a;
+    fn xpubs(&self) -> impl Iterator<Item = &XpubSpec>;
 
     fn compr_keyset(&self, terminal: Terminal) -> IndexMap<CompressedPk, KeyOrigin>;
     fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation>;
@@ -195,10 +184,6 @@ impl<S: DeriveSet> Derive<DerivedScript> for StdDescr<S> {
 impl<K: DeriveSet<Compr = K, XOnly = K> + DeriveCompr + DeriveXOnly> Descriptor<K> for StdDescr<K>
 where Self: Derive<DerivedScript>
 {
-    type KeyIter<'k> = vec::IntoIter<&'k K> where Self: 'k, K: 'k;
-    type VarIter<'v> = iter::Empty<&'v ()> where Self: 'v, (): 'v;
-    type XpubIter<'x> = vec::IntoIter<&'x XpubSpec> where Self: 'x;
-
     fn class(&self) -> SpkClass {
         match self {
             StdDescr::Wpkh(d) => d.class(),
@@ -206,7 +191,8 @@ where Self: Derive<DerivedScript>
         }
     }
 
-    fn keys(&self) -> Self::KeyIter<'_> {
+    fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
+    where K: 'a {
         match self {
             StdDescr::Wpkh(d) => d.keys().collect::<Vec<_>>(),
             StdDescr::TrKey(d) => d.keys().collect::<Vec<_>>(),
@@ -214,9 +200,12 @@ where Self: Derive<DerivedScript>
         .into_iter()
     }
 
-    fn vars(&self) -> Self::VarIter<'_> { iter::empty() }
+    fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
+    where (): 'a {
+        iter::empty()
+    }
 
-    fn xpubs(&self) -> Self::XpubIter<'_> {
+    fn xpubs(&self) -> impl Iterator<Item = &XpubSpec> {
         match self {
             StdDescr::Wpkh(d) => d.xpubs().collect::<Vec<_>>(),
             StdDescr::TrKey(d) => d.xpubs().collect::<Vec<_>>(),
