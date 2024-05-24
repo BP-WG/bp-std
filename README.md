@@ -142,7 +142,7 @@ Contribution guidelines can be found in [CONTRIBUTING](CONTRIBUTING.md)
 
 ### MSRV
 
-This library requires minimum rust compiler version (MSRV) 1.60.0.
+Minimum supported rust compiler version (MSRV) is shown in `rust-version` of `Cargo.toml`.
 
 ### Policy on altcoins
 
