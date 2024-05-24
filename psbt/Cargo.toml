@@ -20,8 +20,8 @@ bp-core = { workspace = true, optional = true }
 bp-derive = { workspace = true }
 descriptors = { workspace = true }
 indexmap = { workspace = true }
-base64 = "0.21.5"
-chrono = "0.4.31"
+base64 = "0.22.1"
+chrono = "0.4.38"
 serde_crate = { workspace = true, optional = true }
 
 [features]
