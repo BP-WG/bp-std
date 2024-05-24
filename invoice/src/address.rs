@@ -123,8 +123,11 @@ impl Address {
     /// Returns script corresponding to the given address.
     pub fn script_pubkey(self) -> ScriptPubkey { self.payload.script_pubkey() }
 
-    /// Returns if the address is testnet-, signet- or regtest-specific
+    /// Returns if the address is testnet-, signet- or regtest-specific.
     pub fn is_testnet(self) -> bool { self.network != AddressNetwork::Mainnet }
+
+    /// Detects address type.
+    pub fn address_type(self) -> AddressType { self.payload.address_type() }
 }
 
 impl Display for Address {
@@ -347,6 +350,17 @@ impl AddressPayload {
             AddressPayload::Wpkh(hash) => ScriptPubkey::p2wpkh(hash),
             AddressPayload::Wsh(hash) => ScriptPubkey::p2wsh(hash),
             AddressPayload::Tr(output_key) => ScriptPubkey::p2tr_tweaked(output_key),
+        }
+    }
+
+    /// Detects address type.
+    pub fn address_type(self) -> AddressType {
+        match self {
+            AddressPayload::Pkh(_) => AddressType::P2pkh,
+            AddressPayload::Sh(_) => AddressType::P2sh,
+            AddressPayload::Wpkh(_) => AddressType::P2wpkh,
+            AddressPayload::Wsh(_) => AddressType::P2wsh,
+            AddressPayload::Tr(_) => AddressType::P2tr,
         }
     }
 }
