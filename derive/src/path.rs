@@ -43,6 +43,24 @@ pub enum DerivationParseError {
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct DerivationSeg<I: IdxBase = NormalIndex>(Confined<BTreeSet<I>, 1, 8>);
 
+impl<I: IdxBase> From<&'static [I]> for DerivationSeg<I> {
+    fn from(indexes: &'static [I]) -> Self {
+        Self(Confined::from_iter_unsafe(indexes.into_iter().copied()))
+    }
+}
+
+impl<I: IdxBase> From<[I; 2]> for DerivationSeg<I> {
+    fn from(indexes: [I; 2]) -> Self { Self(Confined::from_iter_unsafe(indexes)) }
+}
+
+impl<I: IdxBase> From<[I; 3]> for DerivationSeg<I> {
+    fn from(indexes: [I; 3]) -> Self { Self(Confined::from_iter_unsafe(indexes)) }
+}
+
+impl<I: IdxBase> From<[I; 4]> for DerivationSeg<I> {
+    fn from(indexes: [I; 4]) -> Self { Self(Confined::from_iter_unsafe(indexes)) }
+}
+
 impl<I: IdxBase> DerivationSeg<I> {
     pub fn new(index: I) -> Self { DerivationSeg(confined_bset![index]) }
 

@@ -495,7 +495,33 @@ pub struct XpubDerivable {
     pub(crate) keychains: DerivationSeg<Keychain>,
 }
 
+impl From<XpubSpec> for XpubDerivable {
+    fn from(spec: XpubSpec) -> Self {
+        XpubDerivable {
+            spec,
+            variant: None,
+            keychains: DerivationSeg::from([Keychain::INNER, Keychain::OUTER]),
+        }
+    }
+}
+
 impl XpubDerivable {
+    pub fn new(xpub: Xpub, origin: XpubOrigin) -> Self {
+        XpubDerivable {
+            spec: XpubSpec::new(xpub, origin),
+            variant: None,
+            keychains: DerivationSeg::from([Keychain::INNER, Keychain::OUTER]),
+        }
+    }
+
+    pub fn with(xpub: Xpub, origin: XpubOrigin, keychains: &'static [Keychain]) -> Self {
+        XpubDerivable {
+            spec: XpubSpec::new(xpub, origin),
+            variant: None,
+            keychains: DerivationSeg::from(keychains),
+        }
+    }
+
     pub fn xpub(&self) -> Xpub { self.spec.xpub }
 
     pub fn origin(&self) -> &XpubOrigin { &self.spec.origin }
