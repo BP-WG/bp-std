@@ -89,3 +89,27 @@ impl PsbtVer {
         }
     }
 }
+
+impl std::convert::TryFrom<usize> for PsbtVer {
+    type Error = PsbtUnsupportedVer;
+
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::V0),
+            2 => Ok(Self::V2),
+            _ => Err(PsbtUnsupportedVer(value as u32)),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn psbt_try_from_numbers() {
+        assert_eq!(PsbtVer::try_from(0), Ok(PsbtVer::V0));
+        assert_eq!(PsbtVer::try_from(2), Ok(PsbtVer::V2));
+        assert_eq!(PsbtVer::try_from(1), Err(PsbtUnsupportedVer(1)));
+    }
+}
