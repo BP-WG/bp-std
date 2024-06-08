@@ -537,8 +537,7 @@ mod display_from_str {
         fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
             let ver = match (f.width(), f.sign_aware_zero_pad()) {
                 (None, true) => PsbtVer::V0,
-                (Some(0), _) => PsbtVer::V0,
-                (Some(2), _) => PsbtVer::V2,
+                (Some(ver), _) => PsbtVer::try_from(ver).map_err(|_| fmt::Error)?,
                 _ => self.version,
             };
             write!(f, "{}", Base64Display::new(&self.serialize(ver), &BASE64_STANDARD))
@@ -547,14 +546,10 @@ mod display_from_str {
 
     impl LowerHex for Psbt {
         fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-            let mut ver = match f.width().unwrap_or(0) {
-                0 => PsbtVer::V0,
-                2 => PsbtVer::V2,
-                _ => return Err(fmt::Error),
+            let ver = match f.width() {
+                Some(ver) => PsbtVer::try_from(ver).map_err(|_| fmt::Error)?,
+                None => self.version,
             };
-            if f.alternate() {
-                ver = PsbtVer::V2;
-            }
             f.write_str(&self.to_base16_ver(ver))
         }
     }
@@ -961,5 +956,83 @@ impl ModifiableFlags {
 
     pub const fn is_modifiable(&self) -> bool {
         self.inputs_modifiable | self.outputs_modifiable | self.sighash_single
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn psbt_formats() {
+        let v0_psbt = Psbt {
+            version: PsbtVer::V0,
+            tx_version: TxVer::default(),
+            fallback_locktime: None,
+            inputs: Vec::new(),
+            outputs: Vec::new(),
+            xpubs: IndexMap::new(),
+            tx_modifiable: None,
+            proprietary: IndexMap::new(),
+            unknown: IndexMap::new(),
+        };
+        let v2_psbt = Psbt {
+            version: PsbtVer::V2,
+            tx_version: TxVer::default(),
+            fallback_locktime: None,
+            inputs: Vec::new(),
+            outputs: Vec::new(),
+            xpubs: IndexMap::new(),
+            tx_modifiable: None,
+            proprietary: IndexMap::new(),
+            unknown: IndexMap::new(),
+        };
+
+        assert_eq!(format!("{v0_psbt}"), "cHNidP8BAAoCAAAAAAAAAAAAAfsEAAAAAAA=");
+        assert_eq!(format!("{v2_psbt}"), "cHNidP8BAgQCAAAAAQQBAAEFAQAB+wQCAAAAAA==");
+
+        assert_eq!(format!("{v0_psbt:#}"), "cHNidP8BAAoCAAAAAAAAAAAAAfsEAAAAAAA=");
+        assert_eq!(format!("{v2_psbt:#}"), "cHNidP8BAgQCAAAAAQQBAAEFAQAB+wQCAAAAAA==");
+
+        assert_eq!(format!("{v0_psbt:x}"), "70736274ff01000a0200000000000000000001fb040000000000");
+        assert_eq!(
+            format!("{v2_psbt:x}"),
+            "70736274ff01020402000000010401000105010001fb040200000000"
+        );
+
+        assert_eq!(format!("{v0_psbt:#x}"), "70736274ff01000a0200000000000000000001fb040000000000");
+        assert_eq!(
+            format!("{v2_psbt:#x}"),
+            "70736274ff01020402000000010401000105010001fb040200000000"
+        );
+
+        // format with a specific version
+        assert_eq!(format!("{v2_psbt:00}"), "cHNidP8BAAoCAAAAAAAAAAAAAfsEAAAAAAA=");
+        assert_eq!(format!("{v0_psbt:02}"), "cHNidP8BAgQCAAAAAQQBAAEFAQAB+wQCAAAAAA==");
+
+        assert_eq!(format!("{v2_psbt:0}"), "cHNidP8BAAoCAAAAAAAAAAAAAfsEAAAAAAA=");
+        assert_eq!(format!("{v0_psbt:2}"), "cHNidP8BAgQCAAAAAQQBAAEFAQAB+wQCAAAAAA==");
+
+        assert_eq!(format!("{v2_psbt:#0}"), "cHNidP8BAAoCAAAAAAAAAAAAAfsEAAAAAAA=");
+        assert_eq!(format!("{v0_psbt:#2}"), "cHNidP8BAgQCAAAAAQQBAAEFAQAB+wQCAAAAAA==");
+
+        // error formats
+        let result = std::panic::catch_unwind(|| format!("{v0_psbt:01}"));
+        assert!(result.is_err(), "Should fail on unsupported psbt version");
+
+        let result = std::panic::catch_unwind(|| format!("{v0_psbt:1}"));
+        assert!(result.is_err(), "Should fail on unsupported psbt version");
+
+        let result = std::panic::catch_unwind(|| format!("{v0_psbt:#01}"));
+        assert!(result.is_err(), "Should fail on unsupported psbt version");
+
+        let result = std::panic::catch_unwind(|| format!("{v0_psbt:#1}"));
+        assert!(result.is_err(), "Should fail on unsupported psbt version");
+
+        let result = std::panic::catch_unwind(|| format!("{v0_psbt:#1x}"));
+        assert!(result.is_err(), "Should fail on unsupported psbt version");
+
+        let result = std::panic::catch_unwind(|| format!("{v0_psbt:#01x}"));
+        assert!(result.is_err(), "Should fail on unsupported psbt version");
     }
 }
