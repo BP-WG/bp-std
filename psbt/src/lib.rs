@@ -90,7 +90,7 @@ impl PsbtVer {
     }
 }
 
-impl std::convert::TryFrom<usize> for PsbtVer {
+impl TryFrom<usize> for PsbtVer {
     type Error = PsbtUnsupportedVer;
 
     fn try_from(value: usize) -> Result<Self, Self::Error> {
