@@ -45,7 +45,7 @@ pub struct DerivationSeg<I: IdxBase = NormalIndex>(Confined<BTreeSet<I>, 1, 8>);
 
 impl<I: IdxBase> From<&'static [I]> for DerivationSeg<I> {
     fn from(indexes: &'static [I]) -> Self {
-        Self(Confined::from_iter_unsafe(indexes.into_iter().copied()))
+        Self(Confined::from_iter_unsafe(indexes.iter().copied()))
     }
 }
 
