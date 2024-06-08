@@ -24,7 +24,7 @@ use std::borrow::Borrow;
 use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 
-use amplify::{hex, ByteArray, Bytes20, Bytes32, Bytes4, Wrapper};
+use amplify::{confinement, hex, ByteArray, Bytes20, Bytes32, Bytes4, Wrapper};
 use bc::secp256k1::SECP256K1;
 use bc::{secp256k1, CompressedPk, InvalidPubkey, LegacyPk, XOnlyPk};
 use bitcoin_hashes::{hash160, sha512, Hash, HashEngine, Hmac, HmacEngine};
@@ -506,7 +506,7 @@ impl From<XpubSpec> for XpubDerivable {
 }
 
 impl XpubDerivable {
-    pub fn new(xpub: Xpub, origin: XpubOrigin) -> Self {
+    pub fn new_standard(xpub: Xpub, origin: XpubOrigin) -> Self {
         XpubDerivable {
             spec: XpubSpec::new(xpub, origin),
             variant: None,
@@ -514,12 +514,24 @@ impl XpubDerivable {
         }
     }
 
-    pub fn with(xpub: Xpub, origin: XpubOrigin, keychains: &'static [Keychain]) -> Self {
+    pub fn new_custom(xpub: Xpub, origin: XpubOrigin, keychains: &'static [Keychain]) -> Self {
         XpubDerivable {
             spec: XpubSpec::new(xpub, origin),
             variant: None,
             keychains: DerivationSeg::from(keychains),
         }
+    }
+
+    pub fn try_custom(
+        xpub: Xpub,
+        origin: XpubOrigin,
+        keychains: impl IntoIterator<Item = Keychain>,
+    ) -> Result<Self, confinement::Error> {
+        Ok(XpubDerivable {
+            spec: XpubSpec::new(xpub, origin),
+            variant: None,
+            keychains: DerivationSeg::with(keychains)?,
+        })
     }
 
     pub fn xpub(&self) -> Xpub { self.spec.xpub }
