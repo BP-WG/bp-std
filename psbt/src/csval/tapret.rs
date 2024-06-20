@@ -261,10 +261,10 @@ impl Output {
     /// Function returns generic type since the real type will create dependency
     /// on `bp-dpc` crate, which will result in circular dependency with the
     /// current crate.
-    pub fn tapret_proof(&self) -> Option<TapretPathProof> {
+    pub fn tapret_proof(&self) -> Option<TapretProof> {
         let data = self.proprietary(&PropKey::tapret_proof())?;
         let vec = Confined::try_from_iter(data.iter().copied()).ok()?;
-        TapretPathProof::from_strict_serialized::<U16>(vec).ok()
+        TapretProof::from_strict_serialized::<U16>(vec).ok()
     }
 }
 
