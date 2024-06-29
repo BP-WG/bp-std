@@ -26,6 +26,9 @@ pub use bc::{secp256k1, *};
 pub use derive::*;
 pub use descriptors::*;
 pub use psbt::{
-    self, Prevout, Psbt, PsbtError, PsbtParseError, PsbtUnsupportedVer, PsbtVer, UnsignedTx,
-    UnsignedTxIn,
+    self, Prevout, Psbt, PsbtError, PsbtParseError, PsbtUnsupportedVer, PsbtVer, Rejected, Sign,
+    UnsignedTx, UnsignedTxIn,
 };
+
+#[cfg(feature = "signers")]
+pub mod signers;
