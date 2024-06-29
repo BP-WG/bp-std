@@ -24,6 +24,7 @@ use std::collections::BTreeSet;
 
 use amplify::num::u5;
 use amplify::{Bytes20, Bytes32};
+use bp::TapLeafHash;
 use derive::{
     Bip340Sig, ByteStr, CompressedPk, ControlBlock, InternalPk, KeyOrigin, LeafScript, LegacyPk,
     LegacySig, LockHeight, LockTime, LockTimestamp, Outpoint, RedeemScript, Sats, ScriptPubkey,
@@ -663,7 +664,7 @@ pub struct Input {
 
     /// The 64 or 65 byte Schnorr signature for this pubkey and leaf combination. Finalizers
     /// should remove this field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
-    pub tap_script_sig: IndexMap<(InternalPk, Bytes32), Bip340Sig>,
+    pub tap_script_sig: IndexMap<(InternalPk, TapLeafHash), Bip340Sig>,
 
     /// The script for this leaf as would be provided in the witness stack followed by the single
     /// byte leaf version. Note that the leaves included in this field should be those that the
@@ -774,6 +775,9 @@ impl Input {
 
     #[inline]
     pub fn index(&self) -> usize { self.index }
+
+    #[must_use]
+    pub fn is_bip340(&self) -> bool { self.tap_internal_key.is_some() }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
