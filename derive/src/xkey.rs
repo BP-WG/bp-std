@@ -742,6 +742,56 @@ impl FromStr for XpubSpec {
     }
 }
 
+#[derive(Getters, Eq, PartialEq)]
+pub struct XprivSpec {
+    origin: XkeyOrigin,
+    xpriv: Xpriv,
+}
+
+impl XprivSpec {
+    pub fn new(xpriv: Xpriv, origin: XkeyOrigin) -> Self { XprivSpec { xpriv, origin } }
+}
+
+impl Display for XprivSpec {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str("[")?;
+        Display::fmt(&self.origin, f)?;
+        f.write_str("]")?;
+        write!(f, "{}/", self.xpriv)
+    }
+}
+
+impl FromStr for XprivSpec {
+    type Err = XkeyParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if !s.starts_with('[') {
+            return Err(XkeyParseError::NoOrigin);
+        }
+        let (origin, xpriv) =
+            s.trim_start_matches('[').split_once(']').ok_or(XkeyParseError::NoOrigin)?;
+        let origin = XkeyOrigin::from_str(origin)?;
+        let xpriv = Xpriv::from_str(xpriv)?;
+
+        if origin.derivation.len() != xpriv.meta.depth as usize {
+            return Err(XkeyParseError::DepthMismatch);
+        }
+        if !origin.derivation.is_empty() {
+            let network = if xpriv.testnet { HardenedIndex::ONE } else { HardenedIndex::ZERO };
+            if origin.derivation.get(1) != Some(&network) {
+                return Err(XkeyParseError::NetworkMismatch);
+            }
+            if origin.derivation.last().copied().map(DerivationIndex::Hardened)
+                != Some(xpriv.meta.child_number)
+            {
+                return Err(XkeyParseError::ParentMismatch);
+            }
+        }
+
+        Ok(XprivSpec { origin, xpriv })
+    }
+}
+
 #[derive(Getters, Clone, Eq, PartialEq, Hash, Debug)]
 pub struct XpubDerivable {
     spec: XpubSpec,
