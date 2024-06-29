@@ -30,7 +30,7 @@ use bc::{
 };
 use commit_verify::merkle::MerkleBuoy;
 
-use crate::{KeyOrigin, Terminal, XpubOrigin};
+use crate::{KeyOrigin, Terminal, XkeyOrigin};
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display, Error, From)]
 pub enum InvalidTree {
@@ -238,7 +238,7 @@ pub struct TapDerivation {
 }
 
 impl TapDerivation {
-    pub fn with_internal_pk(xpub_origin: XpubOrigin, terminal: Terminal) -> Self {
+    pub fn with_internal_pk(xpub_origin: XkeyOrigin, terminal: Terminal) -> Self {
         let origin = KeyOrigin::with(xpub_origin, terminal);
         TapDerivation {
             leaf_hashes: empty!(),

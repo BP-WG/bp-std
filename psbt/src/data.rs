@@ -28,7 +28,7 @@ use derive::{
     Bip340Sig, ByteStr, CompressedPk, ControlBlock, InternalPk, KeyOrigin, LeafScript, LegacyPk,
     LegacySig, LockHeight, LockTime, LockTimestamp, Outpoint, RedeemScript, Sats, ScriptPubkey,
     SeqNo, SigScript, SighashType, TapDerivation, TapNodeHash, TapTree, Terminal, Tx, TxIn, TxOut,
-    TxVer, Txid, VarIntArray, Vout, Witness, WitnessScript, XOnlyPk, Xpub, XpubOrigin,
+    TxVer, Txid, VarIntArray, Vout, Witness, WitnessScript, XOnlyPk, XkeyOrigin, Xpub,
 };
 use descriptors::Descriptor;
 use indexmap::IndexMap;
@@ -204,7 +204,7 @@ pub struct Psbt {
 
     /// A global map from extended public keys to the used key fingerprint and
     /// derivation path as defined by BIP 32
-    pub xpubs: IndexMap<Xpub, XpubOrigin>,
+    pub xpubs: IndexMap<Xpub, XkeyOrigin>,
 
     /// Transaction Modifiable Flags
     pub(crate) tx_modifiable: Option<ModifiableFlags>,
@@ -307,7 +307,7 @@ impl Psbt {
     #[inline]
     pub fn fee(&self) -> Option<Sats> { self.input_sum().checked_sub(self.output_sum()) }
 
-    pub fn xpubs(&self) -> impl Iterator<Item = (&Xpub, &XpubOrigin)> { self.xpubs.iter() }
+    pub fn xpubs(&self) -> impl Iterator<Item = (&Xpub, &XkeyOrigin)> { self.xpubs.iter() }
 
     pub fn is_modifiable(&self) -> bool {
         self.tx_modifiable.as_ref().map(ModifiableFlags::is_modifiable).unwrap_or_default()

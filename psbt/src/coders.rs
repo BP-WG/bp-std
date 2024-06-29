@@ -32,7 +32,7 @@ use derive::{
     LockTimestamp, NonStandardValue, Outpoint, RedeemScript, Sats, ScriptBytes, ScriptPubkey,
     SeqNo, SigError, SigScript, SighashType, TapDerivation, TapLeafHash, TapNodeHash, TapTree, Tx,
     TxOut, TxVer, Txid, UncompressedPk, VarInt, VarIntArray, Vout, Witness, WitnessScript, XOnlyPk,
-    Xpub, XpubDecodeError, XpubFp, XpubOrigin,
+    XkeyDecodeError, XkeyOrigin, Xpub, XpubFp,
 };
 
 use crate::keys::KeyValue;
@@ -52,7 +52,7 @@ pub enum DecodeError {
     #[from(SigError)]
     #[from(ConsensusDataError)]
     #[from(PsbtUnsupportedVer)]
-    #[from(XpubDecodeError)]
+    #[from(XkeyDecodeError)]
     #[from(InvalidTree)]
     #[from(InvalidLeafVer)]
     #[from(NonStandardValue<u8>)]
@@ -135,7 +135,7 @@ pub enum PsbtError {
 
     #[from]
     #[display(inner)]
-    InvalidXub(XpubDecodeError),
+    InvalidXub(XkeyDecodeError),
 
     /// one of xpubs has an unhardened derivation index
     XpubUnhardenedOrigin,
@@ -143,7 +143,7 @@ pub enum PsbtError {
     /// derivation path has invalid length
     InvalidDerivationPath,
 
-    /// unrecognized public key encoding starting with flag {0:#02x}.
+    /// unrecognized public key encoding starting with flag {0:#04x}.
     UnrecognizedKeyFormat(u8),
 
     /// proof of reserves is not a valid UTF-8 string. {0}.
@@ -409,17 +409,17 @@ impl Decode for XpubFp {
     }
 }
 
-impl Encode for XpubOrigin {
+impl Encode for XkeyOrigin {
     fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
-        Ok(self.master_fp().encode(writer)? + self.derivation().encode(writer)?)
+        Ok(self.master_fp().encode(writer)? + self.as_derivation().encode(writer)?)
     }
 }
 
-impl Decode for XpubOrigin {
+impl Decode for XkeyOrigin {
     fn decode(reader: &mut impl Read) -> Result<Self, DecodeError> {
         let master_fp = XpubFp::decode(reader)?;
         let derivation = DerivationPath::decode(reader)?;
-        Ok(XpubOrigin::new(master_fp, derivation))
+        Ok(XkeyOrigin::new(master_fp, derivation))
     }
 }
 
