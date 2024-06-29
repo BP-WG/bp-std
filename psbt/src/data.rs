@@ -24,12 +24,11 @@ use std::collections::BTreeSet;
 
 use amplify::num::u5;
 use amplify::{Bytes20, Bytes32};
-use bp::TapLeafHash;
 use derive::{
     Bip340Sig, ByteStr, CompressedPk, ControlBlock, InternalPk, KeyOrigin, LeafScript, LegacyPk,
     LegacySig, LockHeight, LockTime, LockTimestamp, Outpoint, RedeemScript, Sats, ScriptPubkey,
-    SeqNo, SigScript, SighashType, TapDerivation, TapNodeHash, TapTree, Terminal, Tx, TxIn, TxOut,
-    TxVer, Txid, VarIntArray, Vout, Witness, WitnessScript, XOnlyPk, XkeyOrigin, Xpub,
+    SeqNo, SigScript, SighashType, TapDerivation, TapLeafHash, TapNodeHash, TapTree, Terminal, Tx,
+    TxIn, TxOut, TxVer, Txid, VarIntArray, Vout, Witness, WitnessScript, XOnlyPk, XkeyOrigin, Xpub,
 };
 use descriptors::Descriptor;
 use indexmap::IndexMap;
