@@ -561,7 +561,7 @@ impl KeyMap for Input {
                 self.hash256.insert(hash, value_data.into());
             }
             InputKey::TapScriptSig => {
-                let (internal_pk, leaf_hash) = <(InternalPk, Bytes32)>::deserialize(key_data)?;
+                let (internal_pk, leaf_hash) = <(InternalPk, TapLeafHash)>::deserialize(key_data)?;
                 let sig = Bip340Sig::deserialize(value_data)?;
                 self.tap_script_sig.insert((internal_pk, leaf_hash), sig);
             }
