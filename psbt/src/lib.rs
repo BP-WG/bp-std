@@ -36,6 +36,7 @@ mod coders;
 #[cfg(feature = "client-side-validation")]
 mod csval;
 pub mod constructor;
+mod sign;
 
 pub use coders::{Decode, DecodeError, Encode, PsbtError};
 pub use constructor::{
@@ -49,6 +50,7 @@ pub use data::{
 };
 pub use keys::{GlobalKey, InputKey, KeyPair, KeyType, OutputKey, PropKey};
 pub use maps::{KeyAlreadyPresent, KeyData, KeyMap, Map, MapName, ValueData};
+pub use sign::{Rejected, Sign, SignError};
 
 #[cfg(feature = "strict_encoding")]
 pub const LIB_NAME_PSBT: &str = "Psbt";
