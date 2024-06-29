@@ -27,8 +27,8 @@ use amplify::{Bytes20, Bytes32, IoError};
 use derive::{
     Bip340Sig, ByteStr, CompressedPk, ControlBlock, InternalPk, KeyOrigin, LeafScript, LegacyPk,
     LegacySig, LockHeight, LockTime, LockTimestamp, RedeemScript, Sats, ScriptPubkey, SeqNo,
-    SigScript, SighashType, TapDerivation, TapNodeHash, TapTree, Tx, TxOut, TxVer, Txid, VarInt,
-    Vout, Witness, WitnessScript, XOnlyPk, Xpub, XpubOrigin,
+    SigScript, SighashType, TapDerivation, TapLeafHash, TapNodeHash, TapTree, Tx, TxOut, TxVer,
+    Txid, VarInt, Vout, Witness, WitnessScript, XOnlyPk, XkeyOrigin, Xpub,
 };
 use indexmap::IndexMap;
 
@@ -378,7 +378,7 @@ impl KeyMap for Psbt {
         match key_type {
             GlobalKey::Xpub => {
                 let xpub = Xpub::deserialize(key_data)?;
-                let origin = XpubOrigin::deserialize(value_data)?;
+                let origin = XkeyOrigin::deserialize(value_data)?;
                 self.xpubs.insert(xpub, origin);
             }
 

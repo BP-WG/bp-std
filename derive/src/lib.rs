@@ -28,7 +28,7 @@ extern crate serde_crate as serde;
 
 mod index;
 mod path;
-mod xpub;
+mod xkey;
 mod derive;
 pub mod taptree;
 
@@ -47,7 +47,8 @@ pub use taptree::{
     ControlBlockFactory, FinalizedTree, InvalidTree, LeafInfo, TapDerivation, TapTree,
     TapTreeBuilder, UnfinalizedTree,
 };
-pub use xpub::{
-    KeyOrigin, OriginParseError, Xpub, XpubDecodeError, XpubDerivable, XpubFp, XpubId, XpubMeta,
-    XpubOrigin, XpubParseError, XpubSpec,
+pub use xkey::{
+    ChainCode, KeyOrigin, OriginParseError, XkeyDecodeError, XkeyMeta, XkeyOrigin, XkeyParseError,
+    Xpriv, XprivCore, Xpub, XpubCore, XpubDerivable, XpubFp, XpubId, XpubSpec, XPRIV_MAINNET_MAGIC,
+    XPRIV_TESTNET_MAGIC,
 };

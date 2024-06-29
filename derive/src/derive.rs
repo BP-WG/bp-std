@@ -416,7 +416,7 @@ impl Derive<LegacyPk> for XpubDerivable {
     fn keychains(&self) -> BTreeSet<Keychain> { self.keychains.to_set() }
 
     fn derive(&self, keychain: impl Into<Keychain>, index: impl Into<NormalIndex>) -> LegacyPk {
-        self.xpub().derive_pub([keychain.into().into(), index.into()]).to_legacy_pub()
+        self.xpub().derive_pub([keychain.into().into(), index.into()]).to_legacy_pk()
     }
 }
 
@@ -428,7 +428,7 @@ impl Derive<CompressedPk> for XpubDerivable {
     fn keychains(&self) -> BTreeSet<Keychain> { self.keychains.to_set() }
 
     fn derive(&self, keychain: impl Into<Keychain>, index: impl Into<NormalIndex>) -> CompressedPk {
-        self.xpub().derive_pub([keychain.into().into(), index.into()]).to_compr_pub()
+        self.xpub().derive_pub([keychain.into().into(), index.into()]).to_compr_pk()
     }
 }
 
@@ -440,7 +440,7 @@ impl Derive<XOnlyPk> for XpubDerivable {
     fn keychains(&self) -> BTreeSet<Keychain> { self.keychains.to_set() }
 
     fn derive(&self, keychain: impl Into<Keychain>, index: impl Into<NormalIndex>) -> XOnlyPk {
-        self.xpub().derive_pub([keychain.into().into(), index.into()]).to_xonly_pub()
+        self.xpub().derive_pub([keychain.into().into(), index.into()]).to_xonly_pk()
     }
 }
 
