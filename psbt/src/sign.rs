@@ -22,8 +22,9 @@
 
 use std::borrow::Borrow;
 
-use bp::{Bip340Sig, InternalPk, SighashCache, SighashError, Tx, TxOut, Txid, XOnlyPk};
-use derive::Satisfy;
+use derive::{
+    Bip340Sig, InternalPk, Satisfy, SighashCache, SighashError, Tx, TxOut, Txid, XOnlyPk,
+};
 
 use crate::{Input, Psbt};
 
