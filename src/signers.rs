@@ -25,31 +25,30 @@ use std::collections::HashMap;
 use amplify::Wrapper;
 use bc::secp256k1::{ecdsa, schnorr as bip340, SECP256K1};
 use bc::{LegacyPk, Sighash, TapLeafHash, TapMerklePath, TapSighash, XOnlyPk};
-use derive::{KeyOrigin, Satisfy, XkeyOrigin, Xpriv};
+use derive::{KeyOrigin, Satisfy, XkeyOrigin, Xpriv, XprivAccount};
 use psbt::{Psbt, Rejected, Sign};
 
-pub struct TestSigner {
-    pub keys: HashMap<XkeyOrigin, Xpriv>,
+#[derive(Clone)]
+pub struct TestSigner<'a> {
+    pub keys: HashMap<&'a XkeyOrigin, &'a Xpriv>,
     pub key_path: bool,
     pub script_path: Option<TapLeafHash>,
 }
 
-impl TestSigner {
-    pub fn new_legacy(
-        iter: impl IntoIterator<Item = (impl ToOwned<Owned = XkeyOrigin>, impl ToOwned<Owned = Xpriv>)>,
-    ) -> Self {
+impl<'a> TestSigner<'a> {
+    pub fn new(account: &'a XprivAccount) -> Self { Self::with(true, None, [account]) }
+
+    pub fn new_legacy(iter: impl IntoIterator<Item = &'a XprivAccount>) -> Self {
         Self::with(false, None, iter)
     }
 
-    pub fn new_key_spend(
-        iter: impl IntoIterator<Item = (impl ToOwned<Owned = XkeyOrigin>, impl ToOwned<Owned = Xpriv>)>,
-    ) -> Self {
+    pub fn new_key_spend(iter: impl IntoIterator<Item = &'a XprivAccount>) -> Self {
         Self::with(true, None, iter)
     }
 
     pub fn new_script_spent(
         leaf: impl Into<TapLeafHash>,
-        iter: impl IntoIterator<Item = (impl ToOwned<Owned = XkeyOrigin>, impl ToOwned<Owned = Xpriv>)>,
+        iter: impl IntoIterator<Item = &'a XprivAccount>,
     ) -> Self {
         Self::with(false, Some(leaf.into()), iter)
     }
@@ -57,12 +56,12 @@ impl TestSigner {
     pub fn with(
         key_path: bool,
         script_path: Option<TapLeafHash>,
-        iter: impl IntoIterator<Item = (impl ToOwned<Owned = XkeyOrigin>, impl ToOwned<Owned = Xpriv>)>,
+        iter: impl IntoIterator<Item = &'a XprivAccount>,
     ) -> Self {
         Self {
             keys: iter
                 .into_iter()
-                .map(|(origin, xpriv)| (origin.to_owned(), xpriv.to_owned()))
+                .map(|account| (account.origin(), account.xpriv()))
                 .filter(|(origin, xpriv)| {
                     if xpriv.is_testnet() {
                         true
@@ -81,13 +80,13 @@ impl TestSigner {
     }
 }
 
-impl Sign for TestSigner {
-    type Satisfier<'s> = &'s Self;
+impl<'a> Sign for TestSigner<'a> {
+    type Satisfier<'s> = Self where Self: 's;
 
-    fn approve(&self, _: &Psbt) -> Result<Self::Satisfier<'_>, Rejected> { Ok(self) }
+    fn approve(&self, _: &Psbt) -> Result<Self::Satisfier<'_>, Rejected> { Ok(self.clone()) }
 }
 
-impl<'a> TestSigner {
+impl<'a> TestSigner<'a> {
     fn get(&self, origin: Option<&KeyOrigin>) -> Option<Xpriv> {
         let origin = origin?;
         self.keys.iter().find_map(|(xo, xpriv)| {
@@ -99,7 +98,7 @@ impl<'a> TestSigner {
     }
 }
 
-impl<'a> Satisfy for &'a TestSigner {
+impl<'a> Satisfy for TestSigner<'a> {
     fn signature_ecdsa(
         &self,
         message: Sighash,
