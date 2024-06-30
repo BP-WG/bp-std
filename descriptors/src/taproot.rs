@@ -25,7 +25,7 @@ use std::iter;
 
 use derive::{
     CompressedPk, Derive, DeriveXOnly, DerivedScript, InternalPk, KeyOrigin, Keychain, NormalIndex,
-    TapDerivation, Terminal, XOnlyPk, XpubDerivable, XpubSpec,
+    TapDerivation, Terminal, XOnlyPk, XpubAccount, XpubDerivable,
 };
 use indexmap::IndexMap;
 
@@ -68,7 +68,7 @@ impl<K: DeriveXOnly> Descriptor<K> for TrKey<K> {
     where (): 'a {
         iter::empty()
     }
-    fn xpubs(&self) -> impl Iterator<Item = &XpubSpec> { iter::once(self.0.xpub_spec()) }
+    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> { iter::once(self.0.xpub_spec()) }
 
     fn compr_keyset(&self, _terminal: Terminal) -> IndexMap<CompressedPk, KeyOrigin> {
         IndexMap::new()
