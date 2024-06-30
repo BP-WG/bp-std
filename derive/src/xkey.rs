@@ -597,6 +597,8 @@ impl XkeyOrigin {
 
     pub const fn master_fp(&self) -> XpubFp { self.master_fp }
 
+    pub fn derivation(&self) -> &[HardenedIndex] { self.derivation.as_ref() }
+
     pub fn as_derivation(&self) -> &DerivationPath<HardenedIndex> { &self.derivation }
 
     pub fn to_derivation(&self) -> DerivationPath {
@@ -606,7 +608,7 @@ impl XkeyOrigin {
     pub fn child_derivation<'a>(&'a self, child: &'a KeyOrigin) -> Option<&[DerivationIndex]> {
         if self.master_fp() == child.master_fp() {
             let d = child.derivation();
-            let shared = d.shared_prefix(self.as_derivation());
+            let shared = d.shared_prefix(self.derivation());
             if shared > 0 {
                 return Some(&d[shared..]);
             }
@@ -700,6 +702,24 @@ pub struct XpubAccount {
 
 impl XpubAccount {
     pub fn new(xpub: Xpub, origin: XkeyOrigin) -> Self { XpubAccount { xpub, origin } }
+
+    #[inline]
+    pub const fn master_fp(&self) -> XpubFp { self.origin.master_fp }
+
+    #[inline]
+    pub fn account_fp(&self) -> XpubFp { self.xpub.fingerprint() }
+
+    #[inline]
+    pub fn account_id(&self) -> XpubId { self.xpub.identifier() }
+
+    #[inline]
+    pub fn derivation(&self) -> &[HardenedIndex] { self.origin.derivation.as_ref() }
+
+    #[inline]
+    pub const fn as_derivation(&self) -> &DerivationPath<HardenedIndex> { &self.origin.derivation }
+
+    #[inline]
+    pub fn to_derivation(&self) -> DerivationPath { self.origin.to_derivation() }
 }
 
 impl Display for XpubAccount {
@@ -750,6 +770,31 @@ pub struct XprivAccount {
 
 impl XprivAccount {
     pub fn new(xpriv: Xpriv, origin: XkeyOrigin) -> Self { XprivAccount { xpriv, origin } }
+
+    pub fn to_xpub_account(&self) -> XpubAccount {
+        XpubAccount {
+            origin: self.origin.clone(),
+            xpub: self.xpriv.to_xpub(),
+        }
+    }
+
+    #[inline]
+    pub const fn master_fp(&self) -> XpubFp { self.origin.master_fp }
+
+    #[inline]
+    pub fn account_fp(&self) -> XpubFp { self.xpriv.fingerprint() }
+
+    #[inline]
+    pub fn account_id(&self) -> XpubId { self.xpriv.identifier() }
+
+    #[inline]
+    pub fn derivation(&self) -> &[HardenedIndex] { self.origin.derivation.as_ref() }
+
+    #[inline]
+    pub const fn as_derivation(&self) -> &DerivationPath<HardenedIndex> { &self.origin.derivation }
+
+    #[inline]
+    pub fn to_derivation(&self) -> DerivationPath { self.origin.to_derivation() }
 }
 
 impl Display for XprivAccount {
