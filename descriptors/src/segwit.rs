@@ -25,7 +25,7 @@ use std::iter;
 
 use derive::{
     CompressedPk, Derive, DeriveCompr, DerivedScript, KeyOrigin, Keychain, NormalIndex,
-    ScriptPubkey, TapDerivation, Terminal, WPubkeyHash, XOnlyPk, XpubDerivable, XpubSpec,
+    ScriptPubkey, TapDerivation, Terminal, WPubkeyHash, XOnlyPk, XpubAccount, XpubDerivable,
 };
 use indexmap::IndexMap;
 
@@ -68,7 +68,7 @@ impl<K: DeriveCompr> Descriptor<K> for Wpkh<K> {
     where (): 'a {
         iter::empty()
     }
-    fn xpubs(&self) -> impl Iterator<Item = &XpubSpec> { iter::once(self.0.xpub_spec()) }
+    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> { iter::once(self.0.xpub_spec()) }
 
     fn compr_keyset(&self, terminal: Terminal) -> IndexMap<CompressedPk, KeyOrigin> {
         let mut map = IndexMap::with_capacity(1);

@@ -693,16 +693,16 @@ impl KeyOrigin {
 }
 
 #[derive(Getters, Clone, Eq, PartialEq, Hash, Debug)]
-pub struct XpubSpec {
+pub struct XpubAccount {
     origin: XkeyOrigin,
     xpub: Xpub,
 }
 
-impl XpubSpec {
-    pub fn new(xpub: Xpub, origin: XkeyOrigin) -> Self { XpubSpec { xpub, origin } }
+impl XpubAccount {
+    pub fn new(xpub: Xpub, origin: XkeyOrigin) -> Self { XpubAccount { xpub, origin } }
 }
 
-impl Display for XpubSpec {
+impl Display for XpubAccount {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str("[")?;
         Display::fmt(&self.origin, f)?;
@@ -711,7 +711,7 @@ impl Display for XpubSpec {
     }
 }
 
-impl FromStr for XpubSpec {
+impl FromStr for XpubAccount {
     type Err = XkeyParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -738,21 +738,21 @@ impl FromStr for XpubSpec {
             }
         }
 
-        Ok(XpubSpec { origin, xpub })
+        Ok(XpubAccount { origin, xpub })
     }
 }
 
 #[derive(Getters, Eq, PartialEq)]
-pub struct XprivSpec {
+pub struct XprivAccount {
     origin: XkeyOrigin,
     xpriv: Xpriv,
 }
 
-impl XprivSpec {
-    pub fn new(xpriv: Xpriv, origin: XkeyOrigin) -> Self { XprivSpec { xpriv, origin } }
+impl XprivAccount {
+    pub fn new(xpriv: Xpriv, origin: XkeyOrigin) -> Self { XprivAccount { xpriv, origin } }
 }
 
-impl Display for XprivSpec {
+impl Display for XprivAccount {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str("[")?;
         Display::fmt(&self.origin, f)?;
@@ -761,7 +761,7 @@ impl Display for XprivSpec {
     }
 }
 
-impl FromStr for XprivSpec {
+impl FromStr for XprivAccount {
     type Err = XkeyParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -788,19 +788,19 @@ impl FromStr for XprivSpec {
             }
         }
 
-        Ok(XprivSpec { origin, xpriv })
+        Ok(XprivAccount { origin, xpriv })
     }
 }
 
 #[derive(Getters, Clone, Eq, PartialEq, Hash, Debug)]
 pub struct XpubDerivable {
-    spec: XpubSpec,
+    spec: XpubAccount,
     variant: Option<NormalIndex>,
     pub(crate) keychains: DerivationSeg<Keychain>,
 }
 
-impl From<XpubSpec> for XpubDerivable {
-    fn from(spec: XpubSpec) -> Self {
+impl From<XpubAccount> for XpubDerivable {
+    fn from(spec: XpubAccount) -> Self {
         XpubDerivable {
             spec,
             variant: None,
@@ -812,7 +812,7 @@ impl From<XpubSpec> for XpubDerivable {
 impl XpubDerivable {
     pub fn new_standard(xpub: Xpub, origin: XkeyOrigin) -> Self {
         XpubDerivable {
-            spec: XpubSpec::new(xpub, origin),
+            spec: XpubAccount::new(xpub, origin),
             variant: None,
             keychains: DerivationSeg::from([Keychain::INNER, Keychain::OUTER]),
         }
@@ -820,7 +820,7 @@ impl XpubDerivable {
 
     pub fn new_custom(xpub: Xpub, origin: XkeyOrigin, keychains: &'static [Keychain]) -> Self {
         XpubDerivable {
-            spec: XpubSpec::new(xpub, origin),
+            spec: XpubAccount::new(xpub, origin),
             variant: None,
             keychains: DerivationSeg::from(keychains),
         }
@@ -832,7 +832,7 @@ impl XpubDerivable {
         keychains: impl IntoIterator<Item = Keychain>,
     ) -> Result<Self, confinement::Error> {
         Ok(XpubDerivable {
-            spec: XpubSpec::new(xpub, origin),
+            spec: XpubAccount::new(xpub, origin),
             variant: None,
             keychains: DerivationSeg::with(keychains)?,
         })
@@ -880,7 +880,7 @@ impl FromStr for XpubDerivable {
         };
 
         Ok(XpubDerivable {
-            spec: XpubSpec::new(xpub, origin),
+            spec: XpubAccount::new(xpub, origin),
             variant,
             keychains,
         })
@@ -920,18 +920,18 @@ mod _serde {
         }
     }
 
-    impl Serialize for XpubSpec {
+    impl Serialize for XpubAccount {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where S: Serializer {
             serializer.serialize_str(&self.to_string())
         }
     }
 
-    impl<'de> Deserialize<'de> for XpubSpec {
+    impl<'de> Deserialize<'de> for XpubAccount {
         fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where D: Deserializer<'de> {
             let s = String::deserialize(deserializer)?;
-            XpubSpec::from_str(&s).map_err(|err| {
+            XpubAccount::from_str(&s).map_err(|err| {
                 de::Error::custom(format!(
                     "invalid xpub specification string representation; {err}"
                 ))

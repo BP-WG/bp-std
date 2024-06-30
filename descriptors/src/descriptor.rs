@@ -25,8 +25,8 @@ use std::iter;
 
 use derive::{
     CompressedPk, Derive, DeriveCompr, DeriveScripts, DeriveSet, DeriveXOnly, DerivedScript,
-    KeyOrigin, Keychain, NormalIndex, Sats, TapDerivation, Terminal, XOnlyPk, XpubDerivable,
-    XpubSpec,
+    KeyOrigin, Keychain, NormalIndex, Sats, TapDerivation, Terminal, XOnlyPk, XpubAccount,
+    XpubDerivable,
 };
 use indexmap::IndexMap;
 
@@ -62,7 +62,7 @@ pub trait Descriptor<K = XpubDerivable, V = ()>: DeriveScripts {
     where K: 'a;
     fn vars<'a>(&'a self) -> impl Iterator<Item = &'a V>
     where V: 'a;
-    fn xpubs(&self) -> impl Iterator<Item = &XpubSpec>;
+    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount>;
 
     fn compr_keyset(&self, terminal: Terminal) -> IndexMap<CompressedPk, KeyOrigin>;
     fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation>;
@@ -205,7 +205,7 @@ where Self: Derive<DerivedScript>
         iter::empty()
     }
 
-    fn xpubs(&self) -> impl Iterator<Item = &XpubSpec> {
+    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> {
         match self {
             StdDescr::Wpkh(d) => d.xpubs().collect::<Vec<_>>(),
             StdDescr::TrKey(d) => d.xpubs().collect::<Vec<_>>(),

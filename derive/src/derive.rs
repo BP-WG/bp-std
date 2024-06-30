@@ -34,7 +34,7 @@ use invoice::AddressError;
 
 use crate::{
     Address, AddressNetwork, AddressParseError, ControlBlockFactory, DerivationIndex, Idx, IdxBase,
-    IndexParseError, NormalIndex, TapTree, XpubDerivable, XpubSpec,
+    IndexParseError, NormalIndex, TapTree, XpubAccount, XpubDerivable,
 };
 
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default, Debug, Display, From)]
@@ -357,7 +357,7 @@ pub trait Derive<D> {
 }
 
 pub trait DeriveKey<D>: Derive<D> {
-    fn xpub_spec(&self) -> &XpubSpec;
+    fn xpub_spec(&self) -> &XpubAccount;
 }
 
 pub trait DeriveLegacy: DeriveKey<LegacyPk> {}
@@ -397,15 +397,15 @@ pub trait DeriveScripts: Derive<DerivedScript> {
 impl<T: Derive<DerivedScript>> DeriveScripts for T {}
 
 impl DeriveKey<LegacyPk> for XpubDerivable {
-    fn xpub_spec(&self) -> &XpubSpec { self.spec() }
+    fn xpub_spec(&self) -> &XpubAccount { self.spec() }
 }
 
 impl DeriveKey<CompressedPk> for XpubDerivable {
-    fn xpub_spec(&self) -> &XpubSpec { self.spec() }
+    fn xpub_spec(&self) -> &XpubAccount { self.spec() }
 }
 
 impl DeriveKey<XOnlyPk> for XpubDerivable {
-    fn xpub_spec(&self) -> &XpubSpec { self.spec() }
+    fn xpub_spec(&self) -> &XpubAccount { self.spec() }
 }
 
 impl Derive<LegacyPk> for XpubDerivable {

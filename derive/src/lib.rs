@@ -51,6 +51,6 @@ pub use taptree::{
 };
 pub use xkey::{
     ChainCode, KeyOrigin, OriginParseError, XkeyDecodeError, XkeyMeta, XkeyOrigin, XkeyParseError,
-    Xpriv, XprivCore, XprivSpec, Xpub, XpubCore, XpubDerivable, XpubFp, XpubId, XpubSpec,
+    Xpriv, XprivAccount, XprivCore, Xpub, XpubAccount, XpubCore, XpubDerivable, XpubFp, XpubId,
     XPRIV_MAINNET_MAGIC, XPRIV_TESTNET_MAGIC,
 };
