@@ -27,8 +27,8 @@ use amplify::{Bytes20, Bytes32};
 use derive::{
     Bip340Sig, ByteStr, CompressedPk, ControlBlock, InternalPk, KeyOrigin, LeafScript, LegacyPk,
     LegacySig, LockHeight, LockTime, LockTimestamp, Outpoint, RedeemScript, Sats, ScriptPubkey,
-    SeqNo, SigScript, SighashType, TapDerivation, TapNodeHash, TapTree, Terminal, Tx, TxIn, TxOut,
-    TxVer, Txid, VarIntArray, Vout, Witness, WitnessScript, XOnlyPk, Xpub, XpubOrigin,
+    SeqNo, SigScript, SighashType, TapDerivation, TapLeafHash, TapNodeHash, TapTree, Terminal, Tx,
+    TxIn, TxOut, TxVer, Txid, VarIntArray, Vout, Witness, WitnessScript, XOnlyPk, XkeyOrigin, Xpub,
 };
 use descriptors::Descriptor;
 use indexmap::IndexMap;
@@ -204,7 +204,7 @@ pub struct Psbt {
 
     /// A global map from extended public keys to the used key fingerprint and
     /// derivation path as defined by BIP 32
-    pub xpubs: IndexMap<Xpub, XpubOrigin>,
+    pub xpubs: IndexMap<Xpub, XkeyOrigin>,
 
     /// Transaction Modifiable Flags
     pub(crate) tx_modifiable: Option<ModifiableFlags>,
@@ -307,7 +307,7 @@ impl Psbt {
     #[inline]
     pub fn fee(&self) -> Option<Sats> { self.input_sum().checked_sub(self.output_sum()) }
 
-    pub fn xpubs(&self) -> impl Iterator<Item = (&Xpub, &XpubOrigin)> { self.xpubs.iter() }
+    pub fn xpubs(&self) -> impl Iterator<Item = (&Xpub, &XkeyOrigin)> { self.xpubs.iter() }
 
     pub fn is_modifiable(&self) -> bool {
         self.tx_modifiable.as_ref().map(ModifiableFlags::is_modifiable).unwrap_or_default()
@@ -663,7 +663,7 @@ pub struct Input {
 
     /// The 64 or 65 byte Schnorr signature for this pubkey and leaf combination. Finalizers
     /// should remove this field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
-    pub tap_script_sig: IndexMap<(InternalPk, Bytes32), Bip340Sig>,
+    pub tap_script_sig: IndexMap<(InternalPk, TapLeafHash), Bip340Sig>,
 
     /// The script for this leaf as would be provided in the witness stack followed by the single
     /// byte leaf version. Note that the leaves included in this field should be those that the
@@ -774,6 +774,9 @@ impl Input {
 
     #[inline]
     pub fn index(&self) -> usize { self.index }
+
+    #[must_use]
+    pub fn is_bip340(&self) -> bool { self.tap_internal_key.is_some() }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]

@@ -247,6 +247,25 @@ impl<I: Idx> DerivationPath<I> {
         let keychain = u8::try_from(keychain.child_number()).ok()?;
         Some(Terminal::new(keychain, index))
     }
+
+    pub fn shared_prefix<I2>(&self, master: impl AsRef<[I2]>) -> usize
+    where
+        I: Into<DerivationIndex>,
+        I2: Idx + Into<DerivationIndex>,
+    {
+        let master = master.as_ref();
+        if master.len() <= self.len() {
+            let shared = self
+                .iter()
+                .zip(master)
+                .take_while(|(i1, i2)| (**i1).into() == (**i2).into())
+                .count();
+            if shared == master.len() {
+                return shared;
+            }
+        }
+        0
+    }
 }
 
 #[cfg(test)]

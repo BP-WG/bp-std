@@ -339,6 +339,14 @@ impl Idx for NormalIndex {
     }
 }
 
+impl TryFrom<DerivationIndex> for NormalIndex {
+    type Error = IndexError;
+
+    fn try_from(idx: DerivationIndex) -> Result<Self, Self::Error> {
+        NormalIndex::try_from_index(idx.index())
+    }
+}
+
 impl FromStr for NormalIndex {
     type Err = IndexParseError;
 
@@ -444,6 +452,14 @@ impl Idx for HardenedIndex {
     #[inline]
     fn checked_sub_assign(&mut self, sub: impl Into<u32>) -> Option<Self> {
         checked_sub_assign(&mut self.0, sub).map(|_| *self)
+    }
+}
+
+impl TryFrom<DerivationIndex> for HardenedIndex {
+    type Error = IndexError;
+
+    fn try_from(idx: DerivationIndex) -> Result<Self, Self::Error> {
+        HardenedIndex::try_from_index(idx.index())
     }
 }
 
