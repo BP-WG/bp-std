@@ -29,13 +29,13 @@ use derive::{KeyOrigin, Satisfy, XkeyOrigin, Xpriv, XprivAccount};
 use psbt::{Psbt, Rejected, Sign};
 
 #[derive(Clone)]
-pub struct TestSigner<'a> {
+pub struct RefTestnetSigner<'a> {
     pub keys: HashMap<&'a XkeyOrigin, &'a Xpriv>,
     pub key_path: bool,
     pub script_path: Option<TapLeafHash>,
 }
 
-impl<'a> TestSigner<'a> {
+impl<'a> RefTestnetSigner<'a> {
     pub fn new(account: &'a XprivAccount) -> Self { Self::with(true, None, [account]) }
 
     pub fn new_legacy(iter: impl IntoIterator<Item = &'a XprivAccount>) -> Self {
@@ -62,15 +62,12 @@ impl<'a> TestSigner<'a> {
             keys: iter
                 .into_iter()
                 .map(|account| (account.origin(), account.xpriv()))
-                .filter(|(origin, xpriv)| {
-                    if xpriv.is_testnet() {
-                        true
-                    } else {
-                        eprintln!(
+                .inspect(|(origin, xpriv)| {
+                    if !xpriv.is_testnet() {
+                        panic!(
                             "Extended private key with origin {origin} will not be used for \
                              signing since it belongs to mainnet"
                         );
-                        false
                     }
                 })
                 .collect(),
@@ -80,13 +77,13 @@ impl<'a> TestSigner<'a> {
     }
 }
 
-impl<'a> Sign for TestSigner<'a> {
+impl<'a> Sign for RefTestnetSigner<'a> {
     type Satisfier<'s> = Self where Self: 's;
 
     fn approve(&self, _: &Psbt) -> Result<Self::Satisfier<'_>, Rejected> { Ok(self.clone()) }
 }
 
-impl<'a> TestSigner<'a> {
+impl<'a> RefTestnetSigner<'a> {
     fn get(&self, origin: Option<&KeyOrigin>) -> Option<Xpriv> {
         let origin = origin?;
         self.keys.iter().find_map(|(xo, xpriv)| {
@@ -98,7 +95,7 @@ impl<'a> TestSigner<'a> {
     }
 }
 
-impl<'a> Satisfy for TestSigner<'a> {
+impl<'a> Satisfy for RefTestnetSigner<'a> {
     fn signature_ecdsa(
         &self,
         message: Sighash,
@@ -140,4 +137,60 @@ impl<'a> Satisfy for TestSigner<'a> {
     }
 
     fn should_satisfy_key_path(&self, _index: usize) -> bool { self.key_path }
+}
+
+pub struct TestnetSigner {
+    pub keys: Vec<XprivAccount>,
+    pub key_path: bool,
+    pub script_path: Option<TapLeafHash>,
+}
+
+impl TestnetSigner {
+    pub fn new(account: XprivAccount) -> Self { Self::with(true, None, [account]) }
+
+    pub fn new_legacy(iter: impl IntoIterator<Item = XprivAccount>) -> Self {
+        Self::with(false, None, iter)
+    }
+
+    pub fn new_key_spend(iter: impl IntoIterator<Item = XprivAccount>) -> Self {
+        Self::with(true, None, iter)
+    }
+
+    pub fn new_script_spent(
+        leaf: impl Into<TapLeafHash>,
+        iter: impl IntoIterator<Item = XprivAccount>,
+    ) -> Self {
+        Self::with(false, Some(leaf.into()), iter)
+    }
+
+    pub fn with(
+        key_path: bool,
+        script_path: Option<TapLeafHash>,
+        iter: impl IntoIterator<Item = XprivAccount>,
+    ) -> Self {
+        Self {
+            keys: iter
+                .into_iter()
+                .inspect(|account| {
+                    if !account.xpriv().is_testnet() {
+                        panic!(
+                            "Extended private key with origin {} will not be used for signing \
+                             since it belongs to mainnet",
+                            account.origin()
+                        );
+                    }
+                })
+                .collect(),
+            key_path,
+            script_path,
+        }
+    }
+}
+
+impl Sign for TestnetSigner {
+    type Satisfier<'s> = RefTestnetSigner<'s>;
+
+    fn approve(&self, _: &Psbt) -> Result<Self::Satisfier<'_>, Rejected> {
+        Ok(RefTestnetSigner::with(self.key_path, self.script_path, &self.keys))
+    }
 }
