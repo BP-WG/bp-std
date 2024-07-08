@@ -40,6 +40,9 @@ pub enum Network {
     /// Bitcoin testnet
     Testnet3,
 
+    /// Bitcoin testnet4
+    Testnet4,
+
     /// Bitcoin signet
     Signet,
 
@@ -57,7 +60,7 @@ impl From<Network> for AddressNetwork {
     fn from(network: Network) -> Self {
         match network {
             Network::Mainnet => AddressNetwork::Mainnet,
-            Network::Testnet3 | Network::Signet => AddressNetwork::Testnet,
+            Network::Testnet3 | Network::Testnet4 | Network::Signet => AddressNetwork::Testnet,
             Network::Regtest => AddressNetwork::Regtest,
         }
     }
@@ -74,6 +77,7 @@ impl FromStr for Network {
         Ok(match s {
             "bitcoin" | "mainnet" => Network::Mainnet,
             "testnet" | "testnet3" => Network::Testnet3,
+            "testnet4" => Network::Testnet4,
             "signet" => Network::Signet,
             "regtest" => Network::Regtest,
             other => return Err(UnknownNetwork(other.to_owned())),
