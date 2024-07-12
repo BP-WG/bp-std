@@ -119,17 +119,7 @@ impl UnsignedTx {
         }
     }
 
-    pub fn txid(&self) -> Txid { self.clone().finalize().txid() }
-
-    pub fn finalize(self) -> Tx {
-        Tx {
-            version: self.version,
-            inputs: VarIntArray::try_from_iter(self.inputs.into_iter().map(UnsignedTxIn::finalize))
-                .expect("varint"),
-            outputs: self.outputs,
-            lock_time: self.lock_time,
-        }
-    }
+    pub fn txid(&self) -> Txid { Tx::from(self.clone()).txid() }
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
@@ -173,8 +163,6 @@ impl UnsignedTxIn {
             sequence: txin.sequence,
         }
     }
-
-    pub fn finalize(self) -> TxIn { self.into() }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
