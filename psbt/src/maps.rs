@@ -25,10 +25,10 @@ use std::io::{Read, Write};
 
 use amplify::{Bytes20, Bytes32, IoError};
 use derive::{
-    Bip340Sig, ByteStr, CompressedPk, ControlBlock, InternalPk, KeyOrigin, LeafScript, LegacyPk,
-    LegacySig, LockHeight, LockTime, LockTimestamp, RedeemScript, Sats, ScriptPubkey, SeqNo,
-    SigScript, SighashType, TapDerivation, TapLeafHash, TapNodeHash, TapTree, Tx, TxOut, TxVer,
-    Txid, VarInt, Vout, Witness, WitnessScript, XOnlyPk, XkeyOrigin, Xpub,
+    Bip340Sig, ByteStr, ControlBlock, InternalPk, KeyOrigin, LeafScript, LegacyPk, LegacySig,
+    LockHeight, LockTime, LockTimestamp, RedeemScript, Sats, ScriptPubkey, SeqNo, SigScript,
+    SighashType, TapDerivation, TapLeafHash, TapNodeHash, TapTree, Tx, TxOut, TxVer, Txid, VarInt,
+    Vout, Witness, WitnessScript, XOnlyPk, XkeyOrigin, Xpub,
 };
 use indexmap::IndexMap;
 
@@ -540,7 +540,7 @@ impl KeyMap for Input {
                 self.partial_sigs.insert(pk, sig);
             }
             InputKey::Bip32Derivation => {
-                let pk = CompressedPk::deserialize(key_data)?;
+                let pk = LegacyPk::deserialize(key_data)?;
                 let origin = KeyOrigin::deserialize(value_data)?;
                 self.bip32_derivation.insert(pk, origin);
             }
@@ -561,7 +561,7 @@ impl KeyMap for Input {
                 self.hash256.insert(hash, value_data.into());
             }
             InputKey::TapScriptSig => {
-                let (internal_pk, leaf_hash) = <(InternalPk, TapLeafHash)>::deserialize(key_data)?;
+                let (internal_pk, leaf_hash) = <(XOnlyPk, TapLeafHash)>::deserialize(key_data)?;
                 let sig = Bip340Sig::deserialize(value_data)?;
                 self.tap_script_sig.insert((internal_pk, leaf_hash), sig);
             }
@@ -660,7 +660,7 @@ impl KeyMap for Output {
             | OutputKey::TapTree => unreachable!(),
 
             OutputKey::Bip32Derivation => {
-                let pk = CompressedPk::deserialize(key_data)?;
+                let pk = LegacyPk::deserialize(key_data)?;
                 let origin = KeyOrigin::deserialize(value_data)?;
                 self.bip32_derivation.insert(pk, origin);
             }

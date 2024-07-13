@@ -22,9 +22,7 @@
 
 use std::borrow::Borrow;
 
-use derive::{
-    Bip340Sig, InternalPk, Satisfy, SighashCache, SighashError, Tx, TxOut, Txid, XOnlyPk,
-};
+use derive::{Bip340Sig, Satisfy, SighashCache, SighashError, Tx, TxOut, Txid, XOnlyPk};
 
 use crate::{Input, Psbt};
 
@@ -162,7 +160,7 @@ impl Input {
                     continue;
                 };
                 let sig = Bip340Sig { sig, sighash_type };
-                let pk = InternalPk::from(*pk);
+                let pk = XOnlyPk::from(*pk);
                 self.tap_script_sig.insert((pk, tapleaf_hash), sig);
                 signature_count += 1;
             }

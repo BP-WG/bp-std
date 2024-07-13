@@ -23,14 +23,14 @@
 use std::collections::BTreeSet;
 
 use amplify::num::u5;
-use amplify::{Bytes20, Bytes32};
+use amplify::{ByteArray, Bytes20, Bytes32};
 use derive::{
-    Bip340Sig, ByteStr, CompressedPk, ControlBlock, InternalPk, KeyOrigin, LeafScript, LegacyPk,
-    LegacySig, LockHeight, LockTime, LockTimestamp, Outpoint, RedeemScript, Sats, ScriptPubkey,
-    SeqNo, SigScript, SighashType, TapDerivation, TapLeafHash, TapNodeHash, TapTree, Terminal, Tx,
-    TxIn, TxOut, TxVer, Txid, VarIntArray, Vout, Witness, WitnessScript, XOnlyPk, XkeyOrigin, Xpub,
+    Bip340Sig, ByteStr, ControlBlock, InternalPk, KeyOrigin, LeafScript, LegacyPk, LegacySig,
+    LockHeight, LockTime, LockTimestamp, Outpoint, RedeemScript, Sats, ScriptPubkey, SeqNo,
+    SigScript, SighashType, TapDerivation, TapLeafHash, TapNodeHash, TapTree, Terminal, Tx, TxIn,
+    TxOut, TxVer, Txid, VarIntArray, Vout, Witness, WitnessScript, XOnlyPk, XkeyOrigin, Xpub,
 };
-use descriptors::Descriptor;
+use descriptors::{Descriptor, LegacyKeySig, TaprootKeySig};
 use indexmap::IndexMap;
 
 pub use self::display_from_str::PsbtParseError;
@@ -339,7 +339,7 @@ impl Psbt {
             sighash_type: None,
             redeem_script: scripts.to_redeem_script(),
             witness_script: scripts.to_witness_script(),
-            bip32_derivation: descriptor.compr_keyset(terminal),
+            bip32_derivation: descriptor.legacy_keyset(terminal),
             // TODO: Fill hash preimages from descriptor
             final_script_sig: None,
             final_witness: None,
@@ -416,7 +416,7 @@ impl Psbt {
             script: scripts.to_script_pubkey(),
             redeem_script: scripts.to_redeem_script(),
             witness_script: scripts.to_witness_script(),
-            bip32_derivation: descriptor.compr_keyset(change_terminal),
+            bip32_derivation: descriptor.legacy_keyset(change_terminal),
             tap_internal_key: scripts.to_internal_pk(),
             tap_tree: scripts.to_tap_tree(),
             tap_bip32_derivation: descriptor.xonly_keyset(change_terminal),
@@ -456,6 +456,12 @@ impl Psbt {
     pub fn complete_construction(&mut self) {
         // TODO: Check all inputs have witness_utxo or non_witness_tx
         self.tx_modifiable = Some(ModifiableFlags::unmodifiable())
+    }
+
+    pub fn is_finalized(&self) -> bool { self.inputs.iter().all(Input::is_finalized) }
+
+    pub fn finalize<D: Descriptor<K, V>, K, V>(&mut self, descriptor: &D) -> usize {
+        self.inputs.iter_mut().map(|input| input.finalize(descriptor) as usize).sum()
     }
 }
 
@@ -615,7 +621,7 @@ pub struct Input {
 
     /// A map from public keys needed to sign this input to their corresponding master key
     /// fingerprints and derivation paths.
-    pub bip32_derivation: IndexMap<CompressedPk, KeyOrigin>,
+    pub bip32_derivation: IndexMap<LegacyPk, KeyOrigin>,
 
     /// The finalized, fully-constructed scriptSig with signatures and any other scripts necessary
     /// for this input to pass validation.
@@ -651,7 +657,7 @@ pub struct Input {
 
     /// The 64 or 65 byte Schnorr signature for this pubkey and leaf combination. Finalizers
     /// should remove this field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
-    pub tap_script_sig: IndexMap<(InternalPk, TapLeafHash), Bip340Sig>,
+    pub tap_script_sig: IndexMap<(XOnlyPk, TapLeafHash), Bip340Sig>,
 
     /// The script for this leaf as would be provided in the witness stack followed by the single
     /// byte leaf version. Note that the leaves included in this field should be those that the
@@ -765,6 +771,86 @@ impl Input {
 
     #[must_use]
     pub fn is_bip340(&self) -> bool { self.tap_internal_key.is_some() }
+
+    pub fn is_finalized(&self) -> bool {
+        self.final_witness.is_some() || self.final_script_sig.is_some()
+    }
+
+    pub fn finalize<D: Descriptor<K, V>, K, V>(&mut self, descriptor: &D) -> bool {
+        if self.is_finalized() {
+            return false;
+        }
+
+        let satisfaction = if descriptor.is_taproot() {
+            self.tap_internal_key
+                .map(XOnlyPk::from)
+                .and_then(|pk| self.tap_bip32_derivation.get(&pk).map(|d| (&d.origin, pk)))
+                .zip(self.tap_key_sig)
+                .and_then(|((origin, pk), sig)| {
+                    // First, we try key path
+                    descriptor.taproot_witness(map! { origin => TaprootKeySig::new(pk, sig) })
+                })
+                .or_else(|| {
+                    // If we can't satisfy key path, we try script paths until we succeed
+                    self.tap_leaf_script
+                        .keys()
+                        .filter_map(|cb| cb.merkle_branch.first())
+                        .copied()
+                        .map(|hash| TapLeafHash::from_byte_array(hash.to_byte_array()))
+                        .find_map(|leafhash| {
+                            let keysigs = self
+                                .tap_script_sig
+                                .iter()
+                                .filter(|((_, lh), _)| *lh == leafhash)
+                                .map(|((pk, _), sig)| TaprootKeySig::new(*pk, sig.clone()))
+                                .filter_map(|ks| {
+                                    self.tap_bip32_derivation
+                                        .get(&ks.key)
+                                        .filter(|d| d.leaf_hashes.contains(&leafhash))
+                                        .map(|d| (&d.origin, ks))
+                                })
+                                .collect();
+                            descriptor.taproot_witness(keysigs)
+                        })
+                })
+                .map(|witness| (empty!(), witness))
+        } else {
+            let keysigs = self
+                .partial_sigs
+                .iter()
+                .map(|(pk, sig)| LegacyKeySig::new(*pk, *sig))
+                .filter_map(|ks| self.bip32_derivation.get(&ks.key).map(|origin| (origin, ks)))
+                .collect();
+            descriptor.legacy_witness(keysigs)
+        };
+        let Some((sig_script, witness)) = satisfaction else {
+            return false;
+        };
+
+        self.final_script_sig = if sig_script.is_empty() { None } else { Some(sig_script) };
+        self.final_witness = if witness.is_empty() { None } else { Some(witness) };
+        // reset everything
+        self.partial_sigs.clear(); // 0x02
+        self.sighash_type = None; // 0x03
+        self.redeem_script = None; // 0x04
+        self.witness_script = None; // 0x05
+        self.bip32_derivation.clear(); // 0x05
+                                       // finalized witness 0x06 and 0x07 are not clear
+                                       // 0x09 Proof of reserves not yet supported
+        self.ripemd160.clear(); // 0x0a
+        self.sha256.clear(); // 0x0b
+        self.hash160.clear(); // 0x0c
+        self.hash256.clear(); // 0x0d
+                              // psbt v2 fields till 0x012 not supported
+        self.tap_key_sig = None; // 0x013
+        self.tap_script_sig.clear(); // 0x014
+        self.tap_leaf_script.clear(); // 0x015
+        self.tap_bip32_derivation.clear(); // 0x16
+        self.tap_internal_key = None; // x017
+        self.tap_merkle_root = None; // 0x018
+
+        true
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -792,7 +878,7 @@ pub struct Output {
 
     /// A map from public keys needed to spend this output to their corresponding master key
     /// fingerprints and derivation paths.
-    pub bip32_derivation: IndexMap<CompressedPk, KeyOrigin>,
+    pub bip32_derivation: IndexMap<LegacyPk, KeyOrigin>,
 
     /// The X-only pubkey used as the internal key in this output.
     // TODO: Add taproot data structures: TapTree and derivation info
