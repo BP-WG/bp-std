@@ -254,6 +254,7 @@ dependencies = [
  "bp-invoice",
  "descriptors",
  "psbt",
+ "secp256k1",
  "serde",
 ]
 
