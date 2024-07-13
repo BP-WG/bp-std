@@ -837,7 +837,7 @@ impl Input {
                                 .tap_script_sig
                                 .iter()
                                 .filter(|((_, lh), _)| *lh == leafhash)
-                                .map(|((pk, _), sig)| TaprootKeySig::new(*pk, sig.clone()))
+                                .map(|((pk, _), sig)| TaprootKeySig::new(*pk, *sig))
                                 .filter_map(|ks| {
                                     self.tap_bip32_derivation
                                         .get(&ks.key)

@@ -163,6 +163,7 @@ pub trait KeyMap: Sized {
             let iter = unsafe {
                 // We need this hack since Rust borrower checker can't see that the
                 // reference actually doesn't escape the scope
+                #[allow(clippy::missing_transmute_annotations)]
                 ::core::mem::transmute::<
                     _,
                     Vec<KeyPair<Self::Keys, Box<dyn Encode + 'static>, Box<dyn Encode + 'static>>>,
