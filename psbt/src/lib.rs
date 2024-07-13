@@ -51,7 +51,7 @@ pub use data::{
 };
 pub use keys::{GlobalKey, InputKey, KeyPair, KeyType, OutputKey, PropKey};
 pub use maps::{KeyAlreadyPresent, KeyData, KeyMap, Map, MapName, ValueData};
-pub use sign::{Rejected, Sign, SignError};
+pub use sign::{Rejected, SignError, Signer};
 
 #[cfg(feature = "strict_encoding")]
 pub const LIB_NAME_PSBT: &str = "Psbt";

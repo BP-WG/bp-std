@@ -25,8 +25,8 @@ use std::collections::HashMap;
 use amplify::Wrapper;
 use bc::secp256k1::{ecdsa, schnorr as bip340, SECP256K1};
 use bc::{LegacyPk, Sighash, TapLeafHash, TapMerklePath, TapSighash, XOnlyPk};
-use derive::{KeyOrigin, Satisfy, XkeyOrigin, Xpriv, XprivAccount};
-use psbt::{Psbt, Rejected, Sign};
+use derive::{KeyOrigin, Sign, XkeyOrigin, Xpriv, XprivAccount};
+use psbt::{Psbt, Rejected, Signer};
 
 #[derive(Clone)]
 pub struct RefTestnetSigner<'a> {
@@ -77,10 +77,10 @@ impl<'a> RefTestnetSigner<'a> {
     }
 }
 
-impl<'a> Sign for RefTestnetSigner<'a> {
-    type Satisfier<'s> = Self where Self: 's;
+impl<'a> Signer for RefTestnetSigner<'a> {
+    type Sign<'s> = Self where Self: 's;
 
-    fn approve(&self, _: &Psbt) -> Result<Self::Satisfier<'_>, Rejected> { Ok(self.clone()) }
+    fn approve(&self, _: &Psbt) -> Result<Self::Sign<'_>, Rejected> { Ok(self.clone()) }
 }
 
 impl<'a> RefTestnetSigner<'a> {
@@ -95,8 +95,8 @@ impl<'a> RefTestnetSigner<'a> {
     }
 }
 
-impl<'a> Satisfy for RefTestnetSigner<'a> {
-    fn signature_ecdsa(
+impl<'a> Sign for RefTestnetSigner<'a> {
+    fn sign_ecdsa(
         &self,
         message: Sighash,
         pk: LegacyPk,
@@ -113,7 +113,7 @@ impl<'a> Satisfy for RefTestnetSigner<'a> {
         Some(sk.sign_ecdsa(message.into()))
     }
 
-    fn signature_bip340(
+    fn sign_bip340(
         &self,
         message: TapSighash,
         pk: XOnlyPk,
@@ -127,7 +127,7 @@ impl<'a> Satisfy for RefTestnetSigner<'a> {
         Some(sk.sign_schnorr(message.into()))
     }
 
-    fn should_satisfy_script_path(
+    fn should_sign_script_path(
         &self,
         _index: usize,
         _merkle_path: &TapMerklePath,
@@ -136,7 +136,7 @@ impl<'a> Satisfy for RefTestnetSigner<'a> {
         self.script_path == Some(leaf)
     }
 
-    fn should_satisfy_key_path(&self, _index: usize) -> bool { self.key_path }
+    fn should_sign_key_path(&self, _index: usize) -> bool { self.key_path }
 }
 
 pub struct TestnetSigner {
@@ -187,10 +187,10 @@ impl TestnetSigner {
     }
 }
 
-impl Sign for TestnetSigner {
-    type Satisfier<'s> = RefTestnetSigner<'s>;
+impl Signer for TestnetSigner {
+    type Sign<'s> = RefTestnetSigner<'s>;
 
-    fn approve(&self, _: &Psbt) -> Result<Self::Satisfier<'_>, Rejected> {
+    fn approve(&self, _: &Psbt) -> Result<Self::Sign<'_>, Rejected> {
         Ok(RefTestnetSigner::with(self.key_path, self.script_path, &self.keys))
     }
 }

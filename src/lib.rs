@@ -26,7 +26,7 @@ pub use bc::{secp256k1, *};
 pub use derive::*;
 pub use descriptors::*;
 pub use psbt::{
-    self, Prevout, Psbt, PsbtError, PsbtParseError, PsbtUnsupportedVer, PsbtVer, Rejected, Sign,
+    self, Prevout, Psbt, PsbtError, PsbtParseError, PsbtUnsupportedVer, PsbtVer, Rejected, Signer,
     UnsignedTx, UnsignedTxIn,
 };
 

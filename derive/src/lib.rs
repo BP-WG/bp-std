@@ -44,7 +44,7 @@ pub use index::{
 };
 pub use invoice::*;
 pub use path::{DerivationParseError, DerivationPath, DerivationSeg, SegParseError};
-pub use satisfy::Satisfy;
+pub use satisfy::Sign;
 pub use taptree::{
     ControlBlockFactory, FinalizedTree, InvalidTree, LeafInfo, TapDerivation, TapTree,
     TapTreeBuilder, UnfinalizedTree,

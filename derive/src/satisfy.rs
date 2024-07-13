@@ -26,10 +26,10 @@ use bc::{LegacyPk, Sighash, TapLeafHash, TapMerklePath, TapSighash, XOnlyPk};
 use crate::KeyOrigin;
 
 /// Trait used for signing transactions.
-pub trait Satisfy {
+pub trait Sign {
     /// Create signature with a given key for inputs requiring ECDSA signatures (bare, pre-segwit
     /// and segwit v0).
-    fn signature_ecdsa(
+    fn sign_ecdsa(
         &self,
         message: Sighash,
         pk: LegacyPk,
@@ -38,7 +38,7 @@ pub trait Satisfy {
 
     /// Create signature with a given key for inputs using Schnorr signatures with BIP-340 signing
     /// scheme (taproot).
-    fn signature_bip340(
+    fn sign_bip340(
         &self,
         message: TapSighash,
         pk: XOnlyPk,
@@ -48,7 +48,7 @@ pub trait Satisfy {
     /// Detect whether a given taproot script spending path should be signed for a given input
     /// `index`.
     #[must_use]
-    fn should_satisfy_script_path(
+    fn should_sign_script_path(
         &self,
         index: usize,
         merkle_path: &TapMerklePath,
@@ -57,5 +57,5 @@ pub trait Satisfy {
 
     /// Detect whether taproot key spending path should be signed for a given input `index`.
     #[must_use]
-    fn should_satisfy_key_path(&self, index: usize) -> bool;
+    fn should_sign_key_path(&self, index: usize) -> bool;
 }
