@@ -29,13 +29,13 @@ use derive::{KeyOrigin, Sign, XkeyOrigin, Xpriv, XprivAccount};
 use psbt::{Psbt, Rejected, Signer};
 
 #[derive(Clone)]
-pub struct RefTestnetSigner<'a> {
+pub struct TestnetRefSigner<'a> {
     pub keys: HashMap<&'a XkeyOrigin, &'a Xpriv>,
     pub key_path: bool,
     pub script_path: Option<TapLeafHash>,
 }
 
-impl<'a> RefTestnetSigner<'a> {
+impl<'a> TestnetRefSigner<'a> {
     pub fn new(account: &'a XprivAccount) -> Self { Self::with(true, None, [account]) }
 
     pub fn new_legacy(iter: impl IntoIterator<Item = &'a XprivAccount>) -> Self {
@@ -77,13 +77,13 @@ impl<'a> RefTestnetSigner<'a> {
     }
 }
 
-impl<'a> Signer for RefTestnetSigner<'a> {
+impl<'a> Signer for TestnetRefSigner<'a> {
     type Sign<'s> = Self where Self: 's;
 
     fn approve(&self, _: &Psbt) -> Result<Self::Sign<'_>, Rejected> { Ok(self.clone()) }
 }
 
-impl<'a> RefTestnetSigner<'a> {
+impl<'a> TestnetRefSigner<'a> {
     fn get(&self, origin: Option<&KeyOrigin>) -> Option<Xpriv> {
         let origin = origin?;
         self.keys.iter().find_map(|(xo, xpriv)| {
@@ -95,7 +95,7 @@ impl<'a> RefTestnetSigner<'a> {
     }
 }
 
-impl<'a> Sign for RefTestnetSigner<'a> {
+impl<'a> Sign for TestnetRefSigner<'a> {
     fn sign_ecdsa(
         &self,
         message: Sighash,
@@ -188,9 +188,9 @@ impl TestnetSigner {
 }
 
 impl Signer for TestnetSigner {
-    type Sign<'s> = RefTestnetSigner<'s>;
+    type Sign<'s> = TestnetRefSigner<'s>;
 
     fn approve(&self, _: &Psbt) -> Result<Self::Sign<'_>, Rejected> {
-        Ok(RefTestnetSigner::with(self.key_path, self.script_path, &self.keys))
+        Ok(TestnetRefSigner::with(self.key_path, self.script_path, &self.keys))
     }
 }
