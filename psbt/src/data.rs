@@ -40,6 +40,12 @@ use crate::{KeyData, PropKey, PsbtError, PsbtVer, ValueData};
 #[display("PSBT can't be modified")]
 pub struct Unmodifiable;
 
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error)]
+#[display(
+    "can't extract signed transaction from PSBT since it still contains {0} non-finalized inputs"
+)]
+pub struct UnfinalizedInputs(usize);
+
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct Prevout {
     pub txid: Txid,
@@ -463,6 +469,25 @@ impl Psbt {
     pub fn finalize<D: Descriptor<K, V>, K, V>(&mut self, descriptor: &D) -> usize {
         self.inputs.iter_mut().map(|input| input.finalize(descriptor) as usize).sum()
     }
+
+    pub fn extract(&self) -> Result<Tx, UnfinalizedInputs> {
+        let finalized = self.inputs.iter().filter(|i| i.is_finalized()).count();
+        let unfinalized = self.inputs.len() - finalized;
+        if unfinalized > 0 {
+            return Err(UnfinalizedInputs(unfinalized));
+        }
+
+        Ok(Tx {
+            version: self.tx_version,
+            inputs: VarIntArray::from_collection_unsafe(
+                self.inputs.iter().map(Input::to_signed_txin).collect(),
+            ),
+            outputs: VarIntArray::from_collection_unsafe(
+                self.outputs.iter().map(Output::to_txout).collect(),
+            ),
+            lock_time: self.lock_time(),
+        })
+    }
 }
 
 mod display_from_str {
@@ -732,6 +757,16 @@ impl Input {
 
     pub fn from_unsigned_txin((index, txin): (usize, UnsignedTxIn)) -> Input {
         Input::with_txin(txin, index)
+    }
+
+    fn to_signed_txin(&self) -> TxIn {
+        TxIn {
+            prev_output: self.previous_outpoint,
+            // TODO: Figure out default SeqNo
+            sig_script: self.final_script_sig.clone().expect("non-finalized input"),
+            sequence: self.sequence_number.unwrap_or(SeqNo::from_consensus_u32(0)),
+            witness: self.final_witness.clone().expect("non-finalized input"),
+        }
     }
 
     pub fn to_unsigned_txin(&self) -> UnsignedTxIn {
