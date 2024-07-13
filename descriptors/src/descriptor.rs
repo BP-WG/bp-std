@@ -55,6 +55,24 @@ impl SpkClass {
     }
 }
 
+pub struct LegacyKeySig {
+    pub key: LegacyPk,
+    pub sig: LegacySig,
+}
+
+impl LegacyKeySig {
+    pub fn new(key: LegacyPk, sig: LegacySig) -> Self { LegacyKeySig { key, sig } }
+}
+
+pub struct TaprootKeySig {
+    pub key: XOnlyPk,
+    pub sig: Bip340Sig,
+}
+
+impl TaprootKeySig {
+    pub fn new(key: XOnlyPk, sig: Bip340Sig) -> Self { TaprootKeySig { key, sig } }
+}
+
 pub trait Descriptor<K = XpubDerivable, V = ()>: DeriveScripts {
     fn class(&self) -> SpkClass;
 
