@@ -180,6 +180,10 @@ impl<I: Clone> From<&[I]> for DerivationPath<I> {
     fn from(path: &[I]) -> Self { Self(path.to_vec()) }
 }
 
+impl<I> AsRef<[I]> for DerivationPath<I> {
+    fn as_ref(&self) -> &[I] { self.0.as_ref() }
+}
+
 impl<I: Display> Display for DerivationPath<I> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         for segment in &self.0 {
