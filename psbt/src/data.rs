@@ -44,7 +44,7 @@ pub struct Unmodifiable;
 #[display(
     "can't extract signed transaction from PSBT since it still contains {0} non-finalized inputs"
 )]
-pub struct UnfinalizedInputs(usize);
+pub struct UnfinalizedInputs(pub usize);
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct Prevout {
