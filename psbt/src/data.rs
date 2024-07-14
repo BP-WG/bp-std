@@ -804,9 +804,18 @@ impl Input {
     #[inline]
     pub fn index(&self) -> usize { self.index }
 
+    #[inline]
+    pub fn is_segwit_v0(&self) -> bool {
+        self.witness_script.is_some()
+            || self.witness_utxo.is_some()
+            || self.prev_txout().script_pubkey.is_p2wpkh()
+            || self.prev_txout().script_pubkey.is_p2wsh()
+    }
+
     #[must_use]
     pub fn is_bip340(&self) -> bool { self.tap_internal_key.is_some() }
 
+    #[must_use]
     pub fn is_finalized(&self) -> bool {
         self.final_witness.is_some() || self.final_script_sig.is_some()
     }

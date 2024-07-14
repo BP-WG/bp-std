@@ -22,7 +22,8 @@
 
 use std::borrow::Borrow;
 
-use derive::{Bip340Sig, SighashCache, SighashError, Sign, Tx, TxOut, Txid, XOnlyPk};
+use bp::LegacySig;
+use derive::{Bip340Sig, ScriptCode, SighashCache, SighashError, Sign, Tx, TxOut, Txid, XOnlyPk};
 
 use crate::{Input, Psbt};
 
@@ -120,15 +121,53 @@ impl Input {
 
     fn sign_ecdsa<Prevout: Borrow<TxOut>>(
         &mut self,
-        _satisfier: &impl Sign,
-        _sig_hasher: &mut SighashCache<Prevout>,
+        signer: &impl Sign,
+        sig_hasher: &mut SighashCache<Prevout>,
     ) -> Result<usize, SighashError> {
-        todo!("Signing pre-taproot inputs is not yet implemented")
+        let mut signature_count = 0usize;
+        let sighash_type = self.sighash_type.unwrap_or_default();
+        let sighash = if self.is_segwit_v0() {
+            let spk = &self.prev_txout().script_pubkey;
+            let script_code = match (&self.witness_script, &self.redeem_script) {
+                (None, None) if spk.is_p2wpkh() => ScriptCode::with_p2wpkh(spk),
+                (Some(witness_script), None) if spk.is_p2wsh() => {
+                    ScriptCode::with_p2wsh(witness_script)
+                }
+                (_, Some(redeem_script)) if redeem_script.is_p2sh_wpkh() => {
+                    ScriptCode::with_p2sh_wpkh(spk)
+                }
+                (Some(witness_script), Some(redeem_script)) if redeem_script.is_p2sh_wpkh() => {
+                    ScriptCode::with_p2sh_wsh(witness_script)
+                }
+                _ => return Ok(0),
+            };
+
+            sig_hasher.segwit_sighash(
+                self.index,
+                &script_code,
+                self.prevout().value,
+                sighash_type,
+            )?
+        } else {
+            sig_hasher.legacy_sighash(
+                self.index,
+                &self.prev_txout().script_pubkey,
+                sighash_type.to_consensus_u32(),
+            )?
+        };
+        for (pk, origin) in &self.bip32_derivation {
+            let Some(sig) = signer.sign_ecdsa(sighash, *pk, Some(origin)) else {
+                continue;
+            };
+            self.partial_sigs.insert(*pk, LegacySig { sig, sighash_type });
+            signature_count += 1;
+        }
+        Ok(signature_count)
     }
 
     fn sign_bip340<Prevout: Borrow<TxOut>>(
         &mut self,
-        satisfier: &impl Sign,
+        signer: &impl Sign,
         sig_hasher: &mut SighashCache<Prevout>,
     ) -> Result<usize, SighashError> {
         let mut signature_count = 0usize;
@@ -138,7 +177,7 @@ impl Input {
         for (control_block, leaf_script) in &self.tap_leaf_script {
             let tapleaf_hash = leaf_script.tap_leaf_hash();
 
-            if !satisfier.should_sign_script_path(
+            if !signer.should_sign_script_path(
                 self.index,
                 &control_block.merkle_branch,
                 tapleaf_hash,
@@ -156,7 +195,7 @@ impl Input {
                 if !tap.leaf_hashes.contains(&tapleaf_hash) {
                     continue;
                 }
-                let Some(sig) = satisfier.sign_bip340(sighash, *pk, Some(&tap.origin)) else {
+                let Some(sig) = signer.sign_bip340(sighash, *pk, Some(&tap.origin)) else {
                     continue;
                 };
                 let sig = Bip340Sig { sig, sighash_type };
@@ -166,7 +205,7 @@ impl Input {
         }
 
         // Sign keypath
-        if !satisfier.should_sign_key_path(self.index) {
+        if !signer.should_sign_key_path(self.index) {
             return Ok(signature_count);
         }
         let Some(internal_key) = self.tap_internal_key else {
@@ -175,7 +214,7 @@ impl Input {
         let xonly_key = XOnlyPk::from(internal_key);
         let derivation = self.tap_bip32_derivation.get(&xonly_key);
         let sighash = sig_hasher.tap_sighash_key(self.index, sighash_type)?;
-        let Some(sig) = satisfier.sign_bip340(sighash, xonly_key, derivation.map(|d| &d.origin))
+        let Some(sig) = signer.sign_bip340(sighash, xonly_key, derivation.map(|d| &d.origin))
         else {
             return Ok(signature_count);
         };
