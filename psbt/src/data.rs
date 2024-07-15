@@ -871,8 +871,8 @@ impl Input {
             return false;
         };
 
-        self.final_script_sig = if sig_script.is_empty() { None } else { Some(sig_script) };
-        self.final_witness = if witness.is_empty() { None } else { Some(witness) };
+        self.final_script_sig = Some(sig_script);
+        self.final_witness = Some(witness);
         // reset everything
         self.partial_sigs.clear(); // 0x02
         self.sighash_type = None; // 0x03
