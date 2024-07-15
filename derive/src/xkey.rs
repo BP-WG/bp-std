@@ -732,7 +732,7 @@ impl Display for XpubAccount {
         f.write_str("[")?;
         Display::fmt(&self.origin, f)?;
         f.write_str("]")?;
-        write!(f, "{}/", self.xpub)
+        write!(f, "{}", self.xpub)
     }
 }
 
@@ -807,7 +807,7 @@ impl Display for XprivAccount {
         f.write_str("[")?;
         Display::fmt(&self.origin, f)?;
         f.write_str("]")?;
-        write!(f, "{}/", self.xpriv)
+        write!(f, "{}", self.xpriv)
     }
 }
 
@@ -896,6 +896,7 @@ impl XpubDerivable {
 impl Display for XpubDerivable {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         Display::fmt(&self.spec, f)?;
+        f.write_str("/")?;
         if let Some(variant) = self.variant {
             write!(f, "{variant}/")?;
         }
