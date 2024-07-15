@@ -258,13 +258,13 @@ impl<I: Idx> DerivationPath<I> {
         I2: Idx + Into<DerivationIndex>,
     {
         let master = master.as_ref();
-        if master.len() >= self.len() {
+        if master.len() <= self.len() {
             let shared = self
                 .iter()
                 .zip(master)
                 .take_while(|(i1, i2)| (**i1).into() == (**i2).into())
                 .count();
-            if shared == self.len() {
+            if shared == master.len() {
                 return shared;
             }
         }
