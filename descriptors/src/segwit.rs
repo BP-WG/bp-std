@@ -21,6 +21,7 @@
 // limitations under the License.
 
 use std::collections::{BTreeSet, HashMap};
+use std::fmt::{self, Display, Formatter};
 use std::iter;
 
 use derive::{
@@ -95,4 +96,8 @@ impl<K: DeriveCompr> Descriptor<K> for Wpkh<K> {
     fn taproot_witness(&self, _keysigs: HashMap<&KeyOrigin, TaprootKeySig>) -> Option<Witness> {
         None
     }
+}
+
+impl<K: DeriveCompr + Display> Display for Wpkh<K> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { write!(f, "wpkh({})", self.0) }
 }

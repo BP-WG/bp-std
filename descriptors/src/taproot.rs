@@ -21,6 +21,7 @@
 // limitations under the License.
 
 use std::collections::{BTreeSet, HashMap};
+use std::fmt::{self, Display, Formatter};
 use std::iter;
 
 use derive::{
@@ -97,6 +98,10 @@ impl<K: DeriveXOnly> Descriptor<K> for TrKey<K> {
             keysigs.iter().find(|(origin, _)| our_origin.is_subset_of(origin)).map(|(_, ks)| ks)?;
         Some(Witness::from_consensus_stack([keysig.sig.to_vec()]))
     }
+}
+
+impl<K: DeriveXOnly + Display> Display for TrKey<K> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { write!(f, "tr({})", self.0) }
 }
 
 /*

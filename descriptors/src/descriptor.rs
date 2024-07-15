@@ -21,7 +21,8 @@
 // limitations under the License.
 
 use std::collections::{BTreeSet, HashMap};
-use std::iter;
+use std::fmt::{Display, Formatter};
+use std::{fmt, iter};
 
 use derive::{
     Bip340Sig, Derive, DeriveCompr, DeriveScripts, DeriveSet, DeriveXOnly, DerivedScript,
@@ -279,6 +280,20 @@ where Self: Derive<DerivedScript>
         match self {
             StdDescr::Wpkh(d) => d.taproot_witness(keysigs),
             StdDescr::TrKey(d) => d.taproot_witness(keysigs),
+        }
+    }
+}
+
+impl<S: DeriveSet> Display for StdDescr<S>
+where
+    S::Legacy: Display,
+    S::Compr: Display,
+    S::XOnly: Display,
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            StdDescr::Wpkh(d) => Display::fmt(d, f),
+            StdDescr::TrKey(d) => Display::fmt(d, f),
         }
     }
 }
