@@ -22,8 +22,9 @@
 
 use std::borrow::Borrow;
 
-use bp::LegacySig;
-use derive::{Bip340Sig, ScriptCode, SighashCache, SighashError, Sign, Tx, TxOut, Txid, XOnlyPk};
+use derive::{
+    Bip340Sig, LegacySig, ScriptCode, SighashCache, SighashError, Sign, Tx, TxOut, Txid, XOnlyPk,
+};
 
 use crate::{Input, Psbt};
 
