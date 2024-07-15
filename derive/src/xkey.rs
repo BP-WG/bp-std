@@ -618,7 +618,7 @@ impl XkeyOrigin {
 
     pub fn is_subset_of(&self, other: &KeyOrigin) -> bool {
         self.master_fp == other.master_fp
-            && self.derivation.shared_prefix(other.derivation()) == self.derivation.len()
+            && other.derivation.shared_prefix(self.derivation()) == self.derivation.len()
     }
 }
 
