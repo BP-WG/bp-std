@@ -31,7 +31,7 @@ mod path;
 mod xkey;
 mod derive;
 pub mod taptree;
-mod satisfy;
+mod sign;
 
 pub use bc::*;
 pub use derive::{
@@ -44,7 +44,7 @@ pub use index::{
 };
 pub use invoice::*;
 pub use path::{DerivationParseError, DerivationPath, DerivationSeg, SegParseError};
-pub use satisfy::Sign;
+pub use sign::Sign;
 pub use taptree::{
     ControlBlockFactory, FinalizedTree, InvalidTree, LeafInfo, TapDerivation, TapTree,
     TapTreeBuilder, UnfinalizedTree,
