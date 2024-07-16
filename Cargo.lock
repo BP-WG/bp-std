@@ -165,7 +165,7 @@ dependencies = [
 [[package]]
 name = "bp-consensus"
 version = "0.11.0-beta.6"
-source = "git+https://github.com/BP-WG/bp-core?branch=signer#4bad1a1a46463e14c6b762384c04f1d9b8c19f5f"
+source = "git+https://github.com/BP-WG/bp-core?branch=signer#ecc7f690f95ee68ab4b7926012306e1b0e89a83e"
 dependencies = [
  "amplify",
  "chrono",
@@ -178,7 +178,7 @@ dependencies = [
 [[package]]
 name = "bp-core"
 version = "0.11.0-beta.6"
-source = "git+https://github.com/BP-WG/bp-core?branch=signer#4bad1a1a46463e14c6b762384c04f1d9b8c19f5f"
+source = "git+https://github.com/BP-WG/bp-core?branch=signer#ecc7f690f95ee68ab4b7926012306e1b0e89a83e"
 dependencies = [
  "amplify",
  "bp-consensus",
@@ -194,7 +194,7 @@ dependencies = [
 [[package]]
 name = "bp-dbc"
 version = "0.11.0-beta.6"
-source = "git+https://github.com/BP-WG/bp-core?branch=signer#4bad1a1a46463e14c6b762384c04f1d9b8c19f5f"
+source = "git+https://github.com/BP-WG/bp-core?branch=signer#ecc7f690f95ee68ab4b7926012306e1b0e89a83e"
 dependencies = [
  "amplify",
  "base85",
@@ -231,7 +231,7 @@ dependencies = [
 [[package]]
 name = "bp-seals"
 version = "0.11.0-beta.6"
-source = "git+https://github.com/BP-WG/bp-core?branch=signer#4bad1a1a46463e14c6b762384c04f1d9b8c19f5f"
+source = "git+https://github.com/BP-WG/bp-core?branch=signer#ecc7f690f95ee68ab4b7926012306e1b0e89a83e"
 dependencies = [
  "amplify",
  "baid64",

@@ -22,7 +22,7 @@
 
 use std::borrow::Borrow;
 
-use derive::{Bip340Sig, LegacySig, SighashCache, SighashError, Sign, Tx, TxOut, Txid, XOnlyPk};
+use derive::{Bip340Sig, LegacySig, SighashCache, SighashError, Sign, Tx, TxOut, Txid};
 
 use crate::{Input, Psbt};
 
@@ -183,7 +183,8 @@ impl Input {
                 if !tap.leaf_hashes.contains(&tapleaf_hash) {
                     continue;
                 }
-                let Some(sig) = signer.sign_bip340(sighash, *pk, Some(&tap.origin)) else {
+                let Some(sig) = signer.sign_bip340_script_path(sighash, *pk, Some(&tap.origin))
+                else {
                     continue;
                 };
                 let sig = Bip340Sig { sig, sighash_type };
@@ -199,11 +200,14 @@ impl Input {
         let Some(internal_key) = self.tap_internal_key else {
             return Ok(signature_count);
         };
-        let xonly_key = XOnlyPk::from(internal_key);
-        let derivation = self.tap_bip32_derivation.get(&xonly_key);
+        let derivation = self.tap_bip32_derivation.get(&internal_key.to_xonly_pk());
         let sighash = sig_hasher.tap_sighash_key(self.index, sighash_type)?;
-        let Some(sig) = signer.sign_bip340(sighash, xonly_key, derivation.map(|d| &d.origin))
-        else {
+        let Some(sig) = signer.sign_bip340_key_only(
+            sighash,
+            internal_key,
+            derivation.map(|d| &d.origin),
+            self.tap_merkle_root,
+        ) else {
             return Ok(signature_count);
         };
         let sig = Bip340Sig { sig, sighash_type };

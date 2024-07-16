@@ -24,7 +24,10 @@ use std::collections::HashMap;
 
 use amplify::Wrapper;
 use bc::secp256k1::{ecdsa, schnorr as bip340, SECP256K1};
-use bc::{LegacyPk, Sighash, TapLeafHash, TapMerklePath, TapSighash, XOnlyPk};
+use bc::{
+    InternalKeypair, InternalPk, LegacyPk, Sighash, TapLeafHash, TapMerklePath, TapNodeHash,
+    TapSighash, XOnlyPk,
+};
 use derive::{KeyOrigin, Sign, XkeyOrigin, Xpriv, XprivAccount};
 use psbt::{Psbt, Rejected, Signer};
 
@@ -113,7 +116,25 @@ impl<'a> Sign for TestnetRefSigner<'a> {
         Some(sk.sign_ecdsa(message.into()))
     }
 
-    fn sign_bip340(
+    fn sign_bip340_key_only(
+        &self,
+        message: TapSighash,
+        pk: InternalPk,
+        origin: Option<&KeyOrigin>,
+        merkle_root: Option<TapNodeHash>,
+    ) -> Option<bip340::Signature> {
+        let xpriv = self.get(origin)?;
+        let output_pair =
+            InternalKeypair::from(xpriv.to_keypair_bip340()).to_output_keypair(merkle_root).0;
+        if output_pair.x_only_public_key().0.serialize()
+            != pk.to_output_pk(merkle_root).0.to_byte_array()
+        {
+            return None;
+        }
+        Some(output_pair.sign_schnorr(message.into()))
+    }
+
+    fn sign_bip340_script_path(
         &self,
         message: TapSighash,
         pk: XOnlyPk,

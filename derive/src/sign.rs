@@ -21,7 +21,9 @@
 // limitations under the License.
 
 use bc::secp256k1::{ecdsa, schnorr as bip340};
-use bc::{LegacyPk, Sighash, TapLeafHash, TapMerklePath, TapSighash, XOnlyPk};
+use bc::{
+    InternalPk, LegacyPk, Sighash, TapLeafHash, TapMerklePath, TapNodeHash, TapSighash, XOnlyPk,
+};
 
 use crate::KeyOrigin;
 
@@ -36,9 +38,19 @@ pub trait Sign {
         origin: Option<&KeyOrigin>,
     ) -> Option<ecdsa::Signature>;
 
-    /// Create signature with a given key for inputs using Schnorr signatures with BIP-340 signing
+    /// Create signature with a given internal key using Schnorr signatures with BIP-340 signing
     /// scheme (taproot).
-    fn sign_bip340(
+    fn sign_bip340_key_only(
+        &self,
+        message: TapSighash,
+        pk: InternalPk,
+        origin: Option<&KeyOrigin>,
+        merkle_root: Option<TapNodeHash>,
+    ) -> Option<bip340::Signature>;
+
+    /// Create signature with a given script path and x-only public key using Schnorr signatures
+    /// with BIP-340 signing scheme (taproot).
+    fn sign_bip340_script_path(
         &self,
         message: TapSighash,
         pk: XOnlyPk,
