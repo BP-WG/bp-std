@@ -26,9 +26,9 @@ use amplify::num::u5;
 use amplify::{ByteArray, Bytes20, Bytes32};
 use derive::{
     Bip340Sig, ByteStr, ControlBlock, InternalPk, KeyOrigin, LeafScript, LegacyPk, LegacySig,
-    LockHeight, LockTime, LockTimestamp, Outpoint, RedeemScript, Sats, ScriptPubkey, SeqNo,
-    SigScript, SighashType, TapDerivation, TapLeafHash, TapNodeHash, TapTree, Terminal, Tx, TxIn,
-    TxOut, TxVer, Txid, VarIntArray, Vout, Witness, WitnessScript, XOnlyPk, XkeyOrigin, Xpub,
+    LockHeight, LockTime, LockTimestamp, Outpoint, RedeemScript, Sats, ScriptCode, ScriptPubkey,
+    SeqNo, SigScript, SighashType, TapDerivation, TapLeafHash, TapNodeHash, TapTree, Terminal, Tx,
+    TxIn, TxOut, TxVer, Txid, VarIntArray, Vout, Witness, WitnessScript, XOnlyPk, XkeyOrigin, Xpub,
 };
 use descriptors::{Descriptor, LegacyKeySig, TaprootKeySig};
 use indexmap::IndexMap;
@@ -803,6 +803,30 @@ impl Input {
 
     #[inline]
     pub fn index(&self) -> usize { self.index }
+
+    /// Computes script code, used in SegWit v0 signing algorithm (BIP143).
+    ///
+    /// NB: Does not support processing of `OP_CODESEPARATOR`.
+    ///
+    /// # Returns
+    ///
+    /// `None` if input spends P2WSH or P2WSH-in-P2SH output, but contains no witness script.
+    pub fn script_code(&self) -> Option<ScriptCode> {
+        let spk = &self.prev_txout().script_pubkey;
+        Some(match (&self.witness_script, &self.redeem_script) {
+            (None, None) if spk.is_p2wpkh() => ScriptCode::with_p2wpkh(spk),
+            (Some(witness_script), None) if spk.is_p2wsh() => {
+                ScriptCode::with_p2wsh(witness_script)
+            }
+            (_, Some(redeem_script)) if redeem_script.is_p2sh_wpkh() => {
+                ScriptCode::with_p2sh_wpkh(spk)
+            }
+            (Some(witness_script), Some(redeem_script)) if redeem_script.is_p2sh_wsh() => {
+                ScriptCode::with_p2sh_wsh(witness_script)
+            }
+            _ => return None,
+        })
+    }
 
     #[inline]
     pub fn is_segwit_v0(&self) -> bool {

@@ -22,9 +22,7 @@
 
 use std::borrow::Borrow;
 
-use derive::{
-    Bip340Sig, LegacySig, ScriptCode, SighashCache, SighashError, Sign, Tx, TxOut, Txid, XOnlyPk,
-};
+use derive::{Bip340Sig, LegacySig, SighashCache, SighashError, Sign, Tx, TxOut, Txid, XOnlyPk};
 
 use crate::{Input, Psbt};
 
@@ -128,19 +126,8 @@ impl Input {
         let mut signature_count = 0usize;
         let sighash_type = self.sighash_type.unwrap_or_default();
         let sighash = if self.is_segwit_v0() {
-            let spk = &self.prev_txout().script_pubkey;
-            let script_code = match (&self.witness_script, &self.redeem_script) {
-                (None, None) if spk.is_p2wpkh() => ScriptCode::with_p2wpkh(spk),
-                (Some(witness_script), None) if spk.is_p2wsh() => {
-                    ScriptCode::with_p2wsh(witness_script)
-                }
-                (_, Some(redeem_script)) if redeem_script.is_p2sh_wpkh() => {
-                    ScriptCode::with_p2sh_wpkh(spk)
-                }
-                (Some(witness_script), Some(redeem_script)) if redeem_script.is_p2sh_wpkh() => {
-                    ScriptCode::with_p2sh_wsh(witness_script)
-                }
-                _ => return Ok(0),
+            let Some(script_code) = self.script_code() else {
+                return Ok(0);
             };
 
             sig_hasher.segwit_sighash(
