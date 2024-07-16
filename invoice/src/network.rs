@@ -37,7 +37,7 @@ pub enum Network {
     #[display("bitcoin")]
     Mainnet,
 
-    /// Bitcoin testnet
+    /// Bitcoin testnet3
     Testnet3,
 
     /// Bitcoin testnet4
