@@ -65,10 +65,10 @@ pub enum AddressParseError {
     #[from]
     Bech32(bech32::Error),
 
-    /// proprietary address has an invalid version code {0:#02x}.
+    /// proprietary address has an invalid version code {0:#04x}.
     InvalidAddressVersion(u8),
 
-    /// segwit address has an invalid witness version {0:#02x}.
+    /// segwit address has an invalid witness version {0:#04x}.
     InvalidWitnessVersion(u8),
 
     /// unsupported future taproot version in address `{1}` detected by a length of {0}.

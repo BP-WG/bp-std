@@ -25,7 +25,7 @@ use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 
 use amplify::{confinement, hex, ByteArray, Bytes20, Bytes32, Bytes4, Wrapper};
-use bc::secp256k1::SECP256K1;
+use bc::secp256k1::{Keypair, PublicKey, SecretKey, SECP256K1};
 use bc::{secp256k1, CompressedPk, InvalidPubkey, LegacyPk, XOnlyPk};
 use bitcoin_hashes::{hash160, sha512, Hash, HashEngine, Hmac, HmacEngine};
 
@@ -34,12 +34,15 @@ use crate::{
     Idx, IdxBase, IndexParseError, Keychain, NormalIndex, SegParseError, Terminal,
 };
 
+pub const XPRIV_MAINNET_MAGIC: [u8; 4] = [0x04u8, 0x88, 0xAD, 0xE4];
+pub const XPRIV_TESTNET_MAGIC: [u8; 4] = [0x04u8, 0x35, 0x83, 0x94];
+
 pub const XPUB_MAINNET_MAGIC: [u8; 4] = [0x04u8, 0x88, 0xB2, 0x1E];
 pub const XPUB_TESTNET_MAGIC: [u8; 4] = [0x04u8, 0x35, 0x87, 0xCF];
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
-pub enum XpubDecodeError {
+pub enum XkeyDecodeError {
     /// wrong length of extended pubkey data ({0}).
     WrongExtendedKeyLength(usize),
 
@@ -50,10 +53,16 @@ pub enum XpubDecodeError {
     #[from]
     #[from(bc::secp256k1::Error)]
     InvalidPubkey(InvalidPubkey<33>),
+
+    /// xpriv contains invalid byte for the secret key type ({0:#04x}) which must be set to zero.
+    InvalidType(u8),
+
+    /// xpriv contains invalid data with secret key value overflowing over field order.
+    InvalidSecretKey,
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
-pub enum XpubParseError {
+pub enum XkeyParseError {
     /// wrong Base58 encoding of extended pubkey data - {0}
     #[display(doc_comments)]
     #[from]
@@ -61,7 +70,7 @@ pub enum XpubParseError {
 
     #[display(inner)]
     #[from]
-    Decode(XpubDecodeError),
+    Decode(XkeyDecodeError),
 
     #[display(inner)]
     #[from]
@@ -98,11 +107,11 @@ pub enum XpubParseError {
     ParentMismatch,
 }
 
-impl From<OriginParseError> for XpubParseError {
+impl From<OriginParseError> for XkeyParseError {
     fn from(err: OriginParseError) -> Self {
         match err {
-            OriginParseError::DerivationPath(e) => XpubParseError::DerivationPath(e),
-            OriginParseError::InvalidMasterFp(e) => XpubParseError::InvalidMasterFp(e),
+            OriginParseError::DerivationPath(e) => XkeyParseError::DerivationPath(e),
+            OriginParseError::InvalidMasterFp(e) => XkeyParseError::InvalidMasterFp(e),
         }
     }
 }
@@ -155,6 +164,10 @@ impl From<XpubFp> for [u8; 4] {
     fn from(value: XpubFp) -> Self { value.0.into_inner() }
 }
 
+impl XpubFp {
+    pub const fn master() -> Self { Self(Bytes4::zero()) }
+}
+
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default, Debug, Display, From)]
 #[wrapper(RangeOps, Hex, FromStr)]
 #[display(LowerHex)]
@@ -178,7 +191,7 @@ impl From<XpubId> for [u8; 20] {
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
-pub struct XpubMeta {
+pub struct XkeyMeta {
     pub depth: u8,
     pub parent_fp: XpubFp,
     pub child_number: DerivationIndex,
@@ -187,16 +200,16 @@ pub struct XpubMeta {
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub struct Xpub {
     testnet: bool,
-    meta: XpubMeta,
+    meta: XkeyMeta,
     core: XpubCore,
 }
 
 impl Xpub {
-    pub fn decode(data: impl Borrow<[u8]>) -> Result<Xpub, XpubDecodeError> {
+    pub fn decode(data: impl Borrow<[u8]>) -> Result<Xpub, XkeyDecodeError> {
         let data = data.borrow();
 
         if data.len() != 78 {
-            return Err(XpubDecodeError::WrongExtendedKeyLength(data.len()));
+            return Err(XkeyDecodeError::WrongExtendedKeyLength(data.len()));
         }
 
         let testnet = match &data[0..4] {
@@ -205,7 +218,7 @@ impl Xpub {
             unknown => {
                 let mut magic = [0u8; 4];
                 magic.copy_from_slice(unknown);
-                return Err(XpubDecodeError::UnknownKeyType(magic));
+                return Err(XkeyDecodeError::UnknownKeyType(magic));
             }
         };
         let depth = data[4];
@@ -224,7 +237,7 @@ impl Xpub {
 
         Ok(Xpub {
             testnet,
-            meta: XpubMeta {
+            meta: XkeyMeta {
                 depth,
                 parent_fp: parent_fp.into(),
                 child_number: child_number.into(),
@@ -250,6 +263,15 @@ impl Xpub {
         ret
     }
 
+    #[must_use]
+    pub fn is_testnet(&self) -> bool { self.testnet }
+
+    pub fn depth(&self) -> u8 { self.meta.depth }
+
+    pub fn child_number(&self) -> DerivationIndex { self.meta.child_number }
+
+    pub fn parent_fp(&self) -> XpubFp { self.meta.parent_fp }
+
     /// Returns the HASH160 of the chaincode
     pub fn identifier(&self) -> XpubId {
         let hash = hash160::Hash::hash(&self.core.public_key.serialize());
@@ -263,13 +285,13 @@ impl Xpub {
     }
 
     /// Constructs ECDSA public key valid in legacy context (compressed by default).
-    pub fn to_legacy_pub(&self) -> LegacyPk { LegacyPk::compressed(*self.core.public_key) }
+    pub fn to_legacy_pk(&self) -> LegacyPk { LegacyPk::compressed(*self.core.public_key) }
 
     /// Constructs ECDSA public key.
-    pub fn to_compr_pub(&self) -> CompressedPk { self.core.public_key }
+    pub fn to_compr_pk(&self) -> CompressedPk { self.core.public_key }
 
     /// Constructs BIP340 public key matching internal public key representation.
-    pub fn to_xonly_pub(&self) -> XOnlyPk { XOnlyPk::from(self.core.public_key) }
+    pub fn to_xonly_pk(&self) -> XOnlyPk { XOnlyPk::from(self.core.public_key) }
 
     /// Attempts to derive an extended public key from a path.
     ///
@@ -307,7 +329,7 @@ impl Xpub {
         let tweaked =
             self.core.public_key.add_exp_tweak(SECP256K1, &scalar).expect("negligible probability");
 
-        let meta = XpubMeta {
+        let meta = XkeyMeta {
             depth: self.meta.depth + 1,
             parent_fp: self.fingerprint(),
             child_number: child_no.into(),
@@ -331,37 +353,276 @@ impl Display for Xpub {
 }
 
 impl FromStr for Xpub {
-    type Err = XpubParseError;
+    type Err = XkeyParseError;
 
-    fn from_str(inp: &str) -> Result<Xpub, XpubParseError> {
+    fn from_str(inp: &str) -> Result<Xpub, XkeyParseError> {
         let data = base58::decode_check(inp)?;
         Ok(Xpub::decode(data)?)
     }
 }
 
-#[derive(Getters, Clone, Eq, PartialEq, Hash, Debug, Display)]
+/// Deterministic part of the extended public key.
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub struct XprivCore {
+    /// Secret key
+    pub private_key: SecretKey,
+    /// BIP32 chain code used for hierarchical derivation
+    pub chain_code: ChainCode,
+}
+
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub struct Xpriv {
+    testnet: bool,
+    meta: XkeyMeta,
+    core: XprivCore,
+}
+
+impl Xpriv {
+    // TODO: Use dedicated `Seed` type
+    pub fn new_master(testnet: bool, seed: &[u8]) -> Xpriv {
+        let mut hmac_engine: HmacEngine<sha512::Hash> = HmacEngine::new(b"Bitcoin seed");
+        hmac_engine.input(seed);
+        let hmac_result: Hmac<sha512::Hash> = Hmac::from_engine(hmac_engine);
+
+        let mut chain_code = [0u8; 32];
+        chain_code.copy_from_slice(&hmac_result[32..]);
+
+        Xpriv {
+            testnet,
+            meta: XkeyMeta {
+                depth: 0,
+                parent_fp: XpubFp::master(),
+                child_number: DerivationIndex::ZERO,
+            },
+            core: XprivCore {
+                private_key: SecretKey::from_slice(&hmac_result[..32])
+                    .expect("negligible probability"),
+                chain_code: chain_code.into(),
+            },
+        }
+    }
+
+    pub fn decode(data: impl Borrow<[u8]>) -> Result<Xpriv, XkeyDecodeError> {
+        let data = data.borrow();
+
+        if data.len() != 78 {
+            return Err(XkeyDecodeError::WrongExtendedKeyLength(data.len()));
+        }
+
+        let testnet = match &data[0..4] {
+            magic if magic == XPRIV_MAINNET_MAGIC => false,
+            magic if magic == XPRIV_TESTNET_MAGIC => true,
+            unknown => {
+                let mut magic = [0u8; 4];
+                magic.copy_from_slice(unknown);
+                return Err(XkeyDecodeError::UnknownKeyType(magic));
+            }
+        };
+        let depth = data[4];
+
+        let mut parent_fp = [0u8; 4];
+        parent_fp.copy_from_slice(&data[5..9]);
+
+        let mut child_number = [0u8; 4];
+        child_number.copy_from_slice(&data[9..13]);
+        let child_number = u32::from_be_bytes(child_number);
+
+        let mut chain_code = [0u8; 32];
+        chain_code.copy_from_slice(&data[13..45]);
+
+        if data[45] != 0x00 {
+            return Err(XkeyDecodeError::InvalidType(data[45]));
+        }
+        let private_key =
+            SecretKey::from_slice(&data[46..78]).map_err(|_| XkeyDecodeError::InvalidSecretKey)?;
+
+        Ok(Xpriv {
+            testnet,
+            meta: XkeyMeta {
+                depth,
+                parent_fp: parent_fp.into(),
+                child_number: child_number.into(),
+            },
+            core: XprivCore {
+                private_key,
+                chain_code: chain_code.into(),
+            },
+        })
+    }
+
+    pub fn encode(&self) -> [u8; 78] {
+        let mut ret = [0; 78];
+        ret[0..4].copy_from_slice(&match self.testnet {
+            false => XPRIV_MAINNET_MAGIC,
+            true => XPRIV_TESTNET_MAGIC,
+        });
+        ret[4] = self.meta.depth;
+        ret[5..9].copy_from_slice(self.meta.parent_fp.as_ref());
+        ret[9..13].copy_from_slice(&self.meta.child_number.index().to_be_bytes());
+        ret[13..45].copy_from_slice(self.core.chain_code.as_ref());
+        ret[45] = 0;
+        ret[46..78].copy_from_slice(&self.core.private_key.secret_bytes());
+        ret
+    }
+
+    #[must_use]
+    pub fn is_testnet(&self) -> bool { self.testnet }
+
+    pub fn depth(&self) -> u8 { self.meta.depth }
+
+    pub fn child_number(&self) -> DerivationIndex { self.meta.child_number }
+
+    pub fn parent_fp(&self) -> XpubFp { self.meta.parent_fp }
+
+    pub fn fingerprint(self) -> XpubFp { self.to_xpub().fingerprint() }
+
+    pub fn identifier(self) -> XpubId { self.to_xpub().identifier() }
+
+    pub fn to_xpub(self) -> Xpub {
+        Xpub {
+            testnet: self.testnet,
+            meta: self.meta,
+            core: XpubCore {
+                public_key: self.core.private_key.public_key(SECP256K1).into(),
+                chain_code: self.core.chain_code,
+            },
+        }
+    }
+
+    pub fn to_compr_pk(self) -> CompressedPk {
+        self.to_private_ecdsa().public_key(SECP256K1).into()
+    }
+
+    pub fn to_xonly_pk(self) -> XOnlyPk {
+        self.to_private_ecdsa().x_only_public_key(SECP256K1).0.into()
+    }
+
+    pub fn to_private_ecdsa(self) -> SecretKey { self.core.private_key }
+
+    pub fn to_keypair_bip340(self) -> Keypair {
+        Keypair::from_seckey_slice(SECP256K1, &self.core.private_key[..])
+            .expect("BIP32 internal private key representation is broken")
+    }
+
+    /// Attempts to derive an extended private key from a path.
+    ///
+    /// The `path` argument can be both of type `DerivationPath` or `Vec<ChildNumber>`.
+    pub fn derive_priv<I: Into<DerivationIndex> + Copy>(&self, path: impl AsRef<[I]>) -> Xpriv {
+        let mut xpriv: Xpriv = *self;
+        for idx in path.as_ref() {
+            xpriv = xpriv.ckd_priv((*idx).into());
+        }
+        xpriv
+    }
+
+    /// Private->Private child key derivation
+    pub fn ckd_priv(&self, idx: impl Into<DerivationIndex>) -> Xpriv {
+        let idx = idx.into();
+
+        let mut hmac_engine: HmacEngine<sha512::Hash> =
+            HmacEngine::new(self.core.chain_code.as_slice());
+        match idx {
+            DerivationIndex::Normal(_) => {
+                // Non-hardened key: compute public data and use that
+                hmac_engine.input(
+                    &PublicKey::from_secret_key(SECP256K1, &self.core.private_key).serialize(),
+                );
+            }
+            DerivationIndex::Hardened(_) => {
+                // Hardened key: use only secret data to prevent public derivation
+                hmac_engine.input(&[0u8]);
+                hmac_engine.input(&self.core.private_key[..]);
+            }
+        }
+
+        hmac_engine.input(&idx.index().to_be_bytes());
+        let hmac_result: Hmac<sha512::Hash> = Hmac::from_engine(hmac_engine);
+        let sk =
+            SecretKey::from_slice(&hmac_result[..32]).expect("statistically impossible to hit");
+        let tweaked =
+            sk.add_tweak(&self.core.private_key.into()).expect("statistically impossible to hit");
+
+        let mut chain_code = [0u8; 32];
+        chain_code.copy_from_slice(&hmac_result[32..]);
+
+        Xpriv {
+            testnet: self.testnet,
+            meta: XkeyMeta {
+                depth: self.meta.depth + 1,
+                parent_fp: self.fingerprint(),
+                child_number: idx,
+            },
+            core: XprivCore {
+                private_key: tweaked,
+                chain_code: chain_code.into(),
+            },
+        }
+    }
+}
+
+impl Display for Xpriv {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        base58::encode_check_to_fmt(f, &self.encode())
+    }
+}
+
+impl FromStr for Xpriv {
+    type Err = XkeyParseError;
+
+    fn from_str(inp: &str) -> Result<Xpriv, XkeyParseError> {
+        let data = base58::decode_check(inp)?;
+        Ok(Xpriv::decode(data)?)
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
 #[display("{master_fp}{derivation}", alt = "{master_fp}{derivation:#}")]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-pub struct XpubOrigin {
-    #[getter(as_copy)]
+pub struct XkeyOrigin {
     master_fp: XpubFp,
     derivation: DerivationPath<HardenedIndex>,
 }
 
-impl XpubOrigin {
+impl XkeyOrigin {
     pub fn new(master_fp: XpubFp, derivation: DerivationPath<HardenedIndex>) -> Self {
-        XpubOrigin {
+        XkeyOrigin {
             master_fp,
             derivation,
         }
     }
+
+    pub const fn master_fp(&self) -> XpubFp { self.master_fp }
+
+    pub fn derivation(&self) -> &[HardenedIndex] { self.derivation.as_ref() }
+
+    pub fn as_derivation(&self) -> &DerivationPath<HardenedIndex> { &self.derivation }
+
+    pub fn to_derivation(&self) -> DerivationPath {
+        self.derivation.iter().copied().map(DerivationIndex::from).collect()
+    }
+
+    pub fn child_derivation<'a>(&'a self, child: &'a KeyOrigin) -> Option<&[DerivationIndex]> {
+        if self.master_fp() == child.master_fp() {
+            let d = child.derivation();
+            let shared = d.shared_prefix(self.derivation());
+            if shared > 0 {
+                return Some(&d[shared..]);
+            }
+        }
+        None
+    }
+
+    pub fn is_subset_of(&self, other: &KeyOrigin) -> bool {
+        self.master_fp == other.master_fp
+            && other.derivation.shared_prefix(self.derivation()) == self.derivation.len()
+    }
 }
 
-impl FromStr for XpubOrigin {
+impl FromStr for XkeyOrigin {
     type Err = OriginParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -370,7 +631,7 @@ impl FromStr for XpubOrigin {
             Some(("00000000", p)) | Some(("m", p)) => (XpubFp::default(), p),
             Some((fp, p)) => (XpubFp::from_str(fp)?, p),
         };
-        Ok(XpubOrigin {
+        Ok(XkeyOrigin {
             master_fp,
             derivation: DerivationPath::from_str(path)?,
         })
@@ -403,7 +664,7 @@ pub struct KeyOrigin {
 }
 
 impl FromStr for KeyOrigin {
-    type Err = XpubParseError;
+    type Err = XkeyParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let (master_fp, path) = match s.split_once('/') {
@@ -426,9 +687,9 @@ impl KeyOrigin {
         }
     }
 
-    pub fn with(xpub_origin: XpubOrigin, terminal: Terminal) -> Self {
+    pub fn with(xpub_origin: XkeyOrigin, terminal: Terminal) -> Self {
         let mut derivation = DerivationPath::new();
-        derivation.extend(xpub_origin.derivation().iter().copied().map(DerivationIndex::from));
+        derivation.extend(xpub_origin.to_derivation());
         derivation.push(terminal.keychain.into());
         derivation.push(DerivationIndex::Normal(terminal.index));
         KeyOrigin {
@@ -439,64 +700,157 @@ impl KeyOrigin {
 }
 
 #[derive(Getters, Clone, Eq, PartialEq, Hash, Debug)]
-pub struct XpubSpec {
-    origin: XpubOrigin,
+pub struct XpubAccount {
+    origin: XkeyOrigin,
     xpub: Xpub,
 }
 
-impl XpubSpec {
-    pub fn new(xpub: Xpub, origin: XpubOrigin) -> Self { XpubSpec { xpub, origin } }
+impl XpubAccount {
+    pub fn new(xpub: Xpub, origin: XkeyOrigin) -> Self { XpubAccount { xpub, origin } }
+
+    #[inline]
+    pub const fn master_fp(&self) -> XpubFp { self.origin.master_fp }
+
+    #[inline]
+    pub fn account_fp(&self) -> XpubFp { self.xpub.fingerprint() }
+
+    #[inline]
+    pub fn account_id(&self) -> XpubId { self.xpub.identifier() }
+
+    #[inline]
+    pub fn derivation(&self) -> &[HardenedIndex] { self.origin.derivation.as_ref() }
+
+    #[inline]
+    pub const fn as_derivation(&self) -> &DerivationPath<HardenedIndex> { &self.origin.derivation }
+
+    #[inline]
+    pub fn to_derivation(&self) -> DerivationPath { self.origin.to_derivation() }
 }
 
-impl Display for XpubSpec {
+impl Display for XpubAccount {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str("[")?;
         Display::fmt(&self.origin, f)?;
         f.write_str("]")?;
-        write!(f, "{}/", self.xpub)
+        write!(f, "{}", self.xpub)
     }
 }
 
-impl FromStr for XpubSpec {
-    type Err = XpubParseError;
+impl FromStr for XpubAccount {
+    type Err = XkeyParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if !s.starts_with('[') {
-            return Err(XpubParseError::NoOrigin);
+            return Err(XkeyParseError::NoOrigin);
         }
         let (origin, xpub) =
-            s.trim_start_matches('[').split_once(']').ok_or(XpubParseError::NoOrigin)?;
-        let origin = XpubOrigin::from_str(origin)?;
+            s.trim_start_matches('[').split_once(']').ok_or(XkeyParseError::NoOrigin)?;
+        let origin = XkeyOrigin::from_str(origin)?;
         let xpub = Xpub::from_str(xpub)?;
 
         if origin.derivation.len() != xpub.meta.depth as usize {
-            return Err(XpubParseError::DepthMismatch);
+            return Err(XkeyParseError::DepthMismatch);
         }
         if !origin.derivation.is_empty() {
             let network = if xpub.testnet { HardenedIndex::ONE } else { HardenedIndex::ZERO };
             if origin.derivation.get(1) != Some(&network) {
-                return Err(XpubParseError::NetworkMismatch);
+                return Err(XkeyParseError::NetworkMismatch);
             }
             if origin.derivation.last().copied().map(DerivationIndex::Hardened)
                 != Some(xpub.meta.child_number)
             {
-                return Err(XpubParseError::ParentMismatch);
+                return Err(XkeyParseError::ParentMismatch);
             }
         }
 
-        Ok(XpubSpec { origin, xpub })
+        Ok(XpubAccount { origin, xpub })
+    }
+}
+
+#[derive(Getters, Eq, PartialEq)]
+pub struct XprivAccount {
+    origin: XkeyOrigin,
+    xpriv: Xpriv,
+}
+
+impl XprivAccount {
+    pub fn new(xpriv: Xpriv, origin: XkeyOrigin) -> Self { XprivAccount { xpriv, origin } }
+
+    pub fn to_xpub_account(&self) -> XpubAccount {
+        XpubAccount {
+            origin: self.origin.clone(),
+            xpub: self.xpriv.to_xpub(),
+        }
+    }
+
+    #[inline]
+    pub const fn master_fp(&self) -> XpubFp { self.origin.master_fp }
+
+    #[inline]
+    pub fn account_fp(&self) -> XpubFp { self.xpriv.fingerprint() }
+
+    #[inline]
+    pub fn account_id(&self) -> XpubId { self.xpriv.identifier() }
+
+    #[inline]
+    pub fn derivation(&self) -> &[HardenedIndex] { self.origin.derivation.as_ref() }
+
+    #[inline]
+    pub const fn as_derivation(&self) -> &DerivationPath<HardenedIndex> { &self.origin.derivation }
+
+    #[inline]
+    pub fn to_derivation(&self) -> DerivationPath { self.origin.to_derivation() }
+}
+
+impl Display for XprivAccount {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str("[")?;
+        Display::fmt(&self.origin, f)?;
+        f.write_str("]")?;
+        write!(f, "{}", self.xpriv)
+    }
+}
+
+impl FromStr for XprivAccount {
+    type Err = XkeyParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if !s.starts_with('[') {
+            return Err(XkeyParseError::NoOrigin);
+        }
+        let (origin, xpriv) =
+            s.trim_start_matches('[').split_once(']').ok_or(XkeyParseError::NoOrigin)?;
+        let origin = XkeyOrigin::from_str(origin)?;
+        let xpriv = Xpriv::from_str(xpriv)?;
+
+        if origin.derivation.len() != xpriv.meta.depth as usize {
+            return Err(XkeyParseError::DepthMismatch);
+        }
+        if !origin.derivation.is_empty() {
+            let network = if xpriv.testnet { HardenedIndex::ONE } else { HardenedIndex::ZERO };
+            if origin.derivation.get(1) != Some(&network) {
+                return Err(XkeyParseError::NetworkMismatch);
+            }
+            if origin.derivation.last().copied().map(DerivationIndex::Hardened)
+                != Some(xpriv.meta.child_number)
+            {
+                return Err(XkeyParseError::ParentMismatch);
+            }
+        }
+
+        Ok(XprivAccount { origin, xpriv })
     }
 }
 
 #[derive(Getters, Clone, Eq, PartialEq, Hash, Debug)]
 pub struct XpubDerivable {
-    spec: XpubSpec,
+    spec: XpubAccount,
     variant: Option<NormalIndex>,
     pub(crate) keychains: DerivationSeg<Keychain>,
 }
 
-impl From<XpubSpec> for XpubDerivable {
-    fn from(spec: XpubSpec) -> Self {
+impl From<XpubAccount> for XpubDerivable {
+    fn from(spec: XpubAccount) -> Self {
         XpubDerivable {
             spec,
             variant: None,
@@ -506,17 +860,17 @@ impl From<XpubSpec> for XpubDerivable {
 }
 
 impl XpubDerivable {
-    pub fn new_standard(xpub: Xpub, origin: XpubOrigin) -> Self {
+    pub fn new_standard(xpub: Xpub, origin: XkeyOrigin) -> Self {
         XpubDerivable {
-            spec: XpubSpec::new(xpub, origin),
+            spec: XpubAccount::new(xpub, origin),
             variant: None,
             keychains: DerivationSeg::from([Keychain::INNER, Keychain::OUTER]),
         }
     }
 
-    pub fn new_custom(xpub: Xpub, origin: XpubOrigin, keychains: &'static [Keychain]) -> Self {
+    pub fn new_custom(xpub: Xpub, origin: XkeyOrigin, keychains: &'static [Keychain]) -> Self {
         XpubDerivable {
-            spec: XpubSpec::new(xpub, origin),
+            spec: XpubAccount::new(xpub, origin),
             variant: None,
             keychains: DerivationSeg::from(keychains),
         }
@@ -524,11 +878,11 @@ impl XpubDerivable {
 
     pub fn try_custom(
         xpub: Xpub,
-        origin: XpubOrigin,
+        origin: XkeyOrigin,
         keychains: impl IntoIterator<Item = Keychain>,
     ) -> Result<Self, confinement::Error> {
         Ok(XpubDerivable {
-            spec: XpubSpec::new(xpub, origin),
+            spec: XpubAccount::new(xpub, origin),
             variant: None,
             keychains: DerivationSeg::with(keychains)?,
         })
@@ -536,12 +890,13 @@ impl XpubDerivable {
 
     pub fn xpub(&self) -> Xpub { self.spec.xpub }
 
-    pub fn origin(&self) -> &XpubOrigin { &self.spec.origin }
+    pub fn origin(&self) -> &XkeyOrigin { &self.spec.origin }
 }
 
 impl Display for XpubDerivable {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         Display::fmt(&self.spec, f)?;
+        f.write_str("/")?;
         if let Some(variant) = self.variant {
             write!(f, "{variant}/")?;
         }
@@ -551,19 +906,19 @@ impl Display for XpubDerivable {
 }
 
 impl FromStr for XpubDerivable {
-    type Err = XpubParseError;
+    type Err = XkeyParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if !s.starts_with('[') {
-            return Err(XpubParseError::NoOrigin);
+            return Err(XkeyParseError::NoOrigin);
         }
         let (origin, remains) =
-            s.trim_start_matches('[').split_once(']').ok_or(XpubParseError::NoOrigin)?;
+            s.trim_start_matches('[').split_once(']').ok_or(XkeyParseError::NoOrigin)?;
 
-        let origin = XpubOrigin::from_str(origin)?;
+        let origin = XkeyOrigin::from_str(origin)?;
         let mut segs = remains.split('/');
         let Some(xpub) = segs.next() else {
-            return Err(XpubParseError::NoXpub);
+            return Err(XkeyParseError::NoXpub);
         };
         let xpub = Xpub::from_str(xpub)?;
 
@@ -572,11 +927,11 @@ impl FromStr for XpubDerivable {
                 (Some(var.parse()?), keychains.parse()?)
             }
             (Some(keychains), Some("*"), None, None) => (None, keychains.parse()?),
-            _ => return Err(XpubParseError::InvalidTerminal),
+            _ => return Err(XkeyParseError::InvalidTerminal),
         };
 
         Ok(XpubDerivable {
-            spec: XpubSpec::new(xpub, origin),
+            spec: XpubAccount::new(xpub, origin),
             variant,
             keychains,
         })
@@ -616,18 +971,18 @@ mod _serde {
         }
     }
 
-    impl Serialize for XpubSpec {
+    impl Serialize for XpubAccount {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where S: Serializer {
             serializer.serialize_str(&self.to_string())
         }
     }
 
-    impl<'de> Deserialize<'de> for XpubSpec {
+    impl<'de> Deserialize<'de> for XpubAccount {
         fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where D: Deserializer<'de> {
             let s = String::deserialize(deserializer)?;
-            XpubSpec::from_str(&s).map_err(|err| {
+            XpubAccount::from_str(&s).map_err(|err| {
                 de::Error::custom(format!(
                     "invalid xpub specification string representation; {err}"
                 ))

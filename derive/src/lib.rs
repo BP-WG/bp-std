@@ -28,9 +28,10 @@ extern crate serde_crate as serde;
 
 mod index;
 mod path;
-mod xpub;
+mod xkey;
 mod derive;
 pub mod taptree;
+mod sign;
 
 pub use bc::*;
 pub use derive::{
@@ -43,11 +44,13 @@ pub use index::{
 };
 pub use invoice::*;
 pub use path::{DerivationParseError, DerivationPath, DerivationSeg, SegParseError};
+pub use sign::Sign;
 pub use taptree::{
     ControlBlockFactory, FinalizedTree, InvalidTree, LeafInfo, TapDerivation, TapTree,
     TapTreeBuilder, UnfinalizedTree,
 };
-pub use xpub::{
-    KeyOrigin, OriginParseError, Xpub, XpubDecodeError, XpubDerivable, XpubFp, XpubId, XpubMeta,
-    XpubOrigin, XpubParseError, XpubSpec,
+pub use xkey::{
+    ChainCode, KeyOrigin, OriginParseError, XkeyDecodeError, XkeyMeta, XkeyOrigin, XkeyParseError,
+    Xpriv, XprivAccount, XprivCore, Xpub, XpubAccount, XpubCore, XpubDerivable, XpubFp, XpubId,
+    XPRIV_MAINNET_MAGIC, XPRIV_TESTNET_MAGIC,
 };

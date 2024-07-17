@@ -20,16 +20,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
+use std::fmt::{self, Display, Formatter};
 use std::iter;
 
 use derive::{
-    CompressedPk, Derive, DeriveXOnly, DerivedScript, InternalPk, KeyOrigin, Keychain, NormalIndex,
-    TapDerivation, Terminal, XOnlyPk, XpubDerivable, XpubSpec,
+    Derive, DeriveXOnly, DerivedScript, InternalPk, KeyOrigin, Keychain, LegacyPk, NormalIndex,
+    SigScript, TapDerivation, Terminal, Witness, XOnlyPk, XpubAccount, XpubDerivable,
 };
 use indexmap::IndexMap;
 
-use crate::{Descriptor, SpkClass};
+use crate::{Descriptor, LegacyKeySig, SpkClass, TaprootKeySig};
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate",))]
 #[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
@@ -68,9 +69,9 @@ impl<K: DeriveXOnly> Descriptor<K> for TrKey<K> {
     where (): 'a {
         iter::empty()
     }
-    fn xpubs(&self) -> impl Iterator<Item = &XpubSpec> { iter::once(self.0.xpub_spec()) }
+    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> { iter::once(self.0.xpub_spec()) }
 
-    fn compr_keyset(&self, _terminal: Terminal) -> IndexMap<CompressedPk, KeyOrigin> {
+    fn legacy_keyset(&self, _terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
         IndexMap::new()
     }
 
@@ -83,6 +84,24 @@ impl<K: DeriveXOnly> Descriptor<K> for TrKey<K> {
         );
         map
     }
+
+    fn legacy_witness(
+        &self,
+        _keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
+    ) -> Option<(SigScript, Witness)> {
+        None
+    }
+
+    fn taproot_witness(&self, keysigs: HashMap<&KeyOrigin, TaprootKeySig>) -> Option<Witness> {
+        let our_origin = self.0.xpub_spec().origin();
+        let keysig =
+            keysigs.iter().find(|(origin, _)| our_origin.is_subset_of(origin)).map(|(_, ks)| ks)?;
+        Some(Witness::from_consensus_stack([keysig.sig.to_vec()]))
+    }
+}
+
+impl<K: DeriveXOnly + Display> Display for TrKey<K> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { write!(f, "tr({})", self.0) }
 }
 
 /*

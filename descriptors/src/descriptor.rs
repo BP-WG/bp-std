@@ -20,13 +20,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::BTreeSet;
-use std::iter;
+use std::collections::{BTreeSet, HashMap};
+use std::fmt::{Display, Formatter};
+use std::{fmt, iter};
 
 use derive::{
-    CompressedPk, Derive, DeriveCompr, DeriveScripts, DeriveSet, DeriveXOnly, DerivedScript,
-    KeyOrigin, Keychain, NormalIndex, Sats, TapDerivation, Terminal, XOnlyPk, XpubDerivable,
-    XpubSpec,
+    Bip340Sig, Derive, DeriveCompr, DeriveScripts, DeriveSet, DeriveXOnly, DerivedScript,
+    KeyOrigin, Keychain, LegacyPk, LegacySig, NormalIndex, Sats, SigScript, TapDerivation,
+    Terminal, Witness, XOnlyPk, XpubAccount, XpubDerivable,
 };
 use indexmap::IndexMap;
 
@@ -53,19 +54,57 @@ impl SpkClass {
             SpkClass::P2wsh | SpkClass::P2tr => Sats(330),
         }
     }
+
+    pub const fn is_taproot(self) -> bool {
+        match self {
+            SpkClass::Bare
+            | SpkClass::P2pkh
+            | SpkClass::P2sh
+            | SpkClass::P2wpkh
+            | SpkClass::P2wsh => false,
+            SpkClass::P2tr => true,
+        }
+    }
+}
+
+pub struct LegacyKeySig {
+    pub key: LegacyPk,
+    pub sig: LegacySig,
+}
+
+impl LegacyKeySig {
+    pub fn new(key: LegacyPk, sig: LegacySig) -> Self { LegacyKeySig { key, sig } }
+}
+
+pub struct TaprootKeySig {
+    pub key: XOnlyPk,
+    pub sig: Bip340Sig,
+}
+
+impl TaprootKeySig {
+    pub fn new(key: XOnlyPk, sig: Bip340Sig) -> Self { TaprootKeySig { key, sig } }
 }
 
 pub trait Descriptor<K = XpubDerivable, V = ()>: DeriveScripts {
     fn class(&self) -> SpkClass;
+    #[inline]
+    fn is_taproot(&self) -> bool { self.class().is_taproot() }
 
     fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
     where K: 'a;
     fn vars<'a>(&'a self) -> impl Iterator<Item = &'a V>
     where V: 'a;
-    fn xpubs(&self) -> impl Iterator<Item = &XpubSpec>;
+    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount>;
 
-    fn compr_keyset(&self, terminal: Terminal) -> IndexMap<CompressedPk, KeyOrigin>;
+    fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin>;
     fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation>;
+
+    fn legacy_witness(
+        &self,
+        keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
+    ) -> Option<(SigScript, Witness)>;
+
+    fn taproot_witness(&self, keysigs: HashMap<&KeyOrigin, TaprootKeySig>) -> Option<Witness>;
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
@@ -205,7 +244,7 @@ where Self: Derive<DerivedScript>
         iter::empty()
     }
 
-    fn xpubs(&self) -> impl Iterator<Item = &XpubSpec> {
+    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> {
         match self {
             StdDescr::Wpkh(d) => d.xpubs().collect::<Vec<_>>(),
             StdDescr::TrKey(d) => d.xpubs().collect::<Vec<_>>(),
@@ -213,10 +252,10 @@ where Self: Derive<DerivedScript>
         .into_iter()
     }
 
-    fn compr_keyset(&self, terminal: Terminal) -> IndexMap<CompressedPk, KeyOrigin> {
+    fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
         match self {
-            StdDescr::Wpkh(d) => d.compr_keyset(terminal),
-            StdDescr::TrKey(d) => d.compr_keyset(terminal),
+            StdDescr::Wpkh(d) => d.legacy_keyset(terminal),
+            StdDescr::TrKey(d) => d.legacy_keyset(terminal),
         }
     }
 
@@ -224,6 +263,37 @@ where Self: Derive<DerivedScript>
         match self {
             StdDescr::Wpkh(d) => d.xonly_keyset(terminal),
             StdDescr::TrKey(d) => d.xonly_keyset(terminal),
+        }
+    }
+
+    fn legacy_witness(
+        &self,
+        keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
+    ) -> Option<(SigScript, Witness)> {
+        match self {
+            StdDescr::Wpkh(d) => d.legacy_witness(keysigs),
+            StdDescr::TrKey(d) => d.legacy_witness(keysigs),
+        }
+    }
+
+    fn taproot_witness(&self, keysigs: HashMap<&KeyOrigin, TaprootKeySig>) -> Option<Witness> {
+        match self {
+            StdDescr::Wpkh(d) => d.taproot_witness(keysigs),
+            StdDescr::TrKey(d) => d.taproot_witness(keysigs),
+        }
+    }
+}
+
+impl<S: DeriveSet> Display for StdDescr<S>
+where
+    S::Legacy: Display,
+    S::Compr: Display,
+    S::XOnly: Display,
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            StdDescr::Wpkh(d) => Display::fmt(d, f),
+            StdDescr::TrKey(d) => Display::fmt(d, f),
         }
     }
 }

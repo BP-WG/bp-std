@@ -180,6 +180,10 @@ impl<I: Clone> From<&[I]> for DerivationPath<I> {
     fn from(path: &[I]) -> Self { Self(path.to_vec()) }
 }
 
+impl<I> AsRef<[I]> for DerivationPath<I> {
+    fn as_ref(&self) -> &[I] { self.0.as_ref() }
+}
+
 impl<I: Display> Display for DerivationPath<I> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         for segment in &self.0 {
@@ -246,6 +250,25 @@ impl<I: Idx> DerivationPath<I> {
         }
         let keychain = u8::try_from(keychain.child_number()).ok()?;
         Some(Terminal::new(keychain, index))
+    }
+
+    pub fn shared_prefix<I2>(&self, master: impl AsRef<[I2]>) -> usize
+    where
+        I: Into<DerivationIndex>,
+        I2: Idx + Into<DerivationIndex>,
+    {
+        let master = master.as_ref();
+        if master.len() <= self.len() {
+            let shared = self
+                .iter()
+                .zip(master)
+                .take_while(|(i1, i2)| (**i1).into() == (**i2).into())
+                .count();
+            if shared == master.len() {
+                return shared;
+            }
+        }
+        0
     }
 }
 

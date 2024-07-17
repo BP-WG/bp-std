@@ -25,10 +25,10 @@ use std::io::{Read, Write};
 
 use amplify::{Bytes20, Bytes32, IoError};
 use derive::{
-    Bip340Sig, ByteStr, CompressedPk, ControlBlock, InternalPk, KeyOrigin, LeafScript, LegacyPk,
-    LegacySig, LockHeight, LockTime, LockTimestamp, RedeemScript, Sats, ScriptPubkey, SeqNo,
-    SigScript, SighashType, TapDerivation, TapNodeHash, TapTree, Tx, TxOut, TxVer, Txid, VarInt,
-    Vout, Witness, WitnessScript, XOnlyPk, Xpub, XpubOrigin,
+    Bip340Sig, ByteStr, ControlBlock, InternalPk, KeyOrigin, LeafScript, LegacyPk, LegacySig,
+    LockHeight, LockTime, LockTimestamp, RedeemScript, Sats, ScriptPubkey, SeqNo, SigScript,
+    SighashType, TapDerivation, TapLeafHash, TapNodeHash, TapTree, Tx, TxOut, TxVer, Txid, VarInt,
+    Vout, Witness, WitnessScript, XOnlyPk, XkeyOrigin, Xpub,
 };
 use indexmap::IndexMap;
 
@@ -163,6 +163,7 @@ pub trait KeyMap: Sized {
             let iter = unsafe {
                 // We need this hack since Rust borrower checker can't see that the
                 // reference actually doesn't escape the scope
+                #[allow(clippy::missing_transmute_annotations)]
                 ::core::mem::transmute::<
                     _,
                     Vec<KeyPair<Self::Keys, Box<dyn Encode + 'static>, Box<dyn Encode + 'static>>>,
@@ -378,7 +379,7 @@ impl KeyMap for Psbt {
         match key_type {
             GlobalKey::Xpub => {
                 let xpub = Xpub::deserialize(key_data)?;
-                let origin = XpubOrigin::deserialize(value_data)?;
+                let origin = XkeyOrigin::deserialize(value_data)?;
                 self.xpubs.insert(xpub, origin);
             }
 
@@ -540,7 +541,7 @@ impl KeyMap for Input {
                 self.partial_sigs.insert(pk, sig);
             }
             InputKey::Bip32Derivation => {
-                let pk = CompressedPk::deserialize(key_data)?;
+                let pk = LegacyPk::deserialize(key_data)?;
                 let origin = KeyOrigin::deserialize(value_data)?;
                 self.bip32_derivation.insert(pk, origin);
             }
@@ -561,7 +562,7 @@ impl KeyMap for Input {
                 self.hash256.insert(hash, value_data.into());
             }
             InputKey::TapScriptSig => {
-                let (internal_pk, leaf_hash) = <(InternalPk, Bytes32)>::deserialize(key_data)?;
+                let (internal_pk, leaf_hash) = <(XOnlyPk, TapLeafHash)>::deserialize(key_data)?;
                 let sig = Bip340Sig::deserialize(value_data)?;
                 self.tap_script_sig.insert((internal_pk, leaf_hash), sig);
             }
@@ -660,7 +661,7 @@ impl KeyMap for Output {
             | OutputKey::TapTree => unreachable!(),
 
             OutputKey::Bip32Derivation => {
-                let pk = CompressedPk::deserialize(key_data)?;
+                let pk = LegacyPk::deserialize(key_data)?;
                 let origin = KeyOrigin::deserialize(value_data)?;
                 self.bip32_derivation.insert(pk, origin);
             }

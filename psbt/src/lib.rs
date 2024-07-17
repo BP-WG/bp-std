@@ -36,6 +36,7 @@ mod coders;
 #[cfg(feature = "client-side-validation")]
 mod csval;
 pub mod constructor;
+mod sign;
 
 pub use coders::{Decode, DecodeError, Encode, PsbtError};
 pub use constructor::{
@@ -45,10 +46,12 @@ pub use constructor::{
 #[cfg(feature = "client-side-validation")]
 pub use csval::*;
 pub use data::{
-    Input, ModifiableFlags, Output, Prevout, Psbt, PsbtParseError, UnsignedTx, UnsignedTxIn,
+    Input, ModifiableFlags, Output, Prevout, Psbt, PsbtParseError, UnfinalizedInputs, UnsignedTx,
+    UnsignedTxIn,
 };
 pub use keys::{GlobalKey, InputKey, KeyPair, KeyType, OutputKey, PropKey};
 pub use maps::{KeyAlreadyPresent, KeyData, KeyMap, Map, MapName, ValueData};
+pub use sign::{Rejected, SignError, Signer};
 
 #[cfg(feature = "strict_encoding")]
 pub const LIB_NAME_PSBT: &str = "Psbt";
