@@ -14,14 +14,14 @@ edition = "2021"
 license = "Apache-2.0"
 
 [workspace.dependencies]
-amplify = "4.6.0"
+amplify = "4.7.0"
 bech32 = "0.9.1"
 secp256k1 = "0.29.0"
 bitcoin_hashes = "0.14.0"  # TODO: Remove and replace with commit_verify
-commit_verify = "0.11.0-beta.6"
-strict_encoding = "2.7.0-beta.4"
-bp-consensus = "0.11.0-beta.6"
-bp-core = { version = "0.11.0-beta.6" }
+commit_verify = "0.11.0-beta.7"
+strict_encoding = "2.7.0-rc.1"
+bp-consensus = "0.11.0-beta.7"
+bp-core = { version = "0.11.0-beta.7" }
 bp-invoice = { version = "0.11.0-beta.6", path = "invoice" }
 bp-derive = { version = "0.11.0-beta.6", path = "derive" }
 descriptors = { version = "0.11.0-beta.6", path = "descriptors" }
@@ -64,7 +64,3 @@ signers = ["secp256k1/global-context", "secp256k1/rand-std"]
 strict_encoding = ["psbt/strict_encoding"]
 client-side-validation = ["bp-core", "psbt/client-side-validation"]
 serde = ["serde_crate", "bp-consensus/serde", "bp-invoice/serde", "bp-derive/serde", "descriptors/serde", "psbt/serde"]
-
-[patch.crates-io]
-bp-consensus = { git = "https://github.com/BP-WG/bp-core", branch = "master" }
-bp-core = { git = "https://github.com/BP-WG/bp-core", branch = "master" }
