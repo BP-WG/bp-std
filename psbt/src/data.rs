@@ -103,7 +103,7 @@ impl From<UnsignedTx> for Tx {
     fn from(unsigned_tx: UnsignedTx) -> Tx {
         Tx {
             version: unsigned_tx.version,
-            inputs: VarIntArray::from_collection_unsafe(
+            inputs: VarIntArray::from_checked(
                 unsigned_tx.inputs.into_iter().map(TxIn::from).collect(),
             ),
             outputs: unsigned_tx.outputs,
@@ -117,7 +117,7 @@ impl UnsignedTx {
     pub fn with_sigs_removed(tx: Tx) -> UnsignedTx {
         UnsignedTx {
             version: tx.version,
-            inputs: VarIntArray::from_collection_unsafe(
+            inputs: VarIntArray::from_checked(
                 tx.inputs.into_iter().map(UnsignedTxIn::with_sigs_removed).collect(),
             ),
             outputs: tx.outputs,
@@ -257,12 +257,8 @@ impl Psbt {
     pub fn to_unsigned_tx(&self) -> UnsignedTx {
         UnsignedTx {
             version: self.tx_version,
-            inputs: VarIntArray::from_collection_unsafe(
-                self.inputs().map(Input::to_unsigned_txin).collect(),
-            ),
-            outputs: VarIntArray::from_collection_unsafe(
-                self.outputs().map(Output::to_txout).collect(),
-            ),
+            inputs: VarIntArray::from_iter_checked(self.inputs().map(Input::to_unsigned_txin)),
+            outputs: VarIntArray::from_iter_checked(self.outputs().map(Output::to_txout)),
             lock_time: self.lock_time(),
         }
     }
@@ -479,12 +475,8 @@ impl Psbt {
 
         Ok(Tx {
             version: self.tx_version,
-            inputs: VarIntArray::from_collection_unsafe(
-                self.inputs.iter().map(Input::to_signed_txin).collect(),
-            ),
-            outputs: VarIntArray::from_collection_unsafe(
-                self.outputs.iter().map(Output::to_txout).collect(),
-            ),
+            inputs: VarIntArray::from_iter_checked(self.inputs.iter().map(Input::to_signed_txin)),
+            outputs: VarIntArray::from_iter_checked(self.outputs.iter().map(Output::to_txout)),
             lock_time: self.lock_time(),
         })
     }

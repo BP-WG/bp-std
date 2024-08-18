@@ -27,7 +27,7 @@ use std::str::FromStr;
 use amplify::{confinement, hex, ByteArray, Bytes20, Bytes32, Bytes4, Wrapper};
 use bc::secp256k1::{Keypair, PublicKey, SecretKey, SECP256K1};
 use bc::{secp256k1, CompressedPk, InvalidPubkey, LegacyPk, XOnlyPk};
-use commit_verify::{Digest, Ripemd160, Sha256};
+use commit_verify::{Digest, Ripemd160};
 use hmac::{Hmac, Mac};
 use sha2::Sha512;
 
@@ -276,7 +276,7 @@ impl Xpub {
 
     /// Returns the HASH160 of the chaincode
     pub fn identifier(&self) -> XpubId {
-        let hash = Ripemd160::digest(&self.core.public_key.serialize());
+        let hash = Ripemd160::digest(self.core.public_key.serialize());
         XpubId::from_slice_unsafe(hash)
     }
 
