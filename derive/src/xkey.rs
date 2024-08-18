@@ -167,7 +167,7 @@ impl From<XpubFp> for [u8; 4] {
 }
 
 impl XpubFp {
-    pub const fn master() -> Self { Self(Bytes4::zero()) }
+    pub const fn zeros() -> Self { Self(Bytes4::zero()) }
 }
 
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default, Debug, Display, From)]
@@ -394,7 +394,7 @@ impl Xpriv {
             testnet,
             meta: XkeyMeta {
                 depth: 0,
-                parent_fp: XpubFp::master(),
+                parent_fp: XpubFp::zeros(),
                 child_number: DerivationIndex::ZERO,
             },
             core: XprivCore {
@@ -724,10 +724,12 @@ impl XpubAccount {
     pub fn derivation(&self) -> &[HardenedIndex] { self.origin.derivation.as_ref() }
 
     #[inline]
-    pub const fn as_derivation(&self) -> &DerivationPath<HardenedIndex> { &self.origin.derivation }
+    pub const fn as_derivation_path(&self) -> &DerivationPath<HardenedIndex> {
+        &self.origin.derivation
+    }
 
     #[inline]
-    pub fn to_derivation(&self) -> DerivationPath { self.origin.to_derivation() }
+    pub fn to_derivation_path(&self) -> DerivationPath { self.origin.to_derivation() }
 }
 
 impl Display for XpubAccount {
