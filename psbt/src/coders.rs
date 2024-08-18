@@ -893,7 +893,7 @@ impl Decode for TapTree {
                     .map_err(|_| PsbtError::InvalidTapLeafScriptSize(len))?,
             });
         }
-        TapTree::from_leafs(path).map_err(DecodeError::from)
+        TapTree::from_leaves(path).map_err(DecodeError::from)
     }
 }
 

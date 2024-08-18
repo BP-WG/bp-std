@@ -384,7 +384,7 @@ pub enum AddressType {
     #[display("P2WPKH")]
     P2wpkh,
 
-    /// Pay-to-witness script pash
+    /// Pay-to-witness script hash
     #[display("P2WSH")]
     P2wsh,
 
