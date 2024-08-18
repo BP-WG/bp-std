@@ -27,7 +27,9 @@ use std::str::FromStr;
 use amplify::{confinement, hex, ByteArray, Bytes20, Bytes32, Bytes4, Wrapper};
 use bc::secp256k1::{Keypair, PublicKey, SecretKey, SECP256K1};
 use bc::{secp256k1, CompressedPk, InvalidPubkey, LegacyPk, XOnlyPk};
-use bitcoin_hashes::{hash160, sha512, Hash, HashEngine, Hmac, HmacEngine};
+use commit_verify::{Digest, Ripemd160, Sha256};
+use hmac::{Hmac, Mac};
+use sha2::Sha512;
 
 use crate::{
     base58, DerivationIndex, DerivationParseError, DerivationPath, DerivationSeg, HardenedIndex,
@@ -274,14 +276,14 @@ impl Xpub {
 
     /// Returns the HASH160 of the chaincode
     pub fn identifier(&self) -> XpubId {
-        let hash = hash160::Hash::hash(&self.core.public_key.serialize());
-        XpubId::from_byte_array(*hash.as_byte_array())
+        let hash = Ripemd160::digest(&self.core.public_key.serialize());
+        XpubId::from_slice_unsafe(hash)
     }
 
     pub fn fingerprint(&self) -> XpubFp {
         let mut bytes = [0u8; 4];
         bytes.copy_from_slice(&self.identifier()[..4]);
-        XpubFp::from_byte_array(bytes)
+        XpubFp::from_slice_unsafe(bytes)
     }
 
     /// Constructs ECDSA public key valid in legacy context (compressed by default).
@@ -307,12 +309,12 @@ impl Xpub {
 
     /// Compute the scalar tweak added to this key to get a child key
     pub fn ckd_pub_tweak(&self, child_no: NormalIndex) -> (secp256k1::Scalar, ChainCode) {
-        let mut hmac_engine: HmacEngine<sha512::Hash> =
-            HmacEngine::new(self.core.chain_code.as_ref());
-        hmac_engine.input(&self.core.public_key.serialize());
-        hmac_engine.input(&child_no.to_be_bytes());
+        let mut hmac: Hmac<Sha512> =
+            Hmac::new_from_slice(self.core.chain_code.as_ref()).expect("fixed chaincode length");
+        hmac.update(&self.core.public_key.serialize());
+        hmac.update(&child_no.to_be_bytes());
 
-        let hmac_result: Hmac<sha512::Hash> = Hmac::from_engine(hmac_engine);
+        let hmac_result = hmac.finalize().into_bytes();
 
         let private_key = secp256k1::SecretKey::from_slice(&hmac_result[..32])
             .expect("negligible probability")
@@ -380,9 +382,10 @@ pub struct Xpriv {
 impl Xpriv {
     // TODO: Use dedicated `Seed` type
     pub fn new_master(testnet: bool, seed: &[u8]) -> Xpriv {
-        let mut hmac_engine: HmacEngine<sha512::Hash> = HmacEngine::new(b"Bitcoin seed");
-        hmac_engine.input(seed);
-        let hmac_result: Hmac<sha512::Hash> = Hmac::from_engine(hmac_engine);
+        let mut hmac: Hmac<Sha512> =
+            Hmac::new_from_slice(b"Bitcoin seed").expect("HMAC can take key of any size");
+        hmac.update(seed);
+        let hmac_result = hmac.finalize().into_bytes();
 
         let mut chain_code = [0u8; 32];
         chain_code.copy_from_slice(&hmac_result[32..]);
@@ -519,24 +522,24 @@ impl Xpriv {
     pub fn ckd_priv(&self, idx: impl Into<DerivationIndex>) -> Xpriv {
         let idx = idx.into();
 
-        let mut hmac_engine: HmacEngine<sha512::Hash> =
-            HmacEngine::new(self.core.chain_code.as_slice());
+        let mut hmac: Hmac<Sha512> = Hmac::new_from_slice(self.core.chain_code.as_slice())
+            .expect("fixed length of chain code");
         match idx {
             DerivationIndex::Normal(_) => {
                 // Non-hardened key: compute public data and use that
-                hmac_engine.input(
+                hmac.update(
                     &PublicKey::from_secret_key(SECP256K1, &self.core.private_key).serialize(),
                 );
             }
             DerivationIndex::Hardened(_) => {
                 // Hardened key: use only secret data to prevent public derivation
-                hmac_engine.input(&[0u8]);
-                hmac_engine.input(&self.core.private_key[..]);
+                hmac.update(&[0u8]);
+                hmac.update(&self.core.private_key[..]);
             }
         }
 
-        hmac_engine.input(&idx.index().to_be_bytes());
-        let hmac_result: Hmac<sha512::Hash> = Hmac::from_engine(hmac_engine);
+        hmac.update(&idx.index().to_be_bytes());
+        let hmac_result = hmac.finalize().into_bytes();
         let sk =
             SecretKey::from_slice(&hmac_result[..32]).expect("statistically impossible to hit");
         let tweaked =

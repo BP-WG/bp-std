@@ -8,7 +8,7 @@
 
 use core::{fmt, iter, slice, str};
 
-use bitcoin_hashes::{sha256d, Hash};
+use commit_verify::{Digest, Sha256};
 
 static BASE58_CHARS: &[u8] = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
@@ -71,8 +71,8 @@ pub fn decode_check(data: &str) -> Result<Vec<u8>, Error> {
     }
     let check_start = ret.len() - 4;
 
-    let hash_check =
-        sha256d::Hash::hash(&ret[..check_start])[..4].try_into().expect("4 byte slice");
+    let hash_check = Sha256::digest(&ret[..check_start]);
+    let hash_check = Sha256::digest(hash_check)[..4].try_into().expect("4 byte slice");
     let data_check = ret[check_start..].try_into().expect("4 byte slice");
 
     let expected = u32::from_le_bytes(hash_check);
@@ -93,7 +93,8 @@ pub fn encode(data: &[u8]) -> String { encode_iter(data.iter().cloned()) }
 ///
 /// The checksum is the first four bytes of the sha256d of the data, concatenated onto the end.
 pub fn encode_check(data: &[u8]) -> String {
-    let checksum = sha256d::Hash::hash(data);
+    let checksum = Sha256::digest(data);
+    let checksum = Sha256::digest(checksum);
     encode_iter(data.iter().cloned().chain(checksum[0..4].iter().cloned()))
 }
 
@@ -101,7 +102,8 @@ pub fn encode_check(data: &[u8]) -> String {
 ///
 /// The checksum is the first four bytes of the sha256d of the data, concatenated onto the end.
 pub fn encode_check_to_fmt(fmt: &mut fmt::Formatter, data: &[u8]) -> fmt::Result {
-    let checksum = sha256d::Hash::hash(data);
+    let checksum = Sha256::digest(data);
+    let checksum = Sha256::digest(checksum);
     let iter = data.iter().cloned().chain(checksum[0..4].iter().cloned());
     format_iter(fmt, iter)
 }

@@ -17,7 +17,6 @@ license = "Apache-2.0"
 amplify = "4.7.0"
 bech32 = "0.9.1"
 secp256k1 = "0.29.0"
-bitcoin_hashes = "0.14.0"  # TODO: Remove and replace with commit_verify
 commit_verify = "0.11.0-beta.7"
 strict_encoding = "2.7.0-rc.1"
 bp-consensus = "0.11.0-beta.7"
