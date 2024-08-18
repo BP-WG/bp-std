@@ -903,13 +903,13 @@ impl Input {
         self.redeem_script = None; // 0x04
         self.witness_script = None; // 0x05
         self.bip32_derivation.clear(); // 0x05
-                                       // finalized witness 0x06 and 0x07 are not clear
-                                       // 0x09 Proof of reserves not yet supported
+        // finalized witness 0x06 and 0x07 are not clear
+        // 0x09 Proof of reserves not yet supported
         self.ripemd160.clear(); // 0x0a
         self.sha256.clear(); // 0x0b
         self.hash160.clear(); // 0x0c
         self.hash256.clear(); // 0x0d
-                              // psbt v2 fields till 0x012 not supported
+        // psbt v2 fields till 0x012 not supported
         self.tap_key_sig = None; // 0x013
         self.tap_script_sig.clear(); // 0x014
         self.tap_leaf_script.clear(); // 0x015
