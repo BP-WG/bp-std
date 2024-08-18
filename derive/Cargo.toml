@@ -17,10 +17,11 @@ name = "derive"
 
 [dependencies]
 amplify = { workspace = true }
-bitcoin_hashes = { workspace = true }
 commit_verify = { workspace = true }
 bp-consensus = { workspace = true }
 bp-invoice = { workspace = true }
+sha2 = "0.10.8"
+hmac = "0.12.1"
 indexmap = { workspace = true }
 serde_crate = { workspace = true, optional = true }
 

@@ -285,7 +285,7 @@ pub enum InputKey {
     RequiredTimeLock,
 
     /// `PSBT_IN_REQUIRED_HEIGHT_LOCKTIME`
-    RequiredHeighLock,
+    RequiredHeightLock,
 
     /// `PSBT_IN_TAP_KEY_SIG`
     TapKeySig,
@@ -332,7 +332,7 @@ impl KeyType for InputKey {
         Self::OutputIndex,
         Self::Sequence,
         Self::RequiredTimeLock,
-        Self::RequiredHeighLock,
+        Self::RequiredHeightLock,
         Self::TapKeySig,
         Self::TapScriptSig,
         Self::TapLeafScript,
@@ -364,7 +364,7 @@ impl KeyType for InputKey {
             x if x == Self::OutputIndex.into_u8() => Self::OutputIndex,
             x if x == Self::Sequence.into_u8() => Self::Sequence,
             x if x == Self::RequiredTimeLock.into_u8() => Self::RequiredTimeLock,
-            x if x == Self::RequiredHeighLock.into_u8() => Self::RequiredHeighLock,
+            x if x == Self::RequiredHeightLock.into_u8() => Self::RequiredHeightLock,
             x if x == Self::TapKeySig.into_u8() => Self::TapKeySig,
             x if x == Self::TapScriptSig.into_u8() => Self::TapScriptSig,
             x if x == Self::TapLeafScript.into_u8() => Self::TapLeafScript,
@@ -396,7 +396,7 @@ impl KeyType for InputKey {
             InputKey::OutputIndex => PSBT_IN_OUTPUT_INDEX,
             InputKey::Sequence => PSBT_IN_SEQUENCE,
             InputKey::RequiredTimeLock => PSBT_IN_REQUIRED_TIME_LOCKTIME,
-            InputKey::RequiredHeighLock => PSBT_IN_REQUIRED_HEIGHT_LOCKTIME,
+            InputKey::RequiredHeightLock => PSBT_IN_REQUIRED_HEIGHT_LOCKTIME,
             InputKey::TapKeySig => PSBT_IN_TAP_KEY_SIG,
             InputKey::TapScriptSig => PSBT_IN_TAP_SCRIPT_SIG,
             InputKey::TapLeafScript => PSBT_IN_TAP_LEAF_SCRIPT,
@@ -430,7 +430,7 @@ impl KeyType for InputKey {
             InputKey::OutputIndex => false,
             InputKey::Sequence => false,
             InputKey::RequiredTimeLock => false,
-            InputKey::RequiredHeighLock => false,
+            InputKey::RequiredHeightLock => false,
 
             InputKey::TapKeySig => false,
             InputKey::TapScriptSig => true,
@@ -466,7 +466,7 @@ impl KeyType for InputKey {
             | InputKey::OutputIndex
             | InputKey::Sequence
             | InputKey::RequiredTimeLock
-            | InputKey::RequiredHeighLock => PsbtVer::V2,
+            | InputKey::RequiredHeightLock => PsbtVer::V2,
 
             InputKey::TapKeySig
             | InputKey::TapScriptSig
@@ -500,7 +500,7 @@ impl KeyType for InputKey {
             | InputKey::OutputIndex
             | InputKey::Sequence
             | InputKey::RequiredTimeLock
-            | InputKey::RequiredHeighLock
+            | InputKey::RequiredHeightLock
             | InputKey::TapKeySig
             | InputKey::TapScriptSig
             | InputKey::TapLeafScript
@@ -531,7 +531,7 @@ impl KeyType for InputKey {
             | InputKey::Hash256 => false,
 
             InputKey::PreviousTxid | InputKey::OutputIndex => true,
-            InputKey::Sequence | InputKey::RequiredTimeLock | InputKey::RequiredHeighLock => false,
+            InputKey::Sequence | InputKey::RequiredTimeLock | InputKey::RequiredHeightLock => false,
 
             InputKey::TapKeySig
             | InputKey::TapScriptSig

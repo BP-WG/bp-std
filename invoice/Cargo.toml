@@ -17,8 +17,8 @@ name = "invoice"
 
 [dependencies]
 amplify = { workspace = true }
+commit_verify = { workspace = true }
 bech32 = { workspace = true }
-bitcoin_hashes = { workspace = true }
 bp-consensus = { workspace = true }
 serde_crate = { workspace = true, optional = true }
 

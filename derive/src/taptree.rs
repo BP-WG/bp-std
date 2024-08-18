@@ -39,24 +39,24 @@ pub enum InvalidTree {
     Unfinalized(UnfinalizedTree),
 
     #[from(FinalizedTree)]
-    #[display("tap tree contains too many script leafs which doesn't fit a single Merkle tree")]
+    #[display("tap tree contains too many script leaves which doesn't fit a single Merkle tree")]
     MountainRange,
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display, Error)]
-#[display("can't add more leafs to an already finalized tap tree")]
+#[display("can't add more leaves to an already finalized tap tree")]
 pub struct FinalizedTree;
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display, Error)]
 #[display(
-    "unfinalized tap tree containing leafs at level {0} which can't commit into a single Merkle \
+    "unfinalized tap tree containing leaves at level {0} which can't commit into a single Merkle \
      root"
 )]
 pub struct UnfinalizedTree(pub u7);
 
 #[derive(Clone, Eq, PartialEq, Debug, Default)]
 pub struct TapTreeBuilder {
-    leafs: Vec<LeafInfo>,
+    leaves: Vec<LeafInfo>,
     buoy: MerkleBuoy<u7>,
     finalized: bool,
 }
@@ -66,7 +66,7 @@ impl TapTreeBuilder {
 
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
-            leafs: Vec::with_capacity(capacity),
+            leaves: Vec::with_capacity(capacity),
             buoy: zero!(),
             finalized: false,
         }
@@ -79,7 +79,7 @@ impl TapTreeBuilder {
             return Err(FinalizedTree);
         }
         let depth = leaf.depth;
-        self.leafs.push(leaf);
+        self.leaves.push(leaf);
         self.buoy.push(depth);
         if self.buoy.level() == u7::ZERO {
             self.finalized = true
@@ -91,7 +91,7 @@ impl TapTreeBuilder {
         if !self.finalized {
             return Err(UnfinalizedTree(self.buoy.level()));
         }
-        Ok(TapTree(self.leafs))
+        Ok(TapTree(self.leaves))
     }
 }
 
@@ -127,9 +127,9 @@ impl TapTree {
         }])
     }
 
-    pub fn from_leafs(leafs: impl IntoIterator<Item = LeafInfo>) -> Result<Self, InvalidTree> {
+    pub fn from_leaves(leaves: impl IntoIterator<Item = LeafInfo>) -> Result<Self, InvalidTree> {
         let mut builder = TapTreeBuilder::new();
-        for leaf in leafs {
+        for leaf in leaves {
             builder.push_leaf(leaf)?;
         }
         builder.finish().map_err(InvalidTree::from)

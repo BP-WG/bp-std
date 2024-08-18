@@ -1,10 +1,10 @@
 # Security
 
-We take the security of our software products and services seriously, which 
+We take the security of our software products and services seriously, which
 includes all source code repositories managed through our GitHub organizations.
 
-If you believe you have found a security vulnerability in any of our repository 
-that meets [definition of a security vulnerability][definition], please report 
+If you believe you have found a security vulnerability in any of our repository
+that meets [definition of a security vulnerability][definition], please report
 it to us as described below.
 
 ## Reporting Security Issues
@@ -14,8 +14,8 @@ it to us as described below.
 Instead, please report them to the repository maintainers by sending a **GPG
 encrypted e-mail** to _all maintainers of a specific repo_ using their GPG keys.
 
-A list of repository maintainers and their keys and e-mail addresses are 
-provided inside MAINTANERS.md file and MANIFEST.yml, with the latter also 
+A list of repository maintainers and their keys and e-mail addresses are
+provided inside MAINTAINERS.md file and MANIFEST.yml, with the latter also
 included in the README.md as a manifest block, which looks in the following way:
 
 ```yaml
@@ -30,11 +30,11 @@ Maintainers:
     ...
 ```
 
-You should receive a response within 72 hours. If for some reason you do not, 
-please follow up via email to ensure we received your original message. 
+You should receive a response within 72 hours. If for some reason you do not,
+please follow up via email to ensure we received your original message.
 
-Please include the requested information listed below (as much as you can 
-provide) to help us better understand the nature and scope of the possible 
+Please include the requested information listed below (as much as you can
+provide) to help us better understand the nature and scope of the possible
 issue:
 
 * Type of issue (e.g. buffer overflow, SQL injection, cross-site scripting, etc.)
@@ -56,4 +56,5 @@ We prefer all communications to be in English.
 We follow the principle of [Coordinated Vulnerability Disclosure][disclosure].
 
 [definition]: https://aka.ms/opensource/security/definition
+
 [disclosure]: https://aka.ms/opensource/security/cvd

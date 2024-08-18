@@ -434,7 +434,7 @@ impl KeyMap for Input {
             InputKey::OutputIndex => once!(self.previous_outpoint.vout),
             InputKey::Sequence => option!(self.sequence_number),
             InputKey::RequiredTimeLock => option!(self.required_time_lock),
-            InputKey::RequiredHeighLock => option!(self.required_height_lock),
+            InputKey::RequiredHeightLock => option!(self.required_height_lock),
             InputKey::TapKeySig => option!(self.tap_key_sig),
             InputKey::TapScriptSig => iter!(self.tap_script_sig),
             InputKey::TapLeafScript => iter!(self.tap_leaf_script),
@@ -483,7 +483,7 @@ impl KeyMap for Input {
             InputKey::RequiredTimeLock => {
                 self.required_time_lock = Some(LockTimestamp::deserialize(value_data)?)
             }
-            InputKey::RequiredHeighLock => {
+            InputKey::RequiredHeightLock => {
                 self.required_height_lock = Some(LockHeight::deserialize(value_data)?)
             }
 
@@ -533,7 +533,7 @@ impl KeyMap for Input {
             | InputKey::OutputIndex
             | InputKey::Sequence
             | InputKey::RequiredTimeLock
-            | InputKey::RequiredHeighLock => unreachable!(),
+            | InputKey::RequiredHeightLock => unreachable!(),
 
             InputKey::PartialSig => {
                 let pk = LegacyPk::deserialize(key_data)?;

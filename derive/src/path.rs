@@ -27,7 +27,7 @@ use core::str::FromStr;
 use std::collections::BTreeSet;
 
 use amplify::confinement;
-use amplify::confinement::Confined;
+use amplify::confinement::{Confined, NonEmptyOrdSet};
 
 use crate::{DerivationIndex, Idx, IdxBase, IndexParseError, NormalIndex, Terminal};
 
@@ -41,28 +41,28 @@ pub enum DerivationParseError {
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub struct DerivationSeg<I: IdxBase = NormalIndex>(Confined<BTreeSet<I>, 1, 8>);
+pub struct DerivationSeg<I: IdxBase = NormalIndex>(NonEmptyOrdSet<I, 8>);
 
 impl<I: IdxBase> From<&'static [I]> for DerivationSeg<I> {
     fn from(indexes: &'static [I]) -> Self {
-        Self(Confined::from_iter_unsafe(indexes.iter().copied()))
+        Self(Confined::from_iter_checked(indexes.iter().copied()))
     }
 }
 
 impl<I: IdxBase> From<[I; 2]> for DerivationSeg<I> {
-    fn from(indexes: [I; 2]) -> Self { Self(Confined::from_iter_unsafe(indexes)) }
+    fn from(indexes: [I; 2]) -> Self { Self(Confined::from_iter_checked(indexes)) }
 }
 
 impl<I: IdxBase> From<[I; 3]> for DerivationSeg<I> {
-    fn from(indexes: [I; 3]) -> Self { Self(Confined::from_iter_unsafe(indexes)) }
+    fn from(indexes: [I; 3]) -> Self { Self(Confined::from_iter_checked(indexes)) }
 }
 
 impl<I: IdxBase> From<[I; 4]> for DerivationSeg<I> {
-    fn from(indexes: [I; 4]) -> Self { Self(Confined::from_iter_unsafe(indexes)) }
+    fn from(indexes: [I; 4]) -> Self { Self(Confined::from_iter_checked(indexes)) }
 }
 
 impl<I: IdxBase> DerivationSeg<I> {
-    pub fn new(index: I) -> Self { DerivationSeg(confined_bset![index]) }
+    pub fn new(index: I) -> Self { DerivationSeg(NonEmptyOrdSet::with(index)) }
 
     pub fn with(iter: impl IntoIterator<Item = I>) -> Result<Self, confinement::Error> {
         Confined::try_from_iter(iter).map(DerivationSeg)
@@ -86,17 +86,19 @@ impl<I: IdxBase> DerivationSeg<I> {
     }
 
     #[inline]
-    pub fn into_set(self) -> BTreeSet<I> { self.0.into_inner() }
+    pub fn into_set(self) -> BTreeSet<I> { self.0.release() }
 
     #[inline]
-    pub fn to_set(&self) -> BTreeSet<I> { self.0.to_inner() }
+    pub fn to_set(&self) -> BTreeSet<I> { self.0.to_unconfined() }
 
     #[inline]
-    pub fn as_set(&self) -> &BTreeSet<I> { self.0.as_inner() }
+    pub fn as_set(&self) -> &BTreeSet<I> { self.0.as_unconfined() }
 }
 
 impl DerivationSeg<NormalIndex> {
-    pub fn standard() -> Self { DerivationSeg(confined_bset![NormalIndex::ZERO, NormalIndex::ONE]) }
+    pub fn standard() -> Self {
+        DerivationSeg(NonEmptyOrdSet::from_iter_checked([NormalIndex::ZERO, NormalIndex::ONE]))
+    }
 }
 
 impl<I: IdxBase> Index<u8> for DerivationSeg<I> {

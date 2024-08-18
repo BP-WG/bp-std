@@ -258,11 +258,11 @@ impl FromStr for Address {
                     return Err(AddressParseError::FutureTaprootVersion(
                         program.len(),
                         s.to_owned(),
-                    ))
+                    ));
                 }
 
                 (WitnessVer::V0 | WitnessVer::V1, wrong) => {
-                    return Err(AddressParseError::InvalidBech32Variant(wrong))
+                    return Err(AddressParseError::InvalidBech32Variant(wrong));
                 }
 
                 (future, _) => return Err(AddressParseError::FutureWitnessVersion(future)),
@@ -384,7 +384,7 @@ pub enum AddressType {
     #[display("P2WPKH")]
     P2wpkh,
 
-    /// Pay-to-witness script pash
+    /// Pay-to-witness script hash
     #[display("P2WSH")]
     P2wsh,
 
