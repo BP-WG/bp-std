@@ -616,6 +616,13 @@ impl XkeyOrigin {
         }
     }
 
+    pub fn new_master(master_fp: XpubFp) -> Self {
+        XkeyOrigin {
+            master_fp,
+            derivation: empty!(),
+        }
+    }
+
     pub const fn master_fp(&self) -> XpubFp { self.master_fp }
 
     pub fn derivation(&self) -> &[HardenedIndex] { self.derivation.as_ref() }
@@ -800,6 +807,19 @@ pub struct XprivAccount {
 }
 
 impl XprivAccount {
+    pub fn new_master(xpriv: Xpriv) -> Self {
+        Self {
+            origin: XkeyOrigin::new_master(xpriv.fingerprint()),
+            xpriv,
+        }
+    }
+
+    // TODO: Use dedicated `Seed` type
+    pub fn with_seed(testnet: bool, seed: &[u8]) -> Self {
+        let xpriv = Xpriv::new_master(testnet, seed);
+        Self::new_master(xpriv)
+    }
+
     pub fn new(xpriv: Xpriv, origin: XkeyOrigin) -> Result<Self, XkeyAccountError> {
         if xpriv.meta.depth as usize != origin.derivation.len() {
             return Err(XkeyAccountError::DepthMismatch);
