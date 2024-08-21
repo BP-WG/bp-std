@@ -178,6 +178,10 @@ where
 )]
 pub struct DerivationPath<I = DerivationIndex>(Vec<I>);
 
+impl<I: Clone, const LEN: usize> From<[I; LEN]> for DerivationPath<I> {
+    fn from(path: [I; LEN]) -> Self { Self(path.to_vec()) }
+}
+
 impl<I: Clone> From<&[I]> for DerivationPath<I> {
     fn from(path: &[I]) -> Self { Self(path.to_vec()) }
 }
