@@ -321,7 +321,7 @@ impl AddressPayload {
             AddressPayload::Pkh(PubkeyHash::from(bytes))
         } else if script.is_p2sh() {
             let mut bytes = [0u8; 20];
-            bytes.copy_from_slice(&script[2..]);
+            bytes.copy_from_slice(&script[2..22]);
             AddressPayload::Sh(ScriptHash::from(bytes))
         } else if script.is_p2wpkh() {
             let mut bytes = [0u8; 20];
