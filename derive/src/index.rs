@@ -33,7 +33,10 @@ pub const HARDENED_INDEX_BOUNDARY: u32 = 1 << 31;
 #[macro_export]
 macro_rules! h {
     ($idx:literal) => {
-        HardenedIndex::from(idx as u16).into()
+        HardenedIndex::from($idx as u16)
+    };
+    [$( $idx:literal ),+] => {
+        [$( HardenedIndex::from($idx as u16) ),+]
     };
 }
 
@@ -585,5 +588,21 @@ impl FromStr for DerivationIndex {
             Some(_) => HardenedIndex::from_str(s).map(Self::Hardened),
             None => NormalIndex::from_str(s).map(Self::Normal),
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn macro_h_index() {
+        assert_eq!(h!(1), HardenedIndex::ONE);
+    }
+
+    #[test]
+    fn macro_h_path() {
+        let path = [HardenedIndex::from(86u8), HardenedIndex::from(1u8), HardenedIndex::from(0u8)];
+        assert_eq!(h![86, 1, 0], path);
     }
 }

@@ -1089,25 +1089,39 @@ mod _serde {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::h;
 
     #[test]
-    fn test_xpub_derivable_from_str_with_hardened_index() {
+    fn xpub_derivable_from_str_with_hardened_index() {
         let s = "[643a7adc/86h/1h/0h]tpubDCNiWHaiSkgnQjuhsg9kjwaUzaxQjUcmhagvYzqQ3TYJTgFGJstVaqnu4yhtFktBhCVFmBNLQ5sN53qKzZbMksm3XEyGJsEhQPfVZdWmTE2/<0;1>/*";
         let xpub = XpubDerivable::from_str(s).unwrap();
         assert_eq!(s, xpub.to_string());
     }
 
     #[test]
-    fn test_xpub_derivable_from_str_with_normal_index() {
+    fn xpub_derivable_from_str_with_normal_index() {
         let s = "[643a7adc/86'/1'/0']tpubDCNiWHaiSkgnQjuhsg9kjwaUzaxQjUcmhagvYzqQ3TYJTgFGJstVaqnu4yhtFktBhCVFmBNLQ5sN53qKzZbMksm3XEyGJsEhQPfVZdWmTE2/<0;1>/*";
         let xpub = XpubDerivable::from_str(s).unwrap();
         assert_eq!(s, format!("{xpub:#}"));
     }
 
     #[test]
-    fn test_xpub_derivable_from_str_with_normal_index_rgb_keychain() {
+    fn xpub_derivable_from_str_with_normal_index_rgb_keychain() {
         let s = "[643a7adc/86'/1'/0']tpubDCNiWHaiSkgnQjuhsg9kjwaUzaxQjUcmhagvYzqQ3TYJTgFGJstVaqnu4yhtFktBhCVFmBNLQ5sN53qKzZbMksm3XEyGJsEhQPfVZdWmTE2/<0;1;9;10>/*";
         let xpub = XpubDerivable::from_str(s).unwrap();
         assert_eq!(s, format!("{xpub:#}"));
+    }
+
+    #[test]
+    fn xpriv_account_display_fromstr() {
+        use secp256k1::rand::{self, RngCore};
+
+        let mut seed = vec![0u8; 128];
+        rand::thread_rng().fill_bytes(&mut seed);
+
+        let xpriv_account = XprivAccount::with_seed(true, &seed).derive(h![86, 1, 0]);
+        let xpriv_account_str = xpriv_account.to_string();
+        let recovered = XprivAccount::from_str(&xpriv_account_str).unwrap();
+        assert_eq!(recovered, xpriv_account);
     }
 }
