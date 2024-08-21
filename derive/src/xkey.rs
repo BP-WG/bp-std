@@ -21,7 +21,7 @@
 // limitations under the License.
 
 use std::borrow::Borrow;
-use std::fmt::{self, Display, Formatter};
+use std::fmt::{self, Debug, Display, Formatter};
 use std::str::FromStr;
 
 use amplify::{hex, ByteArray, Bytes20, Bytes32, Bytes4, Wrapper};
@@ -390,7 +390,16 @@ pub struct XprivCore {
     pub chain_code: ChainCode,
 }
 
-#[derive(Copy, Clone, Eq, PartialEq)]
+impl Debug for XprivCore {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("XprivCore")
+            .field("public_key", &self.private_key.public_key(SECP256K1))
+            .field("chain_code", &self.chain_code)
+            .finish()
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct Xpriv {
     testnet: bool,
     meta: XkeyMeta,
@@ -800,7 +809,7 @@ impl FromStr for XpubAccount {
     }
 }
 
-#[derive(Getters, Eq, PartialEq)]
+#[derive(Getters, Eq, PartialEq, Debug)]
 pub struct XprivAccount {
     origin: XkeyOrigin,
     xpriv: Xpriv,
