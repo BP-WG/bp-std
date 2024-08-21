@@ -876,6 +876,7 @@ impl FromStr for XprivAccount {
 #[derive(Getters, Clone, Eq, PartialEq, Hash, Debug)]
 pub struct XpubDerivable {
     spec: XpubAccount,
+    #[getter(as_copy)]
     variant: Option<NormalIndex>,
     pub(crate) keychains: DerivationSeg<Keychain>,
 }
