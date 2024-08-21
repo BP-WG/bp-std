@@ -239,6 +239,8 @@ impl<I: Idx> DerivationPath<I> {
     /// Constructs empty derivation path.
     pub fn new() -> Self { Self(vec![]) }
 
+    pub fn with_capacity(capacity: usize) -> Self { Self(Vec::with_capacity(capacity)) }
+
     pub fn terminal(&self) -> Option<Terminal> {
         let mut iter = self.iter().rev();
         let index = iter.next()?;

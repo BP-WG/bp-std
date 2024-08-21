@@ -839,6 +839,22 @@ impl XprivAccount {
 
     #[inline]
     pub fn to_derivation(&self) -> DerivationPath { self.origin.to_derivation() }
+
+    #[must_use]
+    pub fn derive(&self, path: impl AsRef<[HardenedIndex]>) -> Self {
+        let path = path.as_ref();
+        let xpriv = self.xpriv.derive_priv(path);
+        let mut prev = DerivationPath::with_capacity(self.origin.derivation.len() + path.len());
+        prev.extend(&self.origin.derivation);
+        prev.extend(path);
+        XprivAccount {
+            origin: XkeyOrigin {
+                master_fp: self.origin.master_fp,
+                derivation: prev,
+            },
+            xpriv,
+        }
+    }
 }
 
 impl Display for XprivAccount {
