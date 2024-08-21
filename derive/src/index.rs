@@ -30,6 +30,13 @@ use std::str::FromStr;
 /// is treated as hardened
 pub const HARDENED_INDEX_BOUNDARY: u32 = 1 << 31;
 
+#[macro_export]
+macro_rules! h {
+    ($idx:literal) => {
+        HardenedIndex::from(idx as u16).into()
+    };
+}
+
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error)]
 #[display("provided {what} {invalid} is invalid: it lies outside allowed range {start}..={end}")]
 pub struct IndexError {
