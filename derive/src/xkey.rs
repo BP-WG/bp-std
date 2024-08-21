@@ -1124,4 +1124,26 @@ mod test {
         let recovered = XprivAccount::from_str(&xpriv_account_str).unwrap();
         assert_eq!(recovered, xpriv_account);
     }
+
+    #[test]
+    fn xpriv_derivable() {
+        use secp256k1::rand::{self, RngCore};
+
+        let mut seed = vec![0u8; 128];
+        rand::thread_rng().fill_bytes(&mut seed);
+
+        let derivation = DerivationPath::from(h![86, 1, 0]);
+        let xpriv_account = XprivAccount::with_seed(true, &seed).derive(&derivation);
+        let xpub_account = xpriv_account.to_xpub_account();
+        let derivable_other =
+            XpubDerivable::try_custom(xpub_account.xpub, xpub_account.origin.clone(), [
+                Keychain::INNER,
+                Keychain::OUTER,
+            ])
+            .unwrap();
+        let derivable = XpubDerivable::with(xpub_account, &[Keychain::INNER, Keychain::OUTER]);
+        assert_eq!(derivable, derivable_other);
+        assert_eq!(derivable.spec.origin, xpriv_account.origin);
+        assert_eq!(derivable.spec.origin.derivation, derivation);
+    }
 }
