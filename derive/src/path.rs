@@ -178,6 +178,10 @@ where
 )]
 pub struct DerivationPath<I = DerivationIndex>(Vec<I>);
 
+impl<I: Clone, const LEN: usize> From<[I; LEN]> for DerivationPath<I> {
+    fn from(path: [I; LEN]) -> Self { Self(path.to_vec()) }
+}
+
 impl<I: Clone> From<&[I]> for DerivationPath<I> {
     fn from(path: &[I]) -> Self { Self(path.to_vec()) }
 }
@@ -238,6 +242,8 @@ impl<I> FromIterator<I> for DerivationPath<I> {
 impl<I: Idx> DerivationPath<I> {
     /// Constructs empty derivation path.
     pub fn new() -> Self { Self(vec![]) }
+
+    pub fn with_capacity(capacity: usize) -> Self { Self(Vec::with_capacity(capacity)) }
 
     pub fn terminal(&self) -> Option<Terminal> {
         let mut iter = self.iter().rev();

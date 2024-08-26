@@ -50,7 +50,7 @@ pub use taptree::{
     TapTreeBuilder, UnfinalizedTree,
 };
 pub use xkey::{
-    ChainCode, KeyOrigin, OriginParseError, XkeyDecodeError, XkeyMeta, XkeyOrigin, XkeyParseError,
-    Xpriv, XprivAccount, XprivCore, Xpub, XpubAccount, XpubCore, XpubDerivable, XpubFp, XpubId,
-    XPRIV_MAINNET_MAGIC, XPRIV_TESTNET_MAGIC,
+    ChainCode, KeyOrigin, OriginParseError, XkeyAccountError, XkeyDecodeError, XkeyMeta,
+    XkeyOrigin, XkeyParseError, Xpriv, XprivAccount, XprivCore, Xpub, XpubAccount, XpubCore,
+    XpubDerivable, XpubFp, XpubId, XPRIV_MAINNET_MAGIC, XPRIV_TESTNET_MAGIC,
 };

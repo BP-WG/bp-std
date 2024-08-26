@@ -21,10 +21,10 @@
 // limitations under the License.
 
 use std::borrow::Borrow;
-use std::fmt::{self, Display, Formatter};
+use std::fmt::{self, Debug, Display, Formatter};
 use std::str::FromStr;
 
-use amplify::{confinement, hex, ByteArray, Bytes20, Bytes32, Bytes4, Wrapper};
+use amplify::{hex, ByteArray, Bytes20, Bytes32, Bytes4, Wrapper};
 use bc::secp256k1::{Keypair, PublicKey, SecretKey, SECP256K1};
 use bc::{secp256k1, CompressedPk, InvalidPubkey, LegacyPk, XOnlyPk};
 use commit_verify::{Digest, Ripemd160};
@@ -41,6 +41,26 @@ pub const XPRIV_TESTNET_MAGIC: [u8; 4] = [0x04u8, 0x35, 0x83, 0x94];
 
 pub const XPUB_MAINNET_MAGIC: [u8; 4] = [0x04u8, 0x88, 0xB2, 0x1E];
 pub const XPUB_TESTNET_MAGIC: [u8; 4] = [0x04u8, 0x35, 0x87, 0xCF];
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display, Error, From)]
+#[display(doc_comments)]
+pub enum XkeyAccountError {
+    /// mismatch between extended key depth and length of the derivation path in the key origin
+    /// information.
+    DepthMismatch,
+
+    /// extended key child derivation index does not match the last derivation index in the provided
+    /// origin information.
+    ParentMismatch,
+
+    /// extended key has derivation depth 1, but its parent fingerprint does not match the provided
+    /// master key fingerprint.
+    MasterMismatch,
+
+    /// attempt to create an extended key account with too many derivation indexes in the keychain
+    /// segment.
+    TooManyKeychains,
+}
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
@@ -64,9 +84,9 @@ pub enum XkeyDecodeError {
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
+#[display(doc_comments)]
 pub enum XkeyParseError {
     /// wrong Base58 encoding of extended pubkey data - {0}
-    #[display(doc_comments)]
     #[from]
     Base58(base58::Error),
 
@@ -99,14 +119,12 @@ pub enum XkeyParseError {
     /// no extended public key.
     NoXpub,
 
-    /// xpub network and origin mismatch.
+    /// mismatch between extended key network and network specified in the key origin.
     NetworkMismatch,
 
-    /// xpub depth and origin mismatch.
-    DepthMismatch,
-
-    /// xpub parent not matches the provided origin information.
-    ParentMismatch,
+    #[display(inner)]
+    #[from]
+    Account(XkeyAccountError),
 }
 
 impl From<OriginParseError> for XkeyParseError {
@@ -372,7 +390,16 @@ pub struct XprivCore {
     pub chain_code: ChainCode,
 }
 
-#[derive(Copy, Clone, Eq, PartialEq)]
+impl Debug for XprivCore {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct("XprivCore")
+            .field("public_key", &self.private_key.public_key(SECP256K1))
+            .field("chain_code", &self.chain_code)
+            .finish()
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct Xpriv {
     testnet: bool,
     meta: XkeyMeta,
@@ -598,6 +625,13 @@ impl XkeyOrigin {
         }
     }
 
+    pub fn new_master(master_fp: XpubFp) -> Self {
+        XkeyOrigin {
+            master_fp,
+            derivation: empty!(),
+        }
+    }
+
     pub const fn master_fp(&self) -> XpubFp { self.master_fp }
 
     pub fn derivation(&self) -> &[HardenedIndex] { self.derivation.as_ref() }
@@ -709,7 +743,20 @@ pub struct XpubAccount {
 }
 
 impl XpubAccount {
-    pub fn new(xpub: Xpub, origin: XkeyOrigin) -> Self { XpubAccount { xpub, origin } }
+    pub fn new(xpub: Xpub, origin: XkeyOrigin) -> Result<Self, XkeyAccountError> {
+        if xpub.meta.depth as usize != origin.derivation.len() {
+            return Err(XkeyAccountError::DepthMismatch);
+        }
+        if origin.derivation.last().copied().map(DerivationIndex::Hardened)
+            != Some(xpub.meta.child_number)
+        {
+            return Err(XkeyAccountError::ParentMismatch);
+        }
+        if xpub.meta.depth == 1 && xpub.meta.parent_fp != origin.master_fp {
+            return Err(XkeyAccountError::MasterMismatch);
+        }
+        Ok(XpubAccount { xpub, origin })
+    }
 
     #[inline]
     pub const fn master_fp(&self) -> XpubFp { self.origin.master_fp }
@@ -751,33 +798,51 @@ impl FromStr for XpubAccount {
         let origin = XkeyOrigin::from_str(origin)?;
         let xpub = Xpub::from_str(xpub)?;
 
-        if origin.derivation.len() != xpub.meta.depth as usize {
-            return Err(XkeyParseError::DepthMismatch);
-        }
         if !origin.derivation.is_empty() {
             let network = if xpub.testnet { HardenedIndex::ONE } else { HardenedIndex::ZERO };
             if origin.derivation.get(1) != Some(&network) {
                 return Err(XkeyParseError::NetworkMismatch);
             }
-            if origin.derivation.last().copied().map(DerivationIndex::Hardened)
-                != Some(xpub.meta.child_number)
-            {
-                return Err(XkeyParseError::ParentMismatch);
-            }
         }
 
-        Ok(XpubAccount { origin, xpub })
+        Ok(XpubAccount::new(xpub, origin)?)
     }
 }
 
-#[derive(Getters, Eq, PartialEq)]
+#[derive(Getters, Eq, PartialEq, Debug)]
 pub struct XprivAccount {
     origin: XkeyOrigin,
     xpriv: Xpriv,
 }
 
 impl XprivAccount {
-    pub fn new(xpriv: Xpriv, origin: XkeyOrigin) -> Self { XprivAccount { xpriv, origin } }
+    pub fn new_master(xpriv: Xpriv) -> Self {
+        Self {
+            origin: XkeyOrigin::new_master(xpriv.fingerprint()),
+            xpriv,
+        }
+    }
+
+    // TODO: Use dedicated `Seed` type
+    pub fn with_seed(testnet: bool, seed: &[u8]) -> Self {
+        let xpriv = Xpriv::new_master(testnet, seed);
+        Self::new_master(xpriv)
+    }
+
+    pub fn new(xpriv: Xpriv, origin: XkeyOrigin) -> Result<Self, XkeyAccountError> {
+        if xpriv.meta.depth as usize != origin.derivation.len() {
+            return Err(XkeyAccountError::DepthMismatch);
+        }
+        if origin.derivation.last().copied().map(DerivationIndex::Hardened)
+            != Some(xpriv.meta.child_number)
+        {
+            return Err(XkeyAccountError::ParentMismatch);
+        }
+        if xpriv.meta.depth == 1 && xpriv.meta.parent_fp != origin.master_fp {
+            return Err(XkeyAccountError::MasterMismatch);
+        }
+        Ok(XprivAccount { xpriv, origin })
+    }
 
     pub fn to_xpub_account(&self) -> XpubAccount {
         XpubAccount {
@@ -803,6 +868,22 @@ impl XprivAccount {
 
     #[inline]
     pub fn to_derivation(&self) -> DerivationPath { self.origin.to_derivation() }
+
+    #[must_use]
+    pub fn derive(&self, path: impl AsRef<[HardenedIndex]>) -> Self {
+        let path = path.as_ref();
+        let xpriv = self.xpriv.derive_priv(path);
+        let mut prev = DerivationPath::with_capacity(self.origin.derivation.len() + path.len());
+        prev.extend(&self.origin.derivation);
+        prev.extend(path);
+        XprivAccount {
+            origin: XkeyOrigin {
+                master_fp: self.origin.master_fp,
+                derivation: prev,
+            },
+            xpriv,
+        }
+    }
 }
 
 impl Display for XprivAccount {
@@ -826,28 +907,21 @@ impl FromStr for XprivAccount {
         let origin = XkeyOrigin::from_str(origin)?;
         let xpriv = Xpriv::from_str(xpriv)?;
 
-        if origin.derivation.len() != xpriv.meta.depth as usize {
-            return Err(XkeyParseError::DepthMismatch);
-        }
         if !origin.derivation.is_empty() {
             let network = if xpriv.testnet { HardenedIndex::ONE } else { HardenedIndex::ZERO };
             if origin.derivation.get(1) != Some(&network) {
                 return Err(XkeyParseError::NetworkMismatch);
             }
-            if origin.derivation.last().copied().map(DerivationIndex::Hardened)
-                != Some(xpriv.meta.child_number)
-            {
-                return Err(XkeyParseError::ParentMismatch);
-            }
         }
 
-        Ok(XprivAccount { origin, xpriv })
+        Ok(XprivAccount::new(xpriv, origin)?)
     }
 }
 
 #[derive(Getters, Clone, Eq, PartialEq, Hash, Debug)]
 pub struct XpubDerivable {
     spec: XpubAccount,
+    #[getter(as_copy)]
     variant: Option<NormalIndex>,
     pub(crate) keychains: DerivationSeg<Keychain>,
 }
@@ -863,31 +937,32 @@ impl From<XpubAccount> for XpubDerivable {
 }
 
 impl XpubDerivable {
-    pub fn new_standard(xpub: Xpub, origin: XkeyOrigin) -> Self {
+    pub fn with(spec: XpubAccount, keychains: &'static [Keychain]) -> Self {
         XpubDerivable {
-            spec: XpubAccount::new(xpub, origin),
-            variant: None,
-            keychains: DerivationSeg::from([Keychain::INNER, Keychain::OUTER]),
-        }
-    }
-
-    pub fn new_custom(xpub: Xpub, origin: XkeyOrigin, keychains: &'static [Keychain]) -> Self {
-        XpubDerivable {
-            spec: XpubAccount::new(xpub, origin),
+            spec,
             variant: None,
             keychains: DerivationSeg::from(keychains),
         }
+    }
+
+    pub fn try_standard(xpub: Xpub, origin: XkeyOrigin) -> Result<Self, XkeyAccountError> {
+        Ok(XpubDerivable {
+            spec: XpubAccount::new(xpub, origin)?,
+            variant: None,
+            keychains: DerivationSeg::from([Keychain::INNER, Keychain::OUTER]),
+        })
     }
 
     pub fn try_custom(
         xpub: Xpub,
         origin: XkeyOrigin,
         keychains: impl IntoIterator<Item = Keychain>,
-    ) -> Result<Self, confinement::Error> {
+    ) -> Result<Self, XkeyAccountError> {
         Ok(XpubDerivable {
-            spec: XpubAccount::new(xpub, origin),
+            spec: XpubAccount::new(xpub, origin)?,
             variant: None,
-            keychains: DerivationSeg::with(keychains)?,
+            keychains: DerivationSeg::with(keychains)
+                .map_err(|_| XkeyAccountError::TooManyKeychains)?,
         })
     }
 
@@ -934,7 +1009,7 @@ impl FromStr for XpubDerivable {
         };
 
         Ok(XpubDerivable {
-            spec: XpubAccount::new(xpub, origin),
+            spec: XpubAccount::new(xpub, origin)?,
             variant,
             keychains,
         })
@@ -1014,25 +1089,61 @@ mod _serde {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::h;
 
     #[test]
-    fn test_xpub_derivable_from_str_with_hardened_index() {
+    fn xpub_derivable_from_str_with_hardened_index() {
         let s = "[643a7adc/86h/1h/0h]tpubDCNiWHaiSkgnQjuhsg9kjwaUzaxQjUcmhagvYzqQ3TYJTgFGJstVaqnu4yhtFktBhCVFmBNLQ5sN53qKzZbMksm3XEyGJsEhQPfVZdWmTE2/<0;1>/*";
         let xpub = XpubDerivable::from_str(s).unwrap();
         assert_eq!(s, xpub.to_string());
     }
 
     #[test]
-    fn test_xpub_derivable_from_str_with_normal_index() {
+    fn xpub_derivable_from_str_with_normal_index() {
         let s = "[643a7adc/86'/1'/0']tpubDCNiWHaiSkgnQjuhsg9kjwaUzaxQjUcmhagvYzqQ3TYJTgFGJstVaqnu4yhtFktBhCVFmBNLQ5sN53qKzZbMksm3XEyGJsEhQPfVZdWmTE2/<0;1>/*";
         let xpub = XpubDerivable::from_str(s).unwrap();
         assert_eq!(s, format!("{xpub:#}"));
     }
 
     #[test]
-    fn test_xpub_derivable_from_str_with_normal_index_rgb_keychain() {
+    fn xpub_derivable_from_str_with_normal_index_rgb_keychain() {
         let s = "[643a7adc/86'/1'/0']tpubDCNiWHaiSkgnQjuhsg9kjwaUzaxQjUcmhagvYzqQ3TYJTgFGJstVaqnu4yhtFktBhCVFmBNLQ5sN53qKzZbMksm3XEyGJsEhQPfVZdWmTE2/<0;1;9;10>/*";
         let xpub = XpubDerivable::from_str(s).unwrap();
         assert_eq!(s, format!("{xpub:#}"));
+    }
+
+    #[test]
+    fn xpriv_account_display_fromstr() {
+        use secp256k1::rand::{self, RngCore};
+
+        let mut seed = vec![0u8; 128];
+        rand::thread_rng().fill_bytes(&mut seed);
+
+        let xpriv_account = XprivAccount::with_seed(true, &seed).derive(h![86, 1, 0]);
+        let xpriv_account_str = xpriv_account.to_string();
+        let recovered = XprivAccount::from_str(&xpriv_account_str).unwrap();
+        assert_eq!(recovered, xpriv_account);
+    }
+
+    #[test]
+    fn xpriv_derivable() {
+        use secp256k1::rand::{self, RngCore};
+
+        let mut seed = vec![0u8; 128];
+        rand::thread_rng().fill_bytes(&mut seed);
+
+        let derivation = DerivationPath::from(h![86, 1, 0]);
+        let xpriv_account = XprivAccount::with_seed(true, &seed).derive(&derivation);
+        let xpub_account = xpriv_account.to_xpub_account();
+        let derivable_other =
+            XpubDerivable::try_custom(xpub_account.xpub, xpub_account.origin.clone(), [
+                Keychain::INNER,
+                Keychain::OUTER,
+            ])
+            .unwrap();
+        let derivable = XpubDerivable::with(xpub_account, &[Keychain::INNER, Keychain::OUTER]);
+        assert_eq!(derivable, derivable_other);
+        assert_eq!(derivable.spec.origin, xpriv_account.origin);
+        assert_eq!(derivable.spec.origin.derivation, derivation);
     }
 }
