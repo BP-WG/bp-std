@@ -104,17 +104,17 @@ pub trait Idx: IdxBase {
     /// Constructs index from a given child number.
     ///
     /// Child number is always a value in range of `0..`[`HARDENED_INDEX_BOUNDARY`]
-    fn from_child_number(no: impl Into<u16>) -> Self;
+    fn from_child_number(child_no: impl Into<u16>) -> Self;
 
     /// Constructs index from a given child number.
     ///
     /// Child number is always a value in range of `0..`[`HARDENED_INDEX_BOUNDARY`]
-    fn try_from_child_number(index: impl Into<u32>) -> Result<Self, IndexError>;
+    fn try_from_child_number(child_no: impl Into<u32>) -> Result<Self, IndexError>;
 
     /// Constructs derivation path segment with specific derivation value, which
     /// for normal indexes must lie in range `0..`[`HARDENED_INDEX_BOUNDARY`]
     /// and for hardened in range of [`HARDENED_INDEX_BOUNDARY`]`..=u32::MAX`
-    fn try_from_index(value: u32) -> Result<Self, IndexError>;
+    fn try_from_index(index: u32) -> Result<Self, IndexError>;
 
     fn to_be_bytes(&self) -> [u8; 4] { self.index().to_be_bytes() }
 
@@ -313,11 +313,11 @@ impl Idx for NormalIndex {
     const MAX: Self = Self(HARDENED_INDEX_BOUNDARY - 1);
 
     #[inline]
-    fn from_child_number(index: impl Into<u16>) -> Self { Self(index.into() as u32) }
+    fn from_child_number(child_no: impl Into<u16>) -> Self { Self(child_no.into() as u32) }
 
     #[inline]
-    fn try_from_child_number(index: impl Into<u32>) -> Result<Self, IndexError> {
-        let index = index.into();
+    fn try_from_child_number(child_no: impl Into<u32>) -> Result<Self, IndexError> {
+        let index = child_no.into();
         if index >= HARDENED_INDEX_BOUNDARY {
             Err(IndexError {
                 what: "child number",
@@ -331,8 +331,8 @@ impl Idx for NormalIndex {
     }
 
     #[inline]
-    fn try_from_index(value: u32) -> Result<Self, IndexError> {
-        Self::try_from_child_number(value).map_err(|mut err| {
+    fn try_from_index(index: u32) -> Result<Self, IndexError> {
+        Self::try_from_child_number(index).map_err(|mut err| {
             err.what = "index";
             err
         })
@@ -375,7 +375,7 @@ impl FromStr for NormalIndex {
 )]
 #[display("{0}h", alt = "{0}'")]
 pub struct HardenedIndex(
-    /// The inner index value; always reduced by [`HARDENED_INDEX_BOUNDARY`]
+    /// The inner child number value; always reduced by [`HARDENED_INDEX_BOUNDARY`]
     #[from(u8)]
     #[from(u16)]
     pub(crate) u32,
@@ -407,8 +407,7 @@ impl IdxBase for HardenedIndex {
     #[inline]
     fn child_number(&self) -> u32 { self.0 }
 
-    /// Returns hardened index number offset by [`HARDENED_INDEX_BOUNDARY`]
-    /// (i.e. zero-based).
+    /// Returns hardened index number offset by [`HARDENED_INDEX_BOUNDARY`].
     #[inline]
     fn index(&self) -> u32 { self.0 + HARDENED_INDEX_BOUNDARY }
 
@@ -417,11 +416,11 @@ impl IdxBase for HardenedIndex {
 }
 
 impl Idx for HardenedIndex {
-    const ZERO: Self = Self(HARDENED_INDEX_BOUNDARY);
+    const ZERO: Self = Self(0);
 
     const ONE: Self = Self(1);
 
-    const MAX: Self = Self(u32::MAX);
+    const MAX: Self = Self(HARDENED_INDEX_BOUNDARY - 1);
 
     #[inline]
     fn from_child_number(child_no: impl Into<u16>) -> Self { Self(child_no.into() as u32) }
@@ -442,16 +441,17 @@ impl Idx for HardenedIndex {
     }
 
     #[inline]
-    fn try_from_index(child_no: u32) -> Result<Self, IndexError> {
-        if child_no < HARDENED_INDEX_BOUNDARY {
-            return Ok(Self(child_no));
+    fn try_from_index(index: u32) -> Result<Self, IndexError> {
+        if index < HARDENED_INDEX_BOUNDARY {
+            Err(IndexError {
+                what: "index",
+                invalid: index,
+                start: HARDENED_INDEX_BOUNDARY,
+                end: u32::MAX,
+            })
+        } else {
+            Ok(Self(index - HARDENED_INDEX_BOUNDARY))
         }
-        Self::try_from_child_number(child_no - HARDENED_INDEX_BOUNDARY).map_err(|_| IndexError {
-            what: "index",
-            invalid: child_no,
-            start: HARDENED_INDEX_BOUNDARY,
-            end: u32::MAX,
-        })
     }
 
     #[inline]
