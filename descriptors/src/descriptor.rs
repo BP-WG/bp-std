@@ -85,7 +85,7 @@ impl TaprootKeySig {
     pub fn new(key: XOnlyPk, sig: Bip340Sig) -> Self { TaprootKeySig { key, sig } }
 }
 
-pub trait Descriptor<K = XpubDerivable, V = ()>: DeriveScripts {
+pub trait Descriptor<K = XpubDerivable, V = ()>: DeriveScripts + Clone + Display {
     fn class(&self) -> SpkClass;
     #[inline]
     fn is_taproot(&self) -> bool { self.class().is_taproot() }
