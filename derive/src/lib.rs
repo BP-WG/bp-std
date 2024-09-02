@@ -32,8 +32,10 @@ mod xkey;
 mod derive;
 pub mod taptree;
 mod sign;
+mod bip43;
 
 pub use bc::*;
+pub use bip43::{Bip43, DerivationStandard, ParseBip43Error};
 pub use derive::{
     Derive, DeriveCompr, DeriveKey, DeriveScripts, DeriveSet, DeriveXOnly, DerivedAddr,
     DerivedAddrParseError, DerivedScript, Keychain, Terminal, TerminalParseError,

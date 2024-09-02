@@ -24,11 +24,7 @@ use std::collections::{BTreeSet, HashMap};
 use std::fmt::{Display, Formatter};
 use std::{fmt, iter};
 
-use derive::{
-    Bip340Sig, Derive, DeriveCompr, DeriveScripts, DeriveSet, DeriveXOnly, DerivedScript,
-    KeyOrigin, Keychain, LegacyPk, LegacySig, NormalIndex, Sats, SigScript, TapDerivation,
-    Terminal, Witness, XOnlyPk, XpubAccount, XpubDerivable,
-};
+use derive::{Bip340Sig, Derive, DeriveCompr, DeriveScripts, DeriveSet, DeriveXOnly, DerivedScript, KeyOrigin, Keychain, LegacyPk, LegacySig, NormalIndex, Sats, SigScript, TapDerivation, Terminal, Witness, XOnlyPk, XpubAccount, XpubDerivable, XpubFp, Bip43, DerivationStandard};
 use indexmap::IndexMap;
 
 use crate::{TrKey, Wpkh};
@@ -85,10 +81,77 @@ impl TaprootKeySig {
     pub fn new(key: XOnlyPk, sig: Bip340Sig) -> Self { TaprootKeySig { key, sig } }
 }
 
+#[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
+#[display(doc_comments)]
+pub enum Warning {
+    DivergingPurpose(),
+    InvalidPurpose(),
+    NonStandardPurpose(),
+    AbsentMasterFp(XpubAccount),
+    Custom(String),
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug, Display, Error)]
+#[display(doc_comments)]
+pub enum Failure {
+    InvalidDefaultKeychain(Keychain),
+    DivergingKeychains(),
+    NotAllKeychainsPresent(),
+    DivergingTestnet(),
+    Custom(String),
+}
+
+pub trait SaneDescriptor<V = ()>: Descriptor<XpubDerivable, V> {
+    /// Performs full sanity checks, which include checking keys consistency - a part shared across
+    /// all descriptor types and implemented as [`check_sanity_core`] - and descriptor-specific
+    /// part, which must be implemented as [`check_sanity_adv`] method.
+    fn check_sanity(&self) -> Result<Vec<Warning>, Vec<Failure>> {
+        let (mut warnings, mut failures) = self.check_sanity_core();
+        self.check_sanity_adv(&mut warnings, &mut failures);
+        if failures.is_empty() {
+            Err(failures)
+        } else {
+            Ok(warnings)
+        }
+    }
+
+    fn check_sanity_core(&self) -> (Vec<Warning>, Vec<Failure>) {
+        let (mut warnings, mut failures) = (vec![], vec![]);
+        let mut keychains = self.keychains();
+
+        if !keychains.contains(&self.default_keychain()) {
+            failures.push(Failure::InvalidDefaultKeychain(self.default_keychain()))
+        }
+
+        let mut testnet = false;
+        for key in self.keys() {
+            let spec = key.spec();
+            if spec.master_fp() == XpubFp::zeros() {
+                warnings.push(Warning::AbsentMasterFp(spec.clone()))
+            }
+            let standard = Bip43::deduce(spec.as_derivation_path());
+            if
+        }
+
+        (warnings, failures)
+    }
+}
+
+impl<D: Descriptor<XpubDerivable, V>, V> SaneDescriptor<V> for D {}
+
 pub trait Descriptor<K = XpubDerivable, V = ()>: DeriveScripts {
     fn class(&self) -> SpkClass;
     #[inline]
     fn is_taproot(&self) -> bool { self.class().is_taproot() }
+
+    #[doc(hidden)]
+    fn check_sanity_adv(
+        &self,
+        #[allow(unused_variables)] warnings: &mut Vec<Warning>,
+        #[allow(unused_variables)] failures: &mut Vec<Failure>,
+    ) {
+        // Default implementation does nothing
+    }
 
     fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
     where K: 'a;
