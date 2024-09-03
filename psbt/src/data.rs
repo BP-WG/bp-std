@@ -541,6 +541,8 @@ mod display_from_str {
     /// - by default, it uses version specified in the PSBT itself;
     /// - if zero `{:0}` is given and no width (`{:0}`) or a zero width (`{:00}`) is provided, than
     ///   the PSBT is encoded as V0 even if the structure itself uses V2;
+    /// - if a width equal to one is given like in `{:1}`, than zero flag is ignored (so `{:01}`
+    ///   also works that way) and PSBT is encoded as V0 even if the structure itself uses V2;
     /// - if a width equal to two is given like in `{:2}`, than zero flag is ignored (so `{:02}`
     ///   also works that way) and PSBT is encoded as V2 even if the structure itself uses V1;
     /// - all other flags has no effect on the display.
@@ -548,6 +550,7 @@ mod display_from_str {
         fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
             let ver = match (f.width(), f.sign_aware_zero_pad()) {
                 (None, true) => PsbtVer::V0,
+                (Some(1), _) => PsbtVer::V0,
                 (Some(ver), _) => PsbtVer::try_from(ver).map_err(|_| fmt::Error)?,
                 _ => self.version,
             };
@@ -555,11 +558,22 @@ mod display_from_str {
         }
     }
 
+    /// PSBT is formatted like hex-encoded string. The selection of the version if the following:
+    /// - by default, it uses version specified in the PSBT itself;
+    /// - if zero `{:0}` is given and no width (`{:0}`) or a zero width (`{:00}`) is provided, than
+    ///   the PSBT is encoded as V0 even if the structure itself uses V2;
+    /// - if a width equal to one is given like in `{:1}`, than zero flag is ignored (so `{:01}`
+    ///   also works that way) and PSBT is encoded as V0 even if the structure itself uses V2;
+    /// - if a width equal to two is given like in `{:2}`, than zero flag is ignored (so `{:02}`
+    ///   also works that way) and PSBT is encoded as V2 even if the structure itself uses V1;
+    /// - all other flags has no effect on the display.
     impl LowerHex for Psbt {
         fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-            let ver = match f.width() {
-                Some(ver) => PsbtVer::try_from(ver).map_err(|_| fmt::Error)?,
-                None => self.version,
+            let ver = match (f.width(), f.sign_aware_zero_pad()) {
+                (None, true) => PsbtVer::V0,
+                (Some(1), _) => PsbtVer::V0,
+                (Some(ver), _) => PsbtVer::try_from(ver).map_err(|_| fmt::Error)?,
+                _ => self.version,
             };
             f.write_str(&self.to_base16_ver(ver))
         }
@@ -1145,31 +1159,34 @@ mod tests {
 
         // format with a specific version
         assert_eq!(format!("{v2_psbt:00}"), "cHNidP8BAAoCAAAAAAAAAAAAAfsEAAAAAAA=");
+        assert_eq!(format!("{v2_psbt:01}"), "cHNidP8BAAoCAAAAAAAAAAAAAfsEAAAAAAA=");
         assert_eq!(format!("{v0_psbt:02}"), "cHNidP8BAgQCAAAAAQQBAAEFAQAB+wQCAAAAAA==");
 
         assert_eq!(format!("{v2_psbt:0}"), "cHNidP8BAAoCAAAAAAAAAAAAAfsEAAAAAAA=");
+        assert_eq!(format!("{v2_psbt:1}"), "cHNidP8BAAoCAAAAAAAAAAAAAfsEAAAAAAA=");
         assert_eq!(format!("{v0_psbt:2}"), "cHNidP8BAgQCAAAAAQQBAAEFAQAB+wQCAAAAAA==");
 
         assert_eq!(format!("{v2_psbt:#0}"), "cHNidP8BAAoCAAAAAAAAAAAAAfsEAAAAAAA=");
+        assert_eq!(format!("{v2_psbt:#1}"), "cHNidP8BAAoCAAAAAAAAAAAAAfsEAAAAAAA=");
         assert_eq!(format!("{v0_psbt:#2}"), "cHNidP8BAgQCAAAAAQQBAAEFAQAB+wQCAAAAAA==");
 
         // error formats
-        let result = std::panic::catch_unwind(|| format!("{v0_psbt:01}"));
+        let result = std::panic::catch_unwind(|| format!("{v0_psbt:03}"));
         assert!(result.is_err(), "Should fail on unsupported psbt version");
 
-        let result = std::panic::catch_unwind(|| format!("{v0_psbt:1}"));
+        let result = std::panic::catch_unwind(|| format!("{v0_psbt:3}"));
         assert!(result.is_err(), "Should fail on unsupported psbt version");
 
-        let result = std::panic::catch_unwind(|| format!("{v0_psbt:#01}"));
+        let result = std::panic::catch_unwind(|| format!("{v0_psbt:#03}"));
         assert!(result.is_err(), "Should fail on unsupported psbt version");
 
-        let result = std::panic::catch_unwind(|| format!("{v0_psbt:#1}"));
+        let result = std::panic::catch_unwind(|| format!("{v0_psbt:#3}"));
         assert!(result.is_err(), "Should fail on unsupported psbt version");
 
-        let result = std::panic::catch_unwind(|| format!("{v0_psbt:#1x}"));
+        let result = std::panic::catch_unwind(|| format!("{v0_psbt:#3x}"));
         assert!(result.is_err(), "Should fail on unsupported psbt version");
 
-        let result = std::panic::catch_unwind(|| format!("{v0_psbt:#01x}"));
+        let result = std::panic::catch_unwind(|| format!("{v0_psbt:#03x}"));
         assert!(result.is_err(), "Should fail on unsupported psbt version");
     }
 }
