@@ -3,7 +3,7 @@ members = ["invoice", "derive", "descriptors", "psbt", "."]
 resolver = "2"
 
 [workspace.package]
-version = "0.11.0-beta.7"
+version = "0.11.0-beta.8"
 keywords = ["bitcoin", "wallet", "descriptors", "psbt", "taproot"]
 categories = ["cryptography::cryptocurrencies"]
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
@@ -17,15 +17,15 @@ license = "Apache-2.0"
 amplify = "4.7.0"
 bech32 = "0.9.1"
 secp256k1 = "0.29.0"
-commit_verify = "0.11.0-beta.7"
-strict_encoding = "2.7.0-rc.1"
-bp-consensus = "0.11.0-beta.7"
-bp-core = { version = "0.11.0-beta.7" }
-bp-invoice = { version = "0.11.0-beta.7", path = "invoice" }
-bp-derive = { version = "0.11.0-beta.7", path = "derive" }
-descriptors = { version = "0.11.0-beta.7", path = "descriptors" }
-psbt = { version = "0.11.0-beta.7", path = "psbt" }
-indexmap = "2.0.0"
+strict_encoding = "2.7.0"
+commit_verify = "0.11.0-beta.8"
+bp-consensus = "0.11.0-beta.8"
+bp-core = { version = "0.11.0-beta.8" }
+bp-invoice = { version = "0.11.0-beta.8", path = "invoice" }
+bp-derive = { version = "0.11.0-beta.8", path = "derive" }
+descriptors = { version = "0.11.0-beta.8", path = "descriptors" }
+psbt = { version = "0.11.0-beta.8", path = "psbt" }
+indexmap = "2.4.0"
 serde_crate = { package = "serde", version = "1", features = ["derive"] }
 
 [package]
