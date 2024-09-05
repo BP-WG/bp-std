@@ -216,7 +216,7 @@ impl Output {
             return Err(TapretKeyError::TapretProhibited);
         }
 
-        // TODO: support non-empty tap trees
+        // TODO #10: support non-empty tap trees
         if self.tap_tree.is_some() {
             return Err(TapretKeyError::TapTreeNonEmpty);
         }

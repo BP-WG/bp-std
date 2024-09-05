@@ -407,7 +407,7 @@ pub struct Xpriv {
 }
 
 impl Xpriv {
-    // TODO: Use dedicated `Seed` type
+    // TODO #42: Use dedicated `Seed` type
     pub fn new_master(testnet: bool, seed: &[u8]) -> Xpriv {
         let mut hmac: Hmac<Sha512> =
             Hmac::new_from_slice(b"Bitcoin seed").expect("HMAC can take key of any size");
@@ -823,7 +823,7 @@ impl XprivAccount {
         }
     }
 
-    // TODO: Use dedicated `Seed` type
+    // TODO #42: Use dedicated `Seed` type
     pub fn with_seed(testnet: bool, seed: &[u8]) -> Self {
         let xpriv = Xpriv::new_master(testnet, seed);
         Self::new_master(xpriv)

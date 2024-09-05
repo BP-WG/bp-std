@@ -69,7 +69,7 @@ impl From<ConsensusDecodeError> for DecodeError {
     }
 }
 
-/// TODO: Split error into classes
+/// TODO #44: Split PsbtError into a specific error types
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum PsbtError {
@@ -507,7 +507,6 @@ impl Decode for LegacyPk {
     }
 }
 
-// TODO: Move key encoding to consensus
 impl Encode for XOnlyPk {
     fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
         writer.write_all(&self.to_byte_array())?;
@@ -861,7 +860,6 @@ impl Encode for TapTree {
         let mut counter = 0;
         for leaf in self {
             counter += leaf.depth.to_u8().encode(writer)?;
-            // TODO: make it plain
             counter += leaf.script.version.to_consensus_u8().encode(writer)?;
             counter += leaf.script.script.len_var_int().encode(writer)?;
             counter += leaf.script.script.encode(writer)?;

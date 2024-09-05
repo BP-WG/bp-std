@@ -143,7 +143,7 @@ impl TapTree {
         if self.0.len() == 1 {
             TapLeafHash::with_leaf_script(&self.0[0].script).into()
         } else {
-            todo!("implement TapTree::merkle_root for trees with more than one leaf")
+            todo!("#10 implement TapTree::merkle_root for trees with more than one leaf")
         }
     }
 

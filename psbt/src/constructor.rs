@@ -106,9 +106,6 @@ impl FromStr for Payment {
         if s == "MAX" {
             return Ok(Payment::Max);
         }
-        // let (int, fract) = s.split_once('.').unwrap_or((s, ""));
-        // Sats::from_btc(u32::from_str(int)?) + Sats::from_sats(u32::from_str(fract)?),
-        // TODO: check for sats overflow
         Sats::from_str(s).map(Payment::Fixed)
     }
 }

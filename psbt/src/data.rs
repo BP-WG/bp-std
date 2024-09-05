@@ -284,7 +284,7 @@ impl Psbt {
     pub fn outputs_mut(&mut self) -> impl Iterator<Item = &mut Output> { self.outputs.iter_mut() }
 
     pub fn lock_time(&self) -> LockTime {
-        // TODO: Compute correct LockTime
+        // TODO #45: Compute correct LockTime
         self.fallback_locktime.unwrap_or(LockTime::ZERO)
     }
 
@@ -342,7 +342,7 @@ impl Psbt {
             redeem_script: scripts.to_redeem_script(),
             witness_script: scripts.to_witness_script(),
             bip32_derivation: descriptor.legacy_keyset(terminal),
-            // TODO: Fill hash preimages from descriptor
+            // TODO #36: Fill hash preimages from descriptor
             final_script_sig: None,
             final_witness: None,
             proof_of_reserves: None,
@@ -456,7 +456,7 @@ impl Psbt {
     }
 
     pub fn complete_construction(&mut self) {
-        // TODO: Check all inputs have witness_utxo or non_witness_tx
+        // TODO #47: Check all inputs have witness_utxo or non_witness_tx
         self.tx_modifiable = Some(ModifiableFlags::unmodifiable())
     }
 
@@ -580,7 +580,7 @@ mod display_from_str {
     }
 }
 
-/* TODO: Complete weight implementation
+/* TODO #43: Complete weight implementation
 impl Weight for Psbt {
     fn weight_units(&self) -> WeightUnits {
         let bytes = 4 // version
@@ -768,7 +768,7 @@ impl Input {
     fn to_signed_txin(&self) -> TxIn {
         TxIn {
             prev_output: self.previous_outpoint,
-            // TODO: Figure out default SeqNo
+            // TODO #45: Figure out default SeqNo
             sig_script: self.final_script_sig.clone().expect("non-finalized input"),
             sequence: self.sequence_number.unwrap_or(SeqNo::from_consensus_u32(0)),
             witness: self.final_witness.clone().expect("non-finalized input"),
@@ -778,14 +778,14 @@ impl Input {
     pub fn to_unsigned_txin(&self) -> UnsignedTxIn {
         UnsignedTxIn {
             prev_output: self.previous_outpoint,
-            // TODO: Figure out default SeqNo
+            // TODO #45: Figure out default SeqNo
             sequence: self.sequence_number.unwrap_or(SeqNo::from_consensus_u32(0)),
         }
     }
 
     #[inline]
     pub fn prev_txout(&self) -> &TxOut {
-        // TODO: Add support for nonwitness_utxo
+        // TODO #48: Add support for nonwitness_utxo
         match (&self.witness_utxo, None::<&Tx>) {
             (Some(txout), _) => txout,
             (None, Some(tx)) => &tx.outputs[self.index],
@@ -955,7 +955,7 @@ pub struct Output {
     pub bip32_derivation: IndexMap<LegacyPk, KeyOrigin>,
 
     /// The X-only pubkey used as the internal key in this output.
-    // TODO: Add taproot data structures: TapTree and derivation info
+    // TODO #49: Add taproot data structures: TapTree and derivation info
     pub tap_internal_key: Option<InternalPk>,
 
     /// One or more tuples representing the depth, leaf version, and script for a leaf in the
