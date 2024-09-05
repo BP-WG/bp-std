@@ -98,6 +98,6 @@ impl<K: DeriveCompr> Descriptor<K> for Wpkh<K> {
     }
 }
 
-impl<K: DeriveCompr + Display> Display for Wpkh<K> {
+impl<K: DeriveCompr> Display for Wpkh<K> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { write!(f, "wpkh({})", self.0) }
 }

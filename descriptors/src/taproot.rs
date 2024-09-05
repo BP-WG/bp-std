@@ -100,7 +100,7 @@ impl<K: DeriveXOnly> Descriptor<K> for TrKey<K> {
     }
 }
 
-impl<K: DeriveXOnly + Display> Display for TrKey<K> {
+impl<K: DeriveXOnly> Display for TrKey<K> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { write!(f, "tr({})", self.0) }
 }
 
