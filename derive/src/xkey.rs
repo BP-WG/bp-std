@@ -49,8 +49,8 @@ pub enum XkeyAccountError {
     /// information.
     DepthMismatch,
 
-    /// extended key child derivation index does not match the last derivation index in the provided
-    /// origin information.
+    /// extended key child derivation index does not match the last derivation index in the
+    /// provided origin information.
     ParentMismatch,
 
     /// extended key has derivation depth 1, but its parent fingerprint does not match the provided
