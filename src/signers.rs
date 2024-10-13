@@ -81,7 +81,9 @@ impl<'a> TestnetRefSigner<'a> {
 }
 
 impl<'a> Signer for TestnetRefSigner<'a> {
-    type Sign<'s> = Self where Self: 's;
+    type Sign<'s>
+        = Self
+    where Self: 's;
 
     fn approve(&self, _: &Psbt) -> Result<Self::Sign<'_>, Rejected> { Ok(self.clone()) }
 }
