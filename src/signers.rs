@@ -81,7 +81,9 @@ impl<'a> TestnetRefSigner<'a> {
 }
 
 impl<'a> Signer for TestnetRefSigner<'a> {
-    type Sign<'s> = Self where Self: 's;
+    type Sign<'s>
+        = Self
+    where Self: 's;
 
     fn approve(&self, _: &Psbt) -> Result<Self::Sign<'_>, Rejected> { Ok(self.clone()) }
 }
@@ -131,7 +133,7 @@ impl<'a> Sign for TestnetRefSigner<'a> {
         {
             return None;
         }
-        Some(output_pair.sign_schnorr(message.into()))
+        Some(output_pair.sign_schnorr(message.as_ref()))
     }
 
     fn sign_bip340_script_path(
@@ -145,7 +147,7 @@ impl<'a> Sign for TestnetRefSigner<'a> {
         if sk.x_only_public_key().0 != pk.into_inner() {
             return None;
         }
-        Some(sk.sign_schnorr(message.into()))
+        Some(sk.sign_schnorr(message.as_ref()))
     }
 
     fn should_sign_script_path(
