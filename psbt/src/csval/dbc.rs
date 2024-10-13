@@ -85,10 +85,13 @@ impl Psbt {
 }
 
 pub trait DbcPsbtProof: dbc::Proof {
+    const METHOD: Method;
     fn dbc_commit(output: &mut Output) -> Result<(mpc::MerkleBlock, Self), DbcPsbtError>;
 }
 
 impl DbcPsbtProof for TapretProof {
+    const METHOD: Method = Method::TapretFirst;
+
     fn dbc_commit(output: &mut Output) -> Result<(mpc::MerkleBlock, Self), DbcPsbtError> {
         let (commitment, mpc_proof) = output.mpc_commit()?;
         if !output.is_tapret_host() {
@@ -101,6 +104,8 @@ impl DbcPsbtProof for TapretProof {
 }
 
 impl DbcPsbtProof for OpretProof {
+    const METHOD: Method = Method::OpretFirst;
+
     fn dbc_commit(output: &mut Output) -> Result<(mpc::MerkleBlock, Self), DbcPsbtError> {
         let (commitment, mpc_proof) = output.mpc_commit()?;
         if !output.is_opret_host() {
