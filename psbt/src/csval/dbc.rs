@@ -21,7 +21,7 @@
 
 use bp::dbc::opret::OpretProof;
 use bp::dbc::tapret::TapretProof;
-use bp::dbc::{self, Anchor, Method};
+use bp::dbc::{self, Method};
 use commit_verify::mpc;
 
 use crate::{MpcPsbtError, OpretKeyError, Output, Psbt, TapretKeyError};
@@ -70,9 +70,7 @@ impl Psbt {
         })
     }
 
-    pub fn dbc_commit<D: DbcPsbtProof>(
-        &mut self,
-    ) -> Result<Anchor<mpc::MerkleBlock, D>, DbcPsbtError> {
+    pub fn dbc_commit<D: DbcPsbtProof>(&mut self) -> Result<(mpc::MerkleBlock, D), DbcPsbtError> {
         if self.are_outputs_modifiable() {
             return Err(DbcPsbtError::TxOutputsModifiable);
         }
@@ -80,18 +78,15 @@ impl Psbt {
         let output = self.dbc_output_mut::<D>().ok_or(DbcPsbtError::NoProperOutput(D::METHOD))?;
 
         let (mpc_proof, dbc_proof) = D::dbc_commit(output)?;
-        Ok(Anchor::new(mpc_proof, dbc_proof))
+        Ok((mpc_proof, dbc_proof))
     }
 }
 
 pub trait DbcPsbtProof: dbc::Proof {
-    const METHOD: Method;
     fn dbc_commit(output: &mut Output) -> Result<(mpc::MerkleBlock, Self), DbcPsbtError>;
 }
 
 impl DbcPsbtProof for TapretProof {
-    const METHOD: Method = Method::TapretFirst;
-
     fn dbc_commit(output: &mut Output) -> Result<(mpc::MerkleBlock, Self), DbcPsbtError> {
         let (commitment, mpc_proof) = output.mpc_commit()?;
         if !output.is_tapret_host() {
@@ -104,8 +99,6 @@ impl DbcPsbtProof for TapretProof {
 }
 
 impl DbcPsbtProof for OpretProof {
-    const METHOD: Method = Method::OpretFirst;
-
     fn dbc_commit(output: &mut Output) -> Result<(mpc::MerkleBlock, Self), DbcPsbtError> {
         let (commitment, mpc_proof) = output.mpc_commit()?;
         if !output.is_opret_host() {
