@@ -642,7 +642,7 @@ impl XkeyOrigin {
         self.derivation.iter().copied().map(DerivationIndex::from).collect()
     }
 
-    pub fn child_derivation<'a>(&'a self, child: &'a KeyOrigin) -> Option<&[DerivationIndex]> {
+    pub fn child_derivation<'a>(&'a self, child: &'a KeyOrigin) -> Option<&'a [DerivationIndex]> {
         if self.master_fp() == child.master_fp() {
             let d = child.derivation();
             let shared = d.shared_prefix(self.derivation());

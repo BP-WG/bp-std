@@ -185,7 +185,7 @@ pub trait Encode {
     fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError>;
 }
 
-impl<'a, T: Encode> Encode for &'a T {
+impl<T: Encode> Encode for &'_ T {
     fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> { (*self).encode(writer) }
 }
 
@@ -677,7 +677,7 @@ macro_rules! psbt_code_using_consensus {
 }
 
 struct WriteWrap<'a>(&'a mut dyn Write);
-impl<'a> Write for WriteWrap<'a> {
+impl Write for WriteWrap<'_> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> { self.0.write(buf) }
     fn flush(&mut self) -> io::Result<()> { self.0.flush() }
 }

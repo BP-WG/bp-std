@@ -1041,7 +1041,7 @@ impl Output {
         if terminal.len() != 1 {
             return None;
         }
-        return terminal.first().copied();
+        terminal.first().copied()
     }
 }
 
