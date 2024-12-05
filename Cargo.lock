@@ -226,6 +226,7 @@ name = "bp-invoice"
 version = "0.11.0-beta.9.1"
 dependencies = [
  "amplify",
+ "baid64",
  "bech32",
  "bp-consensus",
  "commit_verify",

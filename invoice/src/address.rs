@@ -24,8 +24,11 @@
 //! processing.
 
 use std::fmt::{self, Debug, Display, Formatter};
+use std::io::{Cursor, Write};
 use std::str::FromStr;
 
+use amplify::{ByteArray, Bytes32};
+use baid64::{Baid64ParseError, DisplayBaid64, FromBaid64Str};
 use bc::{
     InvalidPubkey, OutputPk, PubkeyHash, ScriptHash, ScriptPubkey, WPubkeyHash, WScriptHash,
     WitnessVer,
@@ -304,6 +307,42 @@ pub enum AddressPayload {
 }
 
 impl AddressPayload {
+    pub(crate) const P2PKH: u8 = 1;
+    pub(crate) const P2SH: u8 = 2;
+    pub(crate) const P2WPKH: u8 = 3;
+    pub(crate) const P2WSH: u8 = 4;
+    pub(crate) const P2TR: u8 = 5;
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error)]
+#[display(doc_comments)]
+pub enum AddressPayloadError {
+    /// unexpected address type byte {0:#04x}.
+    InvalidAddressType(u8),
+    /// invalid taproot output key; specifically {0}.
+    InvalidTapkey(InvalidPubkey<32>),
+}
+
+impl TryFrom<[u8; 33]> for AddressPayload {
+    type Error = AddressPayloadError;
+
+    fn try_from(data: [u8; 33]) -> Result<Self, Self::Error> {
+        let address = match data[0] {
+            Self::P2PKH => AddressPayload::Pkh(PubkeyHash::from_slice_unsafe(&data[1..21])),
+            Self::P2SH => AddressPayload::Sh(ScriptHash::from_slice_unsafe(&data[1..21])),
+            Self::P2WPKH => AddressPayload::Wpkh(WPubkeyHash::from_slice_unsafe(&data[1..21])),
+            Self::P2WSH => AddressPayload::Wsh(WScriptHash::from_slice_unsafe(&data[1..])),
+            Self::P2TR => AddressPayload::Tr(
+                OutputPk::from_byte_array(Bytes32::from_slice_unsafe(&data[1..33]).to_byte_array())
+                    .map_err(AddressPayloadError::InvalidTapkey)?,
+            ),
+            wrong => return Err(AddressPayloadError::InvalidAddressType(wrong)),
+        };
+        Ok(address)
+    }
+}
+
+impl AddressPayload {
     /// Constructs [`Address`] from the payload.
     pub fn into_address(self, network: AddressNetwork) -> Address {
         Address {
@@ -367,6 +406,44 @@ impl AddressPayload {
 
 impl From<AddressPayload> for ScriptPubkey {
     fn from(ap: AddressPayload) -> Self { ap.script_pubkey() }
+}
+
+impl DisplayBaid64<33> for AddressPayload {
+    const HRI: &'static str = "wvout";
+    const CHUNKING: bool = true;
+    const PREFIX: bool = true;
+    const EMBED_CHECKSUM: bool = true;
+    const MNEMONIC: bool = false;
+
+    fn to_baid64_payload(&self) -> [u8; 33] {
+        let mut payload = [0u8; 33];
+        // tmp stack array to store the tr payload to resolve lifetime issue
+        let schnorr_pk: [u8; 32];
+        let (addr_type, spk) = match &self {
+            AddressPayload::Pkh(pkh) => (Self::P2PKH, pkh.as_ref()),
+            AddressPayload::Sh(sh) => (Self::P2SH, sh.as_ref()),
+            AddressPayload::Wpkh(wpkh) => (Self::P2WPKH, wpkh.as_ref()),
+            AddressPayload::Wsh(wsh) => (Self::P2WSH, wsh.as_ref()),
+            AddressPayload::Tr(tr) => {
+                schnorr_pk = tr.to_byte_array();
+                (Self::P2TR, &schnorr_pk[..])
+            }
+        };
+        payload[0] = addr_type;
+        Cursor::new(&mut payload[1..])
+            .write_all(spk)
+            .expect("address payload always less than 32 bytes");
+        payload
+    }
+}
+
+impl Display for AddressPayload {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { self.fmt_baid64(f) }
+}
+impl FromBaid64Str<33> for AddressPayload {}
+impl FromStr for AddressPayload {
+    type Err = Baid64ParseError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> { Self::from_baid64_str(s) }
 }
 
 /// Address type
@@ -483,5 +560,30 @@ mod test {
     fn display_from_str() {
         let b32 = "tb1p5kgdjdf99vfa2xwufd2cx2qru468z79s2arn3jf5feg95d9m62gqzpnjjk";
         assert_eq!(Address::from_str(b32).unwrap().to_string(), b32);
+    }
+
+    #[test]
+    fn address_payload_parse() {
+        let p = AddressPayload::Pkh([0xff; 20].into());
+        assert_eq!(AddressPayload::from_str(&p.to_string()).unwrap(), p);
+
+        let p = AddressPayload::Sh([0xff; 20].into());
+        assert_eq!(AddressPayload::from_str(&p.to_string()).unwrap(), p);
+
+        let p = AddressPayload::Wpkh([0xff; 20].into());
+        assert_eq!(AddressPayload::from_str(&p.to_string()).unwrap(), p);
+
+        let p = AddressPayload::Wsh([0xff; 32].into());
+        assert_eq!(AddressPayload::from_str(&p.to_string()).unwrap(), p);
+
+        let p = AddressPayload::Tr(
+            OutputPk::from_byte_array([
+                0x85, 0xa6, 0x42, 0x59, 0x8b, 0xfe, 0x2e, 0x42, 0xa3, 0x78, 0xcb, 0xb5, 0x3b, 0xf1,
+                0x4a, 0xbe, 0x77, 0xf8, 0x1a, 0xef, 0xed, 0xf7, 0x3b, 0x66, 0x7b, 0x42, 0x85, 0xaf,
+                0x7c, 0xf1, 0xc8, 0xa3,
+            ])
+            .unwrap(),
+        );
+        assert_eq!(AddressPayload::from_str(&p.to_string()).unwrap(), p);
     }
 }

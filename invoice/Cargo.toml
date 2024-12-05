@@ -17,6 +17,7 @@ name = "invoice"
 
 [dependencies]
 amplify = { workspace = true }
+baid64 = { workspace = true }
 commit_verify = { workspace = true }
 bech32 = { workspace = true }
 bp-consensus = { workspace = true }
