@@ -40,11 +40,11 @@ impl<D: DeriveScripts> Iterator for AddressFactory<D> {
             if let Some(addr) = self.remnants.pop_front() {
                 return Some(addr);
             }
+            self.unused_tip.checked_inc_assign()?;
             self.remnants = self
                 .descriptor
                 .derive_address(self.network, self.keychain, self.unused_tip)
                 .collect();
-            self.unused_tip.checked_inc_assign()?;
         }
     }
 }
