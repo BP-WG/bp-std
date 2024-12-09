@@ -313,21 +313,17 @@ impl Psbt {
         prevout: Prevout,
         descriptor: &D,
         terminal: Terminal,
+        script_pubkey: ScriptPubkey,
         sequence: SeqNo,
     ) -> Result<&mut Input, Unmodifiable> {
         if !self.are_inputs_modifiable() {
             return Err(Unmodifiable);
         }
 
-        // TODO: Provide method version supporting multiple scripts per terminal
-        let mut scripts = descriptor.derive(terminal.keychain, terminal.index);
-        let script =
-            scripts.next().expect("the provided descriptor has no scripts for the given terminal");
-        assert_eq!(
-            scripts.next(),
-            None,
-            "the provided descriptor generates more than one script per the provided terminal"
-        );
+        let script = descriptor
+            .derive(terminal.keychain, terminal.index)
+            .find(|script| script.to_script_pubkey() == script_pubkey)
+            .expect("unable to generate input matching prevout");
         let input = Input {
             index: self.inputs.len(),
             previous_outpoint: prevout.outpoint(),
@@ -367,9 +363,10 @@ impl Psbt {
         prevout: Prevout,
         descriptor: &D,
         terminal: Terminal,
+        script_pubkey: ScriptPubkey,
         sequence: SeqNo,
     ) -> &mut Input {
-        self.construct_input(prevout, descriptor, terminal, sequence)
+        self.construct_input(prevout, descriptor, terminal, script_pubkey, sequence)
             .expect("PSBT inputs are expected to be modifiable")
     }
 
@@ -413,15 +410,10 @@ impl Psbt {
             return Err(Unmodifiable);
         }
 
-        // TODO: Provide method version supporting multiple scripts per terminal
-        let mut scripts = descriptor.derive(change_terminal.keychain, change_terminal.index);
-        let script =
-            scripts.next().expect("the provided descriptor has no scripts for the given terminal");
-        assert_eq!(
-            scripts.next(),
-            None,
-            "the provided descriptor generates more than one script per the provided terminal"
-        );
+        let script = descriptor
+            .derive(change_terminal.keychain, change_terminal.index)
+            .next()
+            .expect("unable to generate change script");
         let output = Output {
             index: self.outputs.len(),
             amount: value,
