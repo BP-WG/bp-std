@@ -35,4 +35,4 @@ mod taproot;
 pub use descriptor::{Descriptor, LegacyKeySig, SpkClass, StdDescr, TaprootKeySig};
 pub use factory::AddressFactory;
 pub use segwit::Wpkh;
-pub use taproot::TrKey;
+pub use taproot::{Tr, TrKey};
