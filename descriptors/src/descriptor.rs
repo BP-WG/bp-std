@@ -112,7 +112,6 @@ pub trait Descriptor<K = XpubDerivable, V = ()>: DeriveScripts + Clone + Display
     feature = "serde",
     derive(Serialize, Deserialize),
     serde(
-        crate = "serde_crate",
         rename_all = "camelCase",
         bound(
             serialize = "S::Compr: serde::Serialize, S::XOnly: serde::Serialize",

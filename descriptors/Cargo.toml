@@ -19,9 +19,9 @@ name = "descriptors"
 amplify = { workspace = true }
 bp-derive = { workspace = true }
 indexmap = { workspace = true }
-serde_crate = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
 
 [features]
 default = []
 all = ["serde"]
-serde = ["serde_crate", "bp-derive/serde"]
+serde = ["dep:serde", "bp-derive/serde"]

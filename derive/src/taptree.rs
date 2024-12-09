@@ -97,7 +97,7 @@ impl TapTreeBuilder {
 
 /// Non-empty taproot script tree.
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize), serde(crate = "serde_crate", transparent))]
+#[cfg_attr(feature = "serde", derive(Serialize), serde(transparent))]
 pub struct TapTree(Vec<LeafInfo>);
 
 impl Deref for TapTree {
@@ -151,11 +151,7 @@ impl TapTree {
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
+#[cfg_attr(feature = "serde", derive(Serialize), serde(rename_all = "camelCase"))]
 pub struct LeafInfo {
     pub depth: u7,
     pub script: LeafScript,
@@ -227,11 +223,7 @@ impl Iterator for ControlBlockFactory {
 /// internal key does not have leaf hashes, so can be indicated with a hashes len of 0.
 /// Finalizers should remove this field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct TapDerivation {
     pub leaf_hashes: Vec<TapLeafHash>,
     pub origin: KeyOrigin,

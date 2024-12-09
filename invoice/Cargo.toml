@@ -20,9 +20,9 @@ amplify = { workspace = true }
 commit_verify = { workspace = true }
 bech32 = { workspace = true }
 bp-consensus = { workspace = true }
-serde_crate = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
 
 [features]
 default = []
 all = []
-serde = ["serde_crate", "bp-consensus/serde"]
+serde = ["dep:serde", "bp-consensus/serde"]

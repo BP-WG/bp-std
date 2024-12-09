@@ -539,7 +539,6 @@ dependencies = [
  "base64",
  "bp-core",
  "bp-derive",
- "chrono",
  "commit_verify",
  "descriptors",
  "indexmap",

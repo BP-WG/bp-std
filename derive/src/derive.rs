@@ -128,8 +128,8 @@ impl FromStr for Terminal {
 
 #[cfg(feature = "serde")]
 mod _serde {
-    use serde_crate::de::Error;
-    use serde_crate::{Deserialize, Deserializer, Serialize, Serializer};
+    use serde::de::Error;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
     use super::*;
 
@@ -279,7 +279,7 @@ impl DerivedScript {
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
+    serde(rename_all = "camelCase")
 )]
 #[display("{addr}{terminal}")]
 pub struct DerivedAddr {

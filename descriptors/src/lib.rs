@@ -24,7 +24,7 @@
 extern crate amplify;
 #[cfg(feature = "serde")]
 #[macro_use]
-extern crate serde_crate as serde;
+extern crate serde;
 
 mod factory;
 mod descriptor;

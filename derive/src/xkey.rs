@@ -165,11 +165,7 @@ pub struct XpubCore {
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default, Debug, Display, From)]
 #[wrapper(RangeOps, Hex, FromStr)]
 #[display(LowerHex)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", transparent)
-)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
 pub struct XpubFp(
     #[from]
     #[from([u8; 4])]
@@ -191,11 +187,7 @@ impl XpubFp {
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default, Debug, Display, From)]
 #[wrapper(RangeOps, Hex, FromStr)]
 #[display(LowerHex)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", transparent)
-)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
 pub struct XpubId(
     #[from]
     #[from([u8; 20])]
@@ -607,11 +599,7 @@ impl FromStr for Xpriv {
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
 #[display("{master_fp}{derivation}", alt = "{master_fp}{derivation:#}")]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct XkeyOrigin {
     master_fp: XpubFp,
     derivation: DerivationPath<HardenedIndex>,
@@ -689,11 +677,7 @@ pub enum OriginParseError {
 
 #[derive(Getters, Clone, Eq, PartialEq, Hash, Debug, Display)]
 #[display("{master_fp}{derivation}", alt = "{master_fp}{derivation:#}")]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct KeyOrigin {
     #[getter(as_copy)]
     master_fp: XpubFp,
@@ -1018,7 +1002,7 @@ impl FromStr for XpubDerivable {
 
 #[cfg(feature = "serde")]
 mod _serde {
-    use serde_crate::{de, Deserialize, Deserializer, Serialize, Serializer};
+    use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
     use super::*;
 

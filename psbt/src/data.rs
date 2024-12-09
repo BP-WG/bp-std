@@ -81,11 +81,7 @@ impl Prevout {
     derive(StrictType, StrictDumb, StrictEncode, StrictDecode),
     strict_type(lib = crate::LIB_NAME_PSBT)
 )]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct UnsignedTx {
     pub version: TxVer,
     pub inputs: VarIntArray<UnsignedTxIn>,
@@ -134,11 +130,7 @@ impl UnsignedTx {
     derive(StrictType, StrictDumb, StrictEncode, StrictDecode),
     strict_type(lib = crate::LIB_NAME_PSBT)
 )]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct UnsignedTxIn {
     pub prev_output: Outpoint,
     pub sequence: SeqNo,
@@ -172,11 +164,7 @@ impl UnsignedTxIn {
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
+#[cfg_attr(feature = "serde", derive(Serialize), serde(rename_all = "camelCase"))]
 // Serde deserialize is not implemented and require manual implementation instead of derive, since
 // we need to correctly initialize inputs and outputs with their indexes and account for unknown
 // fields.
@@ -599,11 +587,7 @@ impl Weight for Psbt {
  */
 
 #[derive(Clone, Eq, PartialEq, Debug)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
+#[cfg_attr(feature = "serde", derive(Serialize), serde(rename_all = "camelCase"))]
 pub struct Input {
     /// The index of this input. Used in error reporting.
     #[cfg_attr(feature = "serde", serde(skip))]
@@ -928,11 +912,7 @@ impl Input {
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
+#[cfg_attr(feature = "serde", derive(Serialize), serde(rename_all = "camelCase"))]
 pub struct Output {
     /// The index of this output. Used in error reporting.
     #[cfg_attr(feature = "serde", serde(skip))]
@@ -1046,11 +1026,7 @@ impl Output {
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct ModifiableFlags {
     pub inputs_modifiable: bool,
     pub outputs_modifiable: bool,

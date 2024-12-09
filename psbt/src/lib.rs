@@ -27,7 +27,7 @@ extern crate amplify;
 extern crate strict_encoding;
 #[cfg(feature = "serde")]
 #[macro_use]
-extern crate serde_crate as serde;
+extern crate serde;
 
 mod data;
 mod keys;
@@ -61,11 +61,7 @@ pub const LIB_NAME_PSBT: &str = "Psbt";
 pub struct PsbtUnsupportedVer(u32);
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
+#[cfg_attr(feature = "serde", derive(Serialize), serde(rename_all = "camelCase"))]
 pub enum PsbtVer {
     #[display("v0")]
     V0 = 0,

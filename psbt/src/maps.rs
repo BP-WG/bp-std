@@ -44,11 +44,7 @@ pub type KeyData = ByteStr;
 #[derive(Wrapper, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default, Debug, Display, From)]
 #[wrapper(Deref, Index, RangeOps, AsSlice, BorrowSlice, Hex)]
 #[display(LowerHex)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", transparent)
-)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
 pub struct ValueData(ByteStr);
 
 impl From<Vec<u8>> for ValueData {

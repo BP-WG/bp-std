@@ -728,11 +728,7 @@ impl<'a, T: KeyType> KeyPair<T, Box<dyn Encode + 'a>, Box<dyn Encode + 'a>> {
 }
 
 #[derive(Clone, PartialOrd, Ord, Eq, PartialEq, Hash, Debug, Display)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
+#[cfg_attr(feature = "serde", derive(Serialize), serde(rename_all = "camelCase"))]
 #[display("{identifier} {subtype:#x} {data:#x}")]
 pub struct PropKey {
     pub identifier: String,

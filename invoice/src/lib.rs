@@ -23,7 +23,7 @@
 #[macro_use]
 extern crate amplify;
 #[cfg(feature = "serde")]
-extern crate serde_crate as serde;
+extern crate serde;
 
 pub mod base58;
 mod address;

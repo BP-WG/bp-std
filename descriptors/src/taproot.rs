@@ -32,7 +32,7 @@ use indexmap::IndexMap;
 
 use crate::{Descriptor, LegacyKeySig, SpkClass, TaprootKeySig};
 
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(crate = "serde_crate",))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
 pub struct TrKey<K: DeriveXOnly = XpubDerivable>(K);
 

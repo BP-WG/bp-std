@@ -29,7 +29,7 @@ use crate::AddressNetwork;
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase",)
+    serde(rename_all = "camelCase",)
 )]
 #[display(lowercase)]
 pub enum Network {

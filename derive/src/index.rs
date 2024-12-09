@@ -257,11 +257,7 @@ fn checked_sub_assign(index: &mut u32, sub: impl Into<u32>) -> Option<u32> {
 /// Index for unhardened children derivation; ensures that the inner value
 /// is always < 2^31
 #[derive(Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Debug, Hash, Default, Display, From)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", transparent)
-)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
 #[display(inner)]
 pub struct NormalIndex(
     #[from(u8)]
@@ -368,11 +364,7 @@ impl FromStr for NormalIndex {
 /// Index for hardened children derivation; ensures that the index always >=
 /// 2^31.
 #[derive(Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default, Display, From)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 #[display("{0}h", alt = "{0}'")]
 pub struct HardenedIndex(
     /// The inner child number value; always reduced by [`HARDENED_INDEX_BOUNDARY`]
@@ -485,11 +477,7 @@ impl FromStr for HardenedIndex {
 }
 
 #[derive(Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, From)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 #[display(inner)]
 pub enum DerivationIndex {
     #[from]
