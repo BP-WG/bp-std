@@ -3,7 +3,7 @@ members = ["invoice", "derive", "descriptors", "psbt", "."]
 resolver = "2"
 
 [workspace.package]
-version = "0.12.0-beta.1"
+version = "0.12.0-beta.2"
 keywords = ["bitcoin", "wallet", "descriptors", "psbt", "taproot"]
 categories = ["cryptography::cryptocurrencies"]
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
@@ -18,13 +18,13 @@ amplify = "4.8.0"
 bech32 = "0.9.1"
 secp256k1 = "0.30.0"
 strict_encoding = "2.8.1"
-commit_verify = "0.12.0-alpha.3"
-bp-consensus = "0.12.0-beta.1"
-bp-core = { version = "0.12.0-beta.1" }
-bp-invoice = { version = "0.12.0-beta.1", path = "invoice" }
-bp-derive = { version = "0.12.0-beta.1", path = "derive" }
-descriptors = { version = "0.12.0-beta.1", path = "descriptors" }
-psbt = { version = "0.12.0-beta.1", path = "psbt" }
+commit_verify = "0.12.0-beta.1"
+bp-consensus = "0.12.0-beta.2"
+bp-core = { version = "0.12.0-beta.2" }
+bp-invoice = { version = "0.12.0-beta.2", path = "invoice" }
+bp-derive = { version = "0.12.0-beta.2", path = "derive" }
+descriptors = { version = "0.12.0-beta.2", path = "descriptors" }
+psbt = { version = "0.12.0-beta.2", path = "psbt" }
 indexmap = "2.4.0"
 serde_crate = { package = "serde", version = "1", features = ["derive"] }
 
@@ -73,9 +73,6 @@ getrandom = { version = "0.2", features = ["js"] }
 wasm-bindgen-test = "0.3"
 
 [patch.crates-io]
-strict_types = { git = "https://github.com/strict-types/strict-types", branch = "develop" }
-commit_verify = { git = "https://github.com/LNP-BP/client_side_validation", branch = "v0.12" }
-single_use_seals = { git = "https://github.com/LNP-BP/client_side_validation", branch = "v0.12" }
 bp-consensus = { git = "https://github.com/BP-WG/bp-core", branch = "v0.12" }
 bp-dbc = { git = "https://github.com/BP-WG/bp-core", branch = "v0.12" }
 bp-seals = { git = "https://github.com/BP-WG/bp-core", branch = "v0.12" }
