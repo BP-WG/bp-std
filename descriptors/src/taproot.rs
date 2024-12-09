@@ -68,7 +68,7 @@ impl<K: DeriveXOnly> Derive<DerivedScript> for Tr<K> {
         &self,
         keychain: impl Into<Keychain>,
         index: impl Into<NormalIndex>,
-    ) -> DerivedScript {
+    ) -> impl Iterator<Item = DerivedScript> {
         match self {
             Tr::KeyOnly(d) => d.derive(keychain, index),
         }
@@ -158,9 +158,10 @@ impl<K: DeriveXOnly> Derive<DerivedScript> for TrKey<K> {
         &self,
         keychain: impl Into<Keychain>,
         index: impl Into<NormalIndex>,
-    ) -> DerivedScript {
-        let internal_key = self.0.derive(keychain, index);
-        DerivedScript::TaprootKeyOnly(InternalPk::from_unchecked(internal_key))
+    ) -> impl Iterator<Item = DerivedScript> {
+        self.0.derive(keychain, index).map(|internal_key| {
+            DerivedScript::TaprootKeyOnly(InternalPk::from_unchecked(internal_key))
+        })
     }
 }
 
@@ -182,13 +183,15 @@ impl<K: DeriveXOnly> Descriptor<K> for TrKey<K> {
     }
 
     fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation> {
-        let mut map = IndexMap::with_capacity(1);
-        let key = self.0.derive(terminal.keychain, terminal.index);
-        map.insert(
-            key,
-            TapDerivation::with_internal_pk(self.0.xpub_spec().origin().clone(), terminal),
-        );
-        map
+        self.0
+            .derive(terminal.keychain, terminal.index)
+            .map(|key| {
+                (
+                    key,
+                    TapDerivation::with_internal_pk(self.0.xpub_spec().origin().clone(), terminal),
+                )
+            })
+            .collect()
     }
 
     fn legacy_witness(

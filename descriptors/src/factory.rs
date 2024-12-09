@@ -20,29 +20,37 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use derive::{Address, AddressError, AddressNetwork, DeriveScripts, Idx, Keychain, NormalIndex};
+use std::collections::VecDeque;
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+use derive::{Address, AddressNetwork, DeriveScripts, Idx, Keychain, NormalIndex};
+
 pub struct AddressFactory<D: DeriveScripts> {
     pub descriptor: D,
     pub network: AddressNetwork,
     pub keychain: Keychain,
     pub unused_tip: NormalIndex,
+    pub remnants: VecDeque<Address>,
 }
 
 impl<D: DeriveScripts> Iterator for AddressFactory<D> {
     type Item = Address;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let addr =
-            self.descriptor.derive_address(self.network, self.keychain, self.unused_tip).ok()?;
-        self.unused_tip.wrapping_inc_assign();
-        Some(addr)
+        loop {
+            if let Some(addr) = self.remnants.pop_front() {
+                return Some(addr);
+            }
+            self.remnants = self
+                .descriptor
+                .derive_address(self.network, self.keychain, self.unused_tip)
+                .collect();
+            self.unused_tip.checked_inc_assign()?;
+        }
     }
 }
 
 impl<D: DeriveScripts> AddressFactory<D> {
-    pub fn address(&self, index: NormalIndex) -> Result<Address, AddressError> {
+    pub fn address(&self, index: NormalIndex) -> impl Iterator<Item = Address> + use<'_, D> {
         self.descriptor.derive_address(self.network, self.keychain, index)
     }
 }

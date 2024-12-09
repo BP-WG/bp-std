@@ -305,6 +305,9 @@ impl Psbt {
             .unwrap_or_default()
     }
 
+    /// # Panics
+    ///
+    /// If the descriptor generates less or more than one script per the provided terminal
     pub fn construct_input<K, D: Descriptor<K>>(
         &mut self,
         prevout: Prevout,
@@ -316,7 +319,15 @@ impl Psbt {
             return Err(Unmodifiable);
         }
 
-        let scripts = descriptor.derive(terminal.keychain, terminal.index);
+        // TODO: Provide method version supporting multiple scripts per terminal
+        let mut scripts = descriptor.derive(terminal.keychain, terminal.index);
+        let script =
+            scripts.next().expect("the provided descriptor has no scripts for the given terminal");
+        assert_eq!(
+            scripts.next(),
+            None,
+            "the provided descriptor generates more than one script per the provided terminal"
+        );
         let input = Input {
             index: self.inputs.len(),
             previous_outpoint: prevout.outpoint(),
@@ -324,11 +335,11 @@ impl Psbt {
             required_time_lock: None,
             required_height_lock: None,
             non_witness_tx: None,
-            witness_utxo: Some(TxOut::new(scripts.to_script_pubkey(), prevout.value)),
+            witness_utxo: Some(TxOut::new(script.to_script_pubkey(), prevout.value)),
             partial_sigs: none!(),
             sighash_type: None,
-            redeem_script: scripts.to_redeem_script(),
-            witness_script: scripts.to_witness_script(),
+            redeem_script: script.to_redeem_script(),
+            witness_script: script.to_witness_script(),
             bip32_derivation: descriptor.legacy_keyset(terminal),
             // TODO #36: Fill hash preimages from descriptor
             final_script_sig: None,
@@ -340,10 +351,10 @@ impl Psbt {
             hash256: none!(),
             tap_key_sig: None,
             tap_script_sig: none!(),
-            tap_leaf_script: scripts.to_leaf_scripts(),
+            tap_leaf_script: script.to_leaf_scripts(),
             tap_bip32_derivation: descriptor.xonly_keyset(terminal),
-            tap_internal_key: scripts.to_internal_pk(),
-            tap_merkle_root: scripts.to_tap_root(),
+            tap_internal_key: script.to_internal_pk(),
+            tap_merkle_root: script.to_tap_root(),
             proprietary: none!(),
             unknown: none!(),
         };
@@ -389,6 +400,9 @@ impl Psbt {
             .expect("PSBT outputs are expected to be modifiable")
     }
 
+    /// # Panics
+    ///
+    /// If the descriptor generates less or more than one script per the provided terminal
     pub fn construct_change<K, D: Descriptor<K>>(
         &mut self,
         descriptor: &D,
@@ -399,16 +413,24 @@ impl Psbt {
             return Err(Unmodifiable);
         }
 
-        let scripts = descriptor.derive(change_terminal.keychain, change_terminal.index);
+        // TODO: Provide method version supporting multiple scripts per terminal
+        let mut scripts = descriptor.derive(change_terminal.keychain, change_terminal.index);
+        let script =
+            scripts.next().expect("the provided descriptor has no scripts for the given terminal");
+        assert_eq!(
+            scripts.next(),
+            None,
+            "the provided descriptor generates more than one script per the provided terminal"
+        );
         let output = Output {
             index: self.outputs.len(),
             amount: value,
-            script: scripts.to_script_pubkey(),
-            redeem_script: scripts.to_redeem_script(),
-            witness_script: scripts.to_witness_script(),
+            script: script.to_script_pubkey(),
+            redeem_script: script.to_redeem_script(),
+            witness_script: script.to_witness_script(),
             bip32_derivation: descriptor.legacy_keyset(change_terminal),
-            tap_internal_key: scripts.to_internal_pk(),
-            tap_tree: scripts.to_tap_tree(),
+            tap_internal_key: script.to_internal_pk(),
+            tap_tree: script.to_tap_tree(),
             tap_bip32_derivation: descriptor.xonly_keyset(change_terminal),
             proprietary: none!(),
             unknown: none!(),
