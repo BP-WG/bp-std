@@ -168,6 +168,7 @@ dependencies = [
  "bp-seals",
  "commit_verify",
  "getrandom",
+ "serde",
  "single_use_seals",
  "strict_encoding",
  "wasm-bindgen",
@@ -183,6 +184,7 @@ dependencies = [
  "bp-consensus",
  "commit_verify",
  "secp256k1",
+ "serde",
  "strict_encoding",
 ]
 
@@ -222,6 +224,7 @@ dependencies = [
  "bp-dbc",
  "commit_verify",
  "rand",
+ "serde",
  "single_use_seals",
  "strict_encoding",
 ]
@@ -309,6 +312,7 @@ dependencies = [
  "commit_encoding_derive",
  "rand",
  "ripemd",
+ "serde",
  "sha2",
  "strict_encoding",
  "strict_types",

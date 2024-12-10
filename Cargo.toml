@@ -62,7 +62,7 @@ all = ["signers", "client-side-validation", "strict_encoding", "serde", "psbt/al
 signers = ["secp256k1/global-context", "secp256k1/rand"]
 strict_encoding = ["psbt/strict_encoding"]
 client-side-validation = ["bp-core", "psbt/client-side-validation"]
-serde = ["dep:serde", "bp-consensus/serde", "bp-invoice/serde", "bp-derive/serde", "descriptors/serde", "psbt/serde"]
+serde = ["dep:serde", "bp-consensus/serde", "bp-core/serde", "bp-invoice/serde", "bp-derive/serde", "descriptors/serde", "psbt/serde"]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2"
