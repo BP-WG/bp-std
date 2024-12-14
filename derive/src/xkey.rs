@@ -356,6 +356,8 @@ impl Xpub {
             core,
         }
     }
+
+    pub fn chain_code(&self) -> ChainCode { self.core.chain_code }
 }
 
 impl Display for Xpub {
@@ -580,6 +582,8 @@ impl Xpriv {
             },
         }
     }
+
+    pub fn chain_code(&self) -> ChainCode { self.core.chain_code }
 }
 
 impl Display for Xpriv {
