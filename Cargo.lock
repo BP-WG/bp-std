@@ -209,7 +209,7 @@ dependencies = [
 
 [[package]]
 name = "bp-derive"
-version = "0.11.0-beta.9"
+version = "0.11.0-beta.9.1"
 dependencies = [
  "amplify",
  "bp-consensus",
@@ -223,7 +223,7 @@ dependencies = [
 
 [[package]]
 name = "bp-invoice"
-version = "0.11.0-beta.9"
+version = "0.11.0-beta.9.1"
 dependencies = [
  "amplify",
  "bech32",
@@ -250,7 +250,7 @@ dependencies = [
 
 [[package]]
 name = "bp-std"
-version = "0.11.0-beta.9"
+version = "0.11.0-beta.9.1"
 dependencies = [
  "amplify",
  "bp-consensus",
@@ -380,7 +380,7 @@ dependencies = [
 
 [[package]]
 name = "descriptors"
-version = "0.11.0-beta.9"
+version = "0.11.0-beta.9.1"
 dependencies = [
  "amplify",
  "bp-derive",
@@ -580,7 +580,7 @@ dependencies = [
 
 [[package]]
 name = "psbt"
-version = "0.11.0-beta.9"
+version = "0.11.0-beta.9.1"
 dependencies = [
  "amplify",
  "base64",
