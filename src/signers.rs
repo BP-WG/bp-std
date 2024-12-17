@@ -80,7 +80,7 @@ impl<'a> TestnetRefSigner<'a> {
     }
 }
 
-impl<'a> Signer for TestnetRefSigner<'a> {
+impl Signer for TestnetRefSigner<'_> {
     type Sign<'s>
         = Self
     where Self: 's;
@@ -88,7 +88,7 @@ impl<'a> Signer for TestnetRefSigner<'a> {
     fn approve(&self, _: &Psbt) -> Result<Self::Sign<'_>, Rejected> { Ok(self.clone()) }
 }
 
-impl<'a> TestnetRefSigner<'a> {
+impl TestnetRefSigner<'_> {
     fn get(&self, origin: Option<&KeyOrigin>) -> Option<Xpriv> {
         let origin = origin?;
         self.keys.iter().find_map(|(xo, xpriv)| {
@@ -100,7 +100,7 @@ impl<'a> TestnetRefSigner<'a> {
     }
 }
 
-impl<'a> Sign for TestnetRefSigner<'a> {
+impl Sign for TestnetRefSigner<'_> {
     fn sign_ecdsa(
         &self,
         message: Sighash,
