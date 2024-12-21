@@ -37,6 +37,9 @@ pub enum ConstructionError {
     #[display(inner)]
     Psbt(PsbtError),
 
+    /// the input spending {0} is not known for the current wallet.
+    UnknownInput(Outpoint),
+
     /// impossible to construct transaction having no inputs.
     NoInputs,
 
@@ -214,7 +217,7 @@ pub trait PsbtConstructor {
 
         // 1. Add inputs
         for coin in coins {
-            let (utxo, spk) = self.utxo(coin).expect("wallet data inconsistency");
+            let (utxo, spk) = self.utxo(coin).ok_or(ConstructionError::UnknownInput(coin))?;
             psbt.construct_input_expect(
                 utxo.to_prevout(),
                 self.descriptor(),
