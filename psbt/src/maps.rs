@@ -229,12 +229,18 @@ pub trait KeyMap: Sized {
         &mut self,
         key: PropKey,
         value: impl Into<ValueData>,
-    ) -> Result<(), KeyAlreadyPresent> {
-        if self.has_proprietary(&key) {
-            return Err(KeyAlreadyPresent(key));
+    ) -> Result<bool, KeyAlreadyPresent> {
+        let value = value.into();
+        if let Some(existing) = self.proprietary(&key) {
+            if &value != existing {
+                Err(KeyAlreadyPresent(key))
+            } else {
+                Ok(false)
+            }
+        } else {
+            self._proprietary_map_mut().insert(key, value);
+            Ok(true)
         }
-        self._proprietary_map_mut().insert(key, value.into());
-        Ok(())
     }
     fn remove_proprietary(&mut self, key: &PropKey) -> Option<ValueData> {
         self._proprietary_map_mut().shift_remove(key)

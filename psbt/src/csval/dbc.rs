@@ -24,7 +24,7 @@ use bp::dbc::tapret::TapretProof;
 use bp::dbc::{self, Method};
 use commit_verify::mpc;
 
-use crate::{MpcPsbtError, OpretKeyError, Output, Psbt, TapretKeyError};
+use crate::{MmbPsbtError, MpcPsbtError, OpretKeyError, Output, Psbt, TapretKeyError};
 
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
 #[display(doc_comments)]
@@ -44,6 +44,10 @@ pub enum DbcPsbtError {
 
     #[from]
     #[display(inner)]
+    Mmb(MmbPsbtError),
+
+    #[from]
+    #[display(inner)]
     Mpc(MpcPsbtError),
 
     #[from]
@@ -56,33 +60,40 @@ pub enum DbcPsbtError {
 }
 
 impl Psbt {
-    pub fn dbc_output<D: DbcPsbtProof>(&mut self) -> Option<&Output> {
-        self.outputs().find(|output| {
-            (output.script.is_p2tr() && D::METHOD == Method::TapretFirst)
-                || (output.script.is_op_return() && D::METHOD == Method::OpretFirst)
+    #[allow(private_bounds)]
+    pub fn dbc_output<D: DbcPsbtProof>(&self) -> Option<&Output> {
+        self.outputs().find(|output| match D::METHOD {
+            Method::OpretFirst => output.script.is_op_return(),
+            Method::TapretFirst => output.script.is_p2tr(),
         })
     }
 
+    #[allow(private_bounds)]
     pub fn dbc_output_mut<D: DbcPsbtProof>(&mut self) -> Option<&mut Output> {
-        self.outputs_mut().find(|output| {
-            (output.script.is_p2tr() && D::METHOD == Method::TapretFirst)
-                || (output.script.is_op_return() && D::METHOD == Method::OpretFirst)
+        self.outputs_mut().find(|output| match D::METHOD {
+            Method::OpretFirst => output.script.is_op_return(),
+            Method::TapretFirst => output.script.is_p2tr(),
         })
     }
 
+    #[allow(private_bounds)]
     pub fn dbc_commit<D: DbcPsbtProof>(&mut self) -> Result<(mpc::MerkleBlock, D), DbcPsbtError> {
         if self.are_outputs_modifiable() {
             return Err(DbcPsbtError::TxOutputsModifiable);
         }
 
+        let map = self.mmb_complete()?;
         let output = self.dbc_output_mut::<D>().ok_or(DbcPsbtError::NoProperOutput(D::METHOD))?;
 
+        for (id, msg) in map {
+            output.set_mpc_message(id, msg)?;
+        }
         let (mpc_proof, dbc_proof) = D::dbc_commit(output)?;
         Ok((mpc_proof, dbc_proof))
     }
 }
 
-pub trait DbcPsbtProof: dbc::Proof {
+trait DbcPsbtProof: dbc::Proof {
     fn dbc_commit(output: &mut Output) -> Result<(mpc::MerkleBlock, Self), DbcPsbtError>;
 }
 

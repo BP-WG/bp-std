@@ -147,7 +147,7 @@ dependencies = [
 [[package]]
 name = "bp-consensus"
 version = "0.12.0-beta.2"
-source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#5d8db23ffa73417937230238d807310eb6052579"
+source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#cdacf2a101c4ddbaf06ac79ef3b17d5044ef015d"
 dependencies = [
  "amplify",
  "chrono",
@@ -160,7 +160,7 @@ dependencies = [
 [[package]]
 name = "bp-core"
 version = "0.12.0-beta.2"
-source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#5d8db23ffa73417937230238d807310eb6052579"
+source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#cdacf2a101c4ddbaf06ac79ef3b17d5044ef015d"
 dependencies = [
  "amplify",
  "bp-consensus",
@@ -177,7 +177,7 @@ dependencies = [
 [[package]]
 name = "bp-dbc"
 version = "0.12.0-beta.2"
-source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#5d8db23ffa73417937230238d807310eb6052579"
+source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#cdacf2a101c4ddbaf06ac79ef3b17d5044ef015d"
 dependencies = [
  "amplify",
  "base85",
@@ -216,7 +216,7 @@ dependencies = [
 [[package]]
 name = "bp-seals"
 version = "0.12.0-beta.2"
-source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#5d8db23ffa73417937230238d807310eb6052579"
+source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#cdacf2a101c4ddbaf06ac79ef3b17d5044ef015d"
 dependencies = [
  "amplify",
  "baid64",
@@ -262,9 +262,9 @@ checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
 
 [[package]]
 name = "cc"
-version = "1.2.3"
+version = "1.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "27f657647bcff5394bf56c7317665bbf790a137a50eaaa5c6bfbb9e27a518f2d"
+checksum = "c31a0499c1dc64f458ad13872de75c0eb7e3fdb0e67964610c914b034fc5956e"
 dependencies = [
  "shlex",
 ]
@@ -470,9 +470,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.168"
+version = "0.2.169"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5aaeb2981e0606ca11d79718f8bb01164f1d6ed75080182d3abf017e6d244b6d"
+checksum = "b5aba8db14291edd000dfcc4d620c7ebfb122c613afb886ca8803fa4e128a20a"
 
 [[package]]
 name = "log"
@@ -636,22 +636,22 @@ dependencies = [
 
 [[package]]
 name = "serde"
-version = "1.0.215"
+version = "1.0.216"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6513c1ad0b11a9376da888e3e0baa0077f1aed55c17f50e7b2397136129fb88f"
+checksum = "0b9781016e935a97e8beecf0c933758c97a5520d32930e460142b4cd80c6338e"
 dependencies = [
  "serde_derive",
 ]
 
 [[package]]
 name = "serde_derive"
-version = "1.0.215"
+version = "1.0.216"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ad1e866f866923f252f05c889987993144fb74e722403468a4ebd70c3cd756c0"
+checksum = "46f859dbbf73865c6627ed570e78961cd3ac92407a2d117204c49232485da55e"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.90",
+ "syn 2.0.91",
 ]
 
 [[package]]
@@ -755,9 +755,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "2.0.90"
+version = "2.0.91"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "919d3b74a5dd0ccd15aeb8f93e7006bd9e14c295087c9896a110f490752bcf31"
+checksum = "d53cbcb5a243bd33b7858b1d7f4aca2153490815872d86d955d6ea29f743c035"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -781,7 +781,7 @@ checksum = "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.90",
+ "syn 2.0.91",
 ]
 
 [[package]]
@@ -849,7 +849,7 @@ dependencies = [
  "log",
  "proc-macro2",
  "quote",
- "syn 2.0.90",
+ "syn 2.0.91",
  "wasm-bindgen-shared",
 ]
 
@@ -884,7 +884,7 @@ checksum = "30d7a95b763d3c45903ed6c81f156801839e5ee968bb07e534c44df0fcd330c2"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.90",
+ "syn 2.0.91",
  "wasm-bindgen-backend",
  "wasm-bindgen-shared",
 ]
@@ -917,7 +917,7 @@ checksum = "54171416ce73aa0b9c377b51cc3cb542becee1cd678204812e8392e5b0e4a031"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.90",
+ "syn 2.0.91",
 ]
 
 [[package]]
@@ -1039,5 +1039,5 @@ checksum = "fa4f8080344d4671fb4e831a13ad1e68092748387dfc4f55e356242fae12ce3e"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.90",
+ "syn 2.0.91",
 ]
