@@ -46,8 +46,8 @@ pub use constructor::{
 #[cfg(feature = "client-side-validation")]
 pub use csval::*;
 pub use data::{
-    Input, ModifiableFlags, Output, Prevout, Psbt, PsbtParseError, UnfinalizedInputs, UnsignedTx,
-    UnsignedTxIn,
+    Input, ModifiableFlags, Output, Prevout, Psbt, PsbtParseError, UnfinalizedInputs, Unmodifiable,
+    UnsignedTx, UnsignedTxIn,
 };
 pub use keys::{GlobalKey, InputKey, KeyPair, KeyType, OutputKey, PropKey};
 pub use maps::{KeyAlreadyPresent, KeyData, KeyMap, Map, MapName, ValueData};
