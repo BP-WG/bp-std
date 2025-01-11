@@ -199,10 +199,10 @@ pub trait PsbtConstructor {
     fn network(&self) -> Network;
     fn next_derivation_index(&mut self, keychain: impl Into<Keychain>, shift: bool) -> NormalIndex;
 
-    fn construct_psbt<'a, 'b>(
+    fn construct_psbt(
         &mut self,
         coins: impl IntoIterator<Item = Outpoint>,
-        beneficiaries: impl IntoIterator<Item = &'b Beneficiary>,
+        beneficiaries: impl IntoIterator<Item = Beneficiary>,
         params: TxParams,
     ) -> Result<(Psbt, PsbtMeta), ConstructionError> {
         let mut psbt = Psbt::create(PsbtVer::V2);
