@@ -60,6 +60,9 @@ pub enum ConstructionError {
         output_value: Sats,
         fee: Sats,
     },
+
+    /// network for address {0} mismatch the one used by the wallet.
+    NetworkMismatch(Address),
 }
 
 #[derive(Clone, Debug, Display, Error, From)]
@@ -235,6 +238,9 @@ pub trait PsbtConstructor {
         let mut max = Vec::new();
         let mut output_value = Sats::ZERO;
         for beneficiary in beneficiaries {
+            if beneficiary.address.network != self.network().into() {
+                return Err(ConstructionError::NetworkMismatch(beneficiary.address));
+            }
             let amount = beneficiary.amount.unwrap_or(Sats::ZERO);
             output_value
                 .checked_add_assign(amount)
