@@ -18,11 +18,13 @@ name = "invoice"
 [dependencies]
 amplify = { workspace = true }
 commit_verify = { workspace = true }
+strict_encoding = { workspace = true, optional = true }
 bech32 = { workspace = true }
 bp-consensus = { workspace = true }
 serde = { workspace = true, optional = true }
 
 [features]
 default = []
-all = []
+all = ["serde", "strict_encoding"]
+strict_encoding = ["dep:strict_encoding"]
 serde = ["dep:serde", "bp-consensus/serde"]

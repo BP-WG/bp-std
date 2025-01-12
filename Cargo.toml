@@ -60,7 +60,7 @@ serde = { workspace = true, optional = true }
 default = []
 all = ["signers", "client-side-validation", "strict_encoding", "serde", "psbt/all"]
 signers = ["secp256k1/global-context", "secp256k1/rand"]
-strict_encoding = ["psbt/strict_encoding"]
+strict_encoding = ["psbt/strict_encoding", "bp-invoice/strict_encoding"]
 client-side-validation = ["bp-core", "psbt/client-side-validation"]
 serde = ["dep:serde", "bp-consensus/serde", "bp-core/serde", "bp-invoice/serde", "bp-derive/serde", "descriptors/serde", "psbt/serde"]
 

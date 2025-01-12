@@ -23,7 +23,11 @@
 #[macro_use]
 extern crate amplify;
 #[cfg(feature = "serde")]
+#[macro_use]
 extern crate serde;
+#[cfg(feature = "strict_encoding")]
+#[macro_use]
+extern crate strict_encoding;
 
 pub mod base58;
 mod address;
