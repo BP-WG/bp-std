@@ -308,7 +308,7 @@ impl Psbt {
     /// # Panics
     ///
     /// If the descriptor generates less or more than one script per the provided terminal
-    pub fn construct_input<K, D: Descriptor<K>>(
+    pub fn append_input<K, D: Descriptor<K>>(
         &mut self,
         prevout: Prevout,
         descriptor: &D,
@@ -358,7 +358,7 @@ impl Psbt {
         Ok(self.inputs.last_mut().expect("just inserted"))
     }
 
-    pub fn construct_input_expect<K, D: Descriptor<K>>(
+    pub fn append_input_expect<K, D: Descriptor<K>>(
         &mut self,
         prevout: Prevout,
         descriptor: &D,
@@ -366,12 +366,13 @@ impl Psbt {
         script_pubkey: ScriptPubkey,
         sequence: SeqNo,
     ) -> &mut Input {
-        self.construct_input(prevout, descriptor, terminal, script_pubkey, sequence)
+        self.append_input(prevout, descriptor, terminal, script_pubkey, sequence)
             .expect("PSBT inputs are expected to be modifiable")
     }
 
-    pub fn construct_output(
+    pub fn insert_output(
         &mut self,
+        pos: usize,
         script_pubkey: ScriptPubkey,
         value: Sats,
     ) -> Result<&mut Output, Unmodifiable> {
@@ -382,25 +383,36 @@ impl Psbt {
         let output = Output {
             amount: value,
             script: script_pubkey,
-            ..Output::new(self.outputs.len())
+            ..Output::new(pos)
         };
-        self.outputs.push(output);
-        Ok(self.outputs.last_mut().expect("just inserted"))
+        self.outputs.insert(pos, output);
+        for no in pos..self.outputs.len() {
+            self.outputs[no].index += 1;
+        }
+        Ok(&mut self.outputs[pos])
     }
 
-    pub fn construct_output_expect(
+    pub fn append_output(
+        &mut self,
+        script_pubkey: ScriptPubkey,
+        value: Sats,
+    ) -> Result<&mut Output, Unmodifiable> {
+        self.insert_output(self.outputs.len(), script_pubkey, value)
+    }
+
+    pub fn append_output_expect(
         &mut self,
         script_pubkey: ScriptPubkey,
         value: Sats,
     ) -> &mut Output {
-        self.construct_output(script_pubkey, value)
+        self.append_output(script_pubkey, value)
             .expect("PSBT outputs are expected to be modifiable")
     }
 
     /// # Panics
     ///
     /// If the descriptor generates less or more than one script per the provided terminal
-    pub fn construct_change<K, D: Descriptor<K>>(
+    pub fn append_change<K, D: Descriptor<K>>(
         &mut self,
         descriptor: &D,
         change_terminal: Terminal,
@@ -431,13 +443,13 @@ impl Psbt {
         Ok(self.outputs.last_mut().expect("just inserted"))
     }
 
-    pub fn construct_change_expect<K, D: Descriptor<K>>(
+    pub fn append_change_expect<K, D: Descriptor<K>>(
         &mut self,
         descriptor: &D,
         change_terminal: Terminal,
         value: Sats,
     ) -> &mut Output {
-        self.construct_change(descriptor, change_terminal, value)
+        self.append_change(descriptor, change_terminal, value)
             .expect("PSBT outputs are expected to be modifiable")
     }
 

@@ -221,7 +221,7 @@ pub trait PsbtConstructor {
         // 1. Add inputs
         for coin in coins {
             let (utxo, spk) = self.utxo(coin).ok_or(ConstructionError::UnknownInput(coin))?;
-            psbt.construct_input_expect(
+            psbt.append_input_expect(
                 utxo.to_prevout(),
                 self.descriptor(),
                 utxo.terminal,
@@ -245,7 +245,7 @@ pub trait PsbtConstructor {
             output_value
                 .checked_add_assign(amount)
                 .ok_or(ConstructionError::Overflow(output_value))?;
-            let out = psbt.construct_output_expect(beneficiary.script_pubkey(), amount);
+            let out = psbt.append_output_expect(beneficiary.script_pubkey(), amount);
             if beneficiary.amount.is_max() {
                 max.push(out.index());
             }
@@ -279,7 +279,7 @@ pub trait PsbtConstructor {
                     self.next_derivation_index(params.change_keychain, params.change_shift);
                 let change_terminal = Terminal::new(params.change_keychain, change_index);
                 let change_vout = psbt
-                    .construct_change_expect(self.descriptor(), change_terminal, remaining_value)
+                    .append_change_expect(self.descriptor(), change_terminal, remaining_value)
                     .index();
                 (Some(Vout::from_u32(change_vout as u32)), Some(change_terminal))
             } else {
