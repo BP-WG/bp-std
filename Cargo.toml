@@ -19,8 +19,8 @@ bech32 = "0.9.1"
 secp256k1 = "0.30.0"
 strict_encoding = "2.7.0"
 commit_verify = "0.11.0-beta.9"
-bp-consensus = "0.11.0-beta.9"
-bp-core = { version = "0.11.0-beta.9" }
+bp-consensus = "0.11.1-alpha.1"
+bp-core = { version = "0.11.1-alpha.1" }
 bp-invoice = { version = "0.11.0-beta.9.1", path = "invoice" }
 bp-derive = { version = "0.11.0-beta.9.1", path = "derive" }
 descriptors = { version = "0.11.0-beta.9.1", path = "descriptors" }
