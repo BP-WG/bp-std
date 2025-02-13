@@ -221,6 +221,9 @@ pub trait PsbtConstructor {
         // 1. Add inputs
         for coin in coins {
             let (utxo, spk) = self.utxo(coin).ok_or(ConstructionError::UnknownInput(coin))?;
+            if psbt.inputs().any(|inp| inp.previous_outpoint == utxo.outpoint) {
+                continue;
+            }
             psbt.append_input_expect(
                 utxo.to_prevout(),
                 self.descriptor(),
