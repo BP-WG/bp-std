@@ -387,7 +387,7 @@ impl Psbt {
         };
         self.outputs.insert(pos, output);
         for no in pos..self.outputs.len() {
-            self.outputs[no].index += 1;
+            self.outputs[no].index = no;
         }
         Ok(&mut self.outputs[pos])
     }
