@@ -53,7 +53,7 @@ pub enum ConstructionError {
         output_value: Sats,
     },
 
-    /// not enough funds to pay fee of {fee} sats; all inputs contain {input_value} sats and
+    /// not enough funds to pay fee of {fee} sats; the sum of inputs is {input_value} sats, and
     /// outputs spends {output_value} sats out of them.
     NoFundsForFee {
         input_value: Sats,
