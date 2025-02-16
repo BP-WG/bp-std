@@ -33,10 +33,10 @@ pub const HARDENED_INDEX_BOUNDARY: u32 = 1 << 31;
 #[macro_export]
 macro_rules! h {
     ($idx:literal) => {
-        HardenedIndex::from($idx as u16)
+        $crate::HardenedIndex::from($idx as u16)
     };
     [$( $idx:literal ),+] => {
-        [$( HardenedIndex::from($idx as u16) ),+]
+        [$( $crate::HardenedIndex::from($idx as u16) ),+]
     };
 }
 
