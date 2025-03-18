@@ -322,13 +322,17 @@ impl Psbt {
         prevout: Prevout,
         descriptor: &D,
         terminal: Terminal,
+        script_pubkey: ScriptPubkey,
         sequence: SeqNo,
     ) -> Result<&mut Input, Unmodifiable> {
         if !self.are_inputs_modifiable() {
             return Err(Unmodifiable);
         }
 
-        let scripts = descriptor.derive(terminal.keychain, terminal.index);
+        let script = descriptor
+            .derive(terminal.keychain, terminal.index)
+            .find(|script| script.to_script_pubkey() == script_pubkey)
+            .expect("unable to generate input matching prevout");
         let input = Input {
             index: self.inputs.len(),
             previous_outpoint: prevout.outpoint(),
@@ -336,11 +340,11 @@ impl Psbt {
             required_time_lock: None,
             required_height_lock: None,
             non_witness_tx: None,
-            witness_utxo: Some(TxOut::new(scripts.to_script_pubkey(), prevout.value)),
+            witness_utxo: Some(TxOut::new(script.to_script_pubkey(), prevout.value)),
             partial_sigs: none!(),
             sighash_type: None,
-            redeem_script: scripts.to_redeem_script(),
-            witness_script: scripts.to_witness_script(),
+            redeem_script: script.to_redeem_script(),
+            witness_script: script.to_witness_script(),
             bip32_derivation: descriptor.legacy_keyset(terminal),
             // TODO #36: Fill hash preimages from descriptor
             final_script_sig: None,
@@ -352,10 +356,10 @@ impl Psbt {
             hash256: none!(),
             tap_key_sig: None,
             tap_script_sig: none!(),
-            tap_leaf_script: scripts.to_leaf_scripts(),
+            tap_leaf_script: script.to_leaf_scripts(),
             tap_bip32_derivation: descriptor.xonly_keyset(terminal),
-            tap_internal_key: scripts.to_internal_pk(),
-            tap_merkle_root: scripts.to_tap_root(),
+            tap_internal_key: script.to_internal_pk(),
+            tap_merkle_root: script.to_tap_root(),
             proprietary: none!(),
             unknown: none!(),
         };
@@ -368,9 +372,10 @@ impl Psbt {
         prevout: Prevout,
         descriptor: &D,
         terminal: Terminal,
+        script_pubkey: ScriptPubkey,
         sequence: SeqNo,
     ) -> &mut Input {
-        self.construct_input(prevout, descriptor, terminal, sequence)
+        self.construct_input(prevout, descriptor, terminal, script_pubkey, sequence)
             .expect("PSBT inputs are expected to be modifiable")
     }
 
@@ -411,16 +416,19 @@ impl Psbt {
             return Err(Unmodifiable);
         }
 
-        let scripts = descriptor.derive(change_terminal.keychain, change_terminal.index);
+        let script = descriptor
+            .derive(change_terminal.keychain, change_terminal.index)
+            .next()
+            .expect("unable to generate change script");
         let output = Output {
             index: self.outputs.len(),
             amount: value,
-            script: scripts.to_script_pubkey(),
-            redeem_script: scripts.to_redeem_script(),
-            witness_script: scripts.to_witness_script(),
+            script: script.to_script_pubkey(),
+            redeem_script: script.to_redeem_script(),
+            witness_script: script.to_witness_script(),
             bip32_derivation: descriptor.legacy_keyset(change_terminal),
-            tap_internal_key: scripts.to_internal_pk(),
-            tap_tree: scripts.to_tap_tree(),
+            tap_internal_key: script.to_internal_pk(),
+            tap_tree: script.to_tap_tree(),
             tap_bip32_derivation: descriptor.xonly_keyset(change_terminal),
             proprietary: none!(),
             unknown: none!(),
