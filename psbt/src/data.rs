@@ -174,12 +174,9 @@ impl UnsignedTxIn {
 #[derive(Clone, Eq, PartialEq, Debug)]
 #[cfg_attr(
     feature = "serde",
-    derive(Serialize),
+    derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
-// Serde deserialize is not implemented and require manual implementation instead of derive, since
-// we need to correctly initialize inputs and outputs with their indexes and account for unknown
-// fields.
 pub struct Psbt {
     /// PSBT version
     pub version: PsbtVer,
@@ -204,6 +201,7 @@ pub struct Psbt {
     pub(crate) tx_modifiable: Option<ModifiableFlags>,
 
     /// Proprietary keys
+    #[cfg_attr(feature = "serde", serde(with = "crate::serde_utils::indexmap_as_seq_byte_values"))]
     pub proprietary: IndexMap<PropKey, ValueData>,
 
     /// Unknown keys
@@ -609,12 +607,11 @@ impl Weight for Psbt {
 #[derive(Clone, Eq, PartialEq, Debug)]
 #[cfg_attr(
     feature = "serde",
-    derive(Serialize),
+    derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct Input {
     /// The index of this input. Used in error reporting.
-    #[cfg_attr(feature = "serde", serde(skip))]
     pub(crate) index: usize,
 
     /// Previous transaction outpoint to spent.
@@ -646,6 +643,7 @@ pub struct Input {
     /// A map from public keys to their corresponding signature as would be
     /// pushed to the stack from a scriptSig or witness for a non-taproot
     /// inputs.
+    #[cfg_attr(feature = "serde", serde(with = "crate::serde_utils::indexmap_as_seq"))]
     pub partial_sigs: IndexMap<LegacyPk, LegacySig>,
 
     /// The sighash type to be used for this input. Signatures for this input
@@ -660,6 +658,7 @@ pub struct Input {
 
     /// A map from public keys needed to sign this input to their corresponding master key
     /// fingerprints and derivation paths.
+    #[cfg_attr(feature = "serde", serde(with = "crate::serde_utils::indexmap_as_seq"))]
     pub bip32_derivation: IndexMap<LegacyPk, KeyOrigin>,
 
     /// The finalized, fully-constructed scriptSig with signatures and any other scripts necessary
@@ -696,12 +695,14 @@ pub struct Input {
 
     /// The 64 or 65 byte Schnorr signature for this pubkey and leaf combination. Finalizers
     /// should remove this field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
+    #[cfg_attr(feature = "serde", serde(with = "crate::serde_utils::indexmap_as_seq"))]
     pub tap_script_sig: IndexMap<(XOnlyPk, TapLeafHash), Bip340Sig>,
 
     /// The script for this leaf as would be provided in the witness stack followed by the single
     /// byte leaf version. Note that the leaves included in this field should be those that the
     /// signers of this input are expected to be able to sign for. Finalizers should remove this
     /// field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
+    #[cfg_attr(feature = "serde", serde(with = "crate::serde_utils::indexmap_as_seq"))]
     pub tap_leaf_script: IndexMap<ControlBlock, LeafScript>,
 
     /// A compact size unsigned integer representing the number of leaf hashes, followed by a list
@@ -722,6 +723,7 @@ pub struct Input {
     pub tap_merkle_root: Option<TapNodeHash>,
 
     /// Proprietary keys
+    #[cfg_attr(feature = "serde", serde(with = "crate::serde_utils::indexmap_as_seq_byte_values"))]
     pub proprietary: IndexMap<PropKey, ValueData>,
 
     /// Unknown keys
@@ -938,12 +940,11 @@ impl Input {
 #[derive(Clone, Eq, PartialEq, Debug)]
 #[cfg_attr(
     feature = "serde",
-    derive(Serialize),
+    derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct Output {
     /// The index of this output. Used in error reporting.
-    #[cfg_attr(feature = "serde", serde(skip))]
     pub(crate) index: usize,
 
     /// The output's amount in satoshis.
@@ -960,6 +961,7 @@ pub struct Output {
 
     /// A map from public keys needed to spend this output to their corresponding master key
     /// fingerprints and derivation paths.
+    #[cfg_attr(feature = "serde", serde(with = "crate::serde_utils::indexmap_as_seq"))]
     pub bip32_derivation: IndexMap<LegacyPk, KeyOrigin>,
 
     /// The X-only pubkey used as the internal key in this output.
@@ -984,6 +986,7 @@ pub struct Output {
     pub tap_bip32_derivation: IndexMap<XOnlyPk, TapDerivation>,
 
     /// Proprietary keys
+    #[cfg_attr(feature = "serde", serde(with = "crate::serde_utils::indexmap_as_seq_byte_values"))]
     pub proprietary: IndexMap<PropKey, ValueData>,
 
     /// Unknown keys
@@ -1120,6 +1123,16 @@ impl ModifiableFlags {
 
 #[cfg(test)]
 mod tests {
+    #![allow(unused)]
+
+    use std::io::Cursor;
+    use std::str::FromStr;
+
+    use amplify::confinement::Confined;
+    use commit_verify::mpc::ProtocolId;
+    use derive::{DerivationPath, Idx, Keychain, NormalIndex};
+    use strict_encoding::StrictDumb;
+
     use super::*;
 
     #[test]
@@ -1196,5 +1209,134 @@ mod tests {
 
         let result = std::panic::catch_unwind(|| format!("{v0_psbt:#03x}"));
         assert!(result.is_err(), "Should fail on unsupported psbt version");
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn psbt_serde_roundtrip() {
+        let proprietary = IndexMap::from([(
+            PropKey::mpc_message(ProtocolId::strict_dumb()),
+            ValueData::from(vec![7]),
+        )]);
+
+        let unknown = IndexMap::from([(
+            5,
+            IndexMap::from([(KeyData::strict_dumb(), ValueData::from(vec![9]))]),
+        )]);
+
+        let xpub = Xpub::from_str("xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8").unwrap();
+        let xkeyorigin = XkeyOrigin::from_str("c5e95ba5/86h/1h/0h").unwrap();
+        let xpubs = IndexMap::from([(xpub, xkeyorigin.clone())]);
+
+        let derivation_path = DerivationPath::from_str("86h/1h/0h").unwrap();
+        let keyorigin = KeyOrigin::new(xkeyorigin.master_fp(), derivation_path);
+        let bip32_derivation = IndexMap::from([(LegacyPk::strict_dumb(), keyorigin.clone())]);
+
+        let tx = Tx {
+            version: TxVer::V2,
+            inputs: Confined::from_checked(vec![TxIn {
+                prev_output: Outpoint::strict_dumb(),
+                sig_script: SigScript::strict_dumb(),
+                sequence: SeqNo::strict_dumb(),
+                witness: Witness::strict_dumb(),
+            }]),
+            outputs: Confined::from_checked(vec![TxOut {
+                value: Sats::ZERO,
+                script_pubkey: ScriptPubkey::strict_dumb(),
+            }]),
+            lock_time: LockTime::ZERO,
+        };
+
+        let input_1 = Input {
+            index: 8,
+            previous_outpoint: Outpoint::strict_dumb(),
+            sequence_number: Some(SeqNo::ZERO),
+            required_time_lock: Some(LockTimestamp::anytime()),
+            required_height_lock: Some(LockHeight::anytime()),
+            non_witness_tx: Some(tx),
+            witness_utxo: Some(TxOut::strict_dumb()),
+            partial_sigs: IndexMap::from([(LegacyPk::strict_dumb(), LegacySig::strict_dumb())]),
+            sighash_type: Some(SighashType::all()),
+            redeem_script: Some(RedeemScript::strict_dumb()),
+            witness_script: Some(WitnessScript::strict_dumb()),
+            bip32_derivation: bip32_derivation.clone(),
+            final_script_sig: Some(SigScript::strict_dumb()),
+            final_witness: Some(Witness::strict_dumb()),
+            proof_of_reserves: Some(s!("proof_of_reserves")),
+            ripemd160: IndexMap::from([(Bytes20::with_fill(5), ByteStr::strict_dumb())]),
+            sha256: IndexMap::from([(Bytes32::with_fill(5), ByteStr::strict_dumb())]),
+            hash160: IndexMap::from([(Bytes20::with_fill(5), ByteStr::strict_dumb())]),
+            hash256: IndexMap::from([(Bytes32::with_fill(5), ByteStr::strict_dumb())]),
+            tap_key_sig: Some(Bip340Sig::strict_dumb()),
+            tap_script_sig: IndexMap::from([(
+                (XOnlyPk::strict_dumb(), TapLeafHash::strict_dumb()),
+                Bip340Sig::strict_dumb(),
+            )]),
+            tap_leaf_script: IndexMap::from([(
+                ControlBlock::strict_dumb(),
+                LeafScript::strict_dumb(),
+            )]),
+            tap_bip32_derivation: IndexMap::from([(XOnlyPk::strict_dumb(), TapDerivation {
+                leaf_hashes: vec![TapLeafHash::strict_dumb()],
+                origin: keyorigin,
+            })]),
+            tap_internal_key: Some(InternalPk::strict_dumb()),
+            tap_merkle_root: Some(TapNodeHash::strict_dumb()),
+            proprietary: proprietary.clone(),
+            unknown: unknown.clone(),
+        };
+
+        let mut input_2 = input_1.clone();
+        input_2.index = 3;
+
+        let output = Output {
+            index: 1,
+            amount: Sats::from_sats(5u64),
+            script: ScriptPubkey::strict_dumb(),
+            redeem_script: Some(RedeemScript::strict_dumb()),
+            witness_script: Some(WitnessScript::strict_dumb()),
+            bip32_derivation,
+            tap_internal_key: Some(InternalPk::strict_dumb()),
+            tap_tree: Some(TapTree::with_single_leaf(LeafScript::strict_dumb())),
+            tap_bip32_derivation: IndexMap::from([(
+                XOnlyPk::strict_dumb(),
+                TapDerivation::with_internal_pk(xkeyorigin, Terminal {
+                    keychain: Keychain::INNER,
+                    index: NormalIndex::ZERO,
+                }),
+            )]),
+            proprietary: proprietary.clone(),
+            unknown: unknown.clone(),
+        };
+
+        let tx_modifiable = Some(ModifiableFlags::modifiable());
+
+        let psbt_orig = Psbt {
+            version: PsbtVer::V2,
+            tx_version: TxVer::V2,
+            fallback_locktime: Some(LockTime::ZERO),
+            inputs: vec![input_1, input_2],
+            outputs: vec![output],
+            xpubs,
+            tx_modifiable,
+            proprietary,
+            unknown,
+        };
+
+        // CBOR
+        let mut buf = Vec::new();
+        ciborium::into_writer(&psbt_orig, &mut buf).unwrap();
+        let psbt_post: Psbt = ciborium::from_reader(Cursor::new(&buf)).unwrap();
+        assert_eq!(psbt_orig, psbt_post);
+
+        // JSON
+        let psbt_str = serde_json::to_string(&psbt_orig).unwrap();
+        let psbt_post: Psbt = serde_json::from_str(&psbt_str).unwrap();
+        assert_eq!(psbt_orig, psbt_post);
+
+        // YAML
+        let psbt_str = serde_yaml::to_string(&psbt_orig).unwrap();
+        let psbt_post: Psbt = serde_yaml::from_str(&psbt_str).unwrap();
+        assert_eq!(psbt_orig, psbt_post);
     }
 }

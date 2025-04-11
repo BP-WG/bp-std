@@ -165,7 +165,7 @@ dependencies = [
 [[package]]
 name = "bp-consensus"
 version = "0.11.1-alpha.1"
-source = "git+https://github.com/zoedberg/bp-core?branch=0.11.1-2#55e5cd9ba902c198ae4cfdcc241047a6190630cd"
+source = "git+https://github.com/zoedberg/bp-core?branch=0.11.1-2#a439ba556e078fe7a070d633dfcb9fa40e28e1bf"
 dependencies = [
  "amplify",
  "chrono",
@@ -178,7 +178,7 @@ dependencies = [
 [[package]]
 name = "bp-core"
 version = "0.11.1-alpha.1"
-source = "git+https://github.com/zoedberg/bp-core?branch=0.11.1-2#55e5cd9ba902c198ae4cfdcc241047a6190630cd"
+source = "git+https://github.com/zoedberg/bp-core?branch=0.11.1-2#a439ba556e078fe7a070d633dfcb9fa40e28e1bf"
 dependencies = [
  "amplify",
  "bp-consensus",
@@ -194,7 +194,7 @@ dependencies = [
 [[package]]
 name = "bp-dbc"
 version = "0.11.1-alpha.1"
-source = "git+https://github.com/zoedberg/bp-core?branch=0.11.1-2#55e5cd9ba902c198ae4cfdcc241047a6190630cd"
+source = "git+https://github.com/zoedberg/bp-core?branch=0.11.1-2#a439ba556e078fe7a070d633dfcb9fa40e28e1bf"
 dependencies = [
  "amplify",
  "base85",
@@ -232,7 +232,7 @@ dependencies = [
 [[package]]
 name = "bp-seals"
 version = "0.11.1-alpha.1"
-source = "git+https://github.com/zoedberg/bp-core?branch=0.11.1-2#55e5cd9ba902c198ae4cfdcc241047a6190630cd"
+source = "git+https://github.com/zoedberg/bp-core?branch=0.11.1-2#a439ba556e078fe7a070d633dfcb9fa40e28e1bf"
 dependencies = [
  "amplify",
  "baid64",
@@ -296,6 +296,33 @@ dependencies = [
  "num-traits",
  "wasm-bindgen",
  "windows-link",
+]
+
+[[package]]
+name = "ciborium"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "42e69ffd6f0917f5c029256a24d0161db17cea3997d185db0d35926308770f0e"
+dependencies = [
+ "ciborium-io",
+ "ciborium-ll",
+ "serde",
+]
+
+[[package]]
+name = "ciborium-io"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "05afea1e0a06c9be33d539b876f1ce3692f4afea2cb41f740e7743225ed1c757"
+
+[[package]]
+name = "ciborium-ll"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "57663b653d948a338bfb3eeba9bb2fd5fcfaecb9e199e87e1eda4d9e8b240fd9"
+dependencies = [
+ "ciborium-io",
+ "half",
 ]
 
 [[package]]
@@ -482,6 +509,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "itoa"
+version = "1.0.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
+
+[[package]]
 name = "js-sys"
 version = "0.3.77"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -502,6 +535,12 @@ name = "log"
 version = "0.4.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13dc2df351e3202783a1fe0d44375f7295ffb4049267b0f3018346dc122a1d94"
+
+[[package]]
+name = "memchr"
+version = "2.7.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "78ca9ab1a0babb1e7d5695e3530886289c18cf2f87ec19a575a0abdce112e3a3"
 
 [[package]]
 name = "minicov"
@@ -567,10 +606,13 @@ dependencies = [
  "bp-core",
  "bp-derive",
  "chrono",
+ "ciborium",
  "commit_verify",
  "descriptors",
  "indexmap",
  "serde",
+ "serde_json",
+ "serde_yaml",
  "strict_encoding",
 ]
 
@@ -629,6 +671,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eded382c5f5f786b989652c49544c4877d9f015cc22e145a5ea8ea66c2921cd2"
 
 [[package]]
+name = "ryu"
+version = "1.0.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "28d3b2b1366ec20994f1fd18c3c594f05c5dd4bc44d8bb0c1c632c8d6829481f"
+
+[[package]]
 name = "same-file"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -679,6 +727,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_json"
+version = "1.0.140"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "20068b6e96dc6c9bd23e01df8827e6c7e1f2fddd43c21810382803c136b99373"
+dependencies = [
+ "itoa",
+ "memchr",
+ "ryu",
+ "serde",
+]
+
+[[package]]
 name = "serde_str_helpers"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -686,6 +746,19 @@ checksum = "b744a7c94f2f3785496af33a0d93857dfc0c521e25c38e993e9c5bb45f09c841"
 dependencies = [
  "serde",
  "serde_derive",
+]
+
+[[package]]
+name = "serde_yaml"
+version = "0.9.34+deprecated"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a8b1a1a2ebf674015cc02edccce75287f1a0130d394307b36743c2f5d504b47"
+dependencies = [
+ "indexmap",
+ "itoa",
+ "ryu",
+ "serde",
+ "unsafe-libyaml",
 ]
 
 [[package]]
@@ -823,6 +896,12 @@ name = "unicode-ident"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5a5f39404a5da50712a4c1eecf25e90dd62b613502b7e925fd4e4d19b5c96512"
+
+[[package]]
+name = "unsafe-libyaml"
+version = "0.2.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "673aac59facbab8a9007c7f6108d11f63b603f7cabff99fabf650fea5c32b861"
 
 [[package]]
 name = "version_check"

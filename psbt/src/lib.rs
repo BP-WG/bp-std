@@ -37,6 +37,8 @@ mod coders;
 mod csval;
 pub mod constructor;
 mod sign;
+#[cfg(feature = "serde")]
+mod serde_utils;
 
 pub use coders::{Decode, DecodeError, Encode, PsbtError};
 pub use constructor::{
@@ -63,7 +65,7 @@ pub struct PsbtUnsupportedVer(u32);
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
 #[cfg_attr(
     feature = "serde",
-    derive(Serialize),
+    derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub enum PsbtVer {
