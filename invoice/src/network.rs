@@ -22,6 +22,8 @@
 
 use std::str::FromStr;
 
+use bc::BlockHash;
+
 use crate::AddressNetwork;
 
 /// Bitcoin network used by the address
@@ -54,6 +56,16 @@ impl Network {
     /// Detects whether the network is a kind of test network (testnet, signet,
     /// regtest).
     pub fn is_testnet(self) -> bool { self != Self::Mainnet }
+
+    pub const fn genesis_hash(self) -> BlockHash {
+        match self {
+            Network::Mainnet => BlockHash::GENESIS_MAINNET,
+            Network::Testnet3 => BlockHash::GENESIS_TESTNET3,
+            Network::Testnet4 => BlockHash::GENESIS_TESTNET4,
+            Network::Signet => BlockHash::GENESIS_SIGNET,
+            Network::Regtest => BlockHash::GENESIS_REGTEST,
+        }
+    }
 }
 
 impl From<Network> for AddressNetwork {
