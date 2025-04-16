@@ -78,6 +78,25 @@ impl From<Network> for AddressNetwork {
     }
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error)]
+#[display("unknown genesis block hash '{0}'")]
+pub struct UnknownGenesisBlock(pub BlockHash);
+
+impl TryFrom<BlockHash> for Network {
+    type Error = UnknownGenesisBlock;
+
+    fn try_from(hash: BlockHash) -> Result<Self, Self::Error> {
+        match hash {
+            BlockHash::GENESIS_MAINNET => Ok(Network::Mainnet),
+            BlockHash::GENESIS_TESTNET3 => Ok(Network::Testnet3),
+            BlockHash::GENESIS_TESTNET4 => Ok(Network::Testnet4),
+            BlockHash::GENESIS_SIGNET => Ok(Network::Signet),
+            BlockHash::GENESIS_REGTEST => Ok(Network::Regtest),
+            _ => Err(UnknownGenesisBlock(hash)),
+        }
+    }
+}
+
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error)]
 #[display("unknown bitcoin network '{0}'")]
 pub struct UnknownNetwork(pub String);

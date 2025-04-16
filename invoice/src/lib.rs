@@ -36,4 +36,4 @@ mod network;
 pub use address::{
     Address, AddressError, AddressNetwork, AddressParseError, AddressPayload, AddressType,
 };
-pub use network::{Network, UnknownNetwork};
+pub use network::{Network, UnknownGenesisBlock, UnknownNetwork};
