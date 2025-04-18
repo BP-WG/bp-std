@@ -14,10 +14,10 @@ edition = "2021"
 license = "Apache-2.0"
 
 [workspace.dependencies]
-amplify = "4.7.0"
+amplify = "4.8.0"
 bech32 = "0.9.1"
 secp256k1 = "0.30.0"
-strict_encoding = "2.7.0"
+strict_encoding = "2.8.2"
 commit_verify = "0.11.0-beta.9"
 bp-consensus = "0.11.1-alpha.1"
 bp-core = { version = "0.11.1-alpha.1" }
@@ -66,8 +66,9 @@ serde = ["serde_crate", "bp-consensus/serde", "bp-invoice/serde", "bp-derive/ser
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2"
-rand = { version = "0.8.4", optional = true }
-getrandom = { version = "0.2", features = ["js"] }
+rand = { version = "0.9.1", optional = true }
+getrandom = { version = "0.3", features = ["wasm_js"] }
+getrandom2 = { package = "getrandom", version = "0.2", features = ["js"] }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen-test = "0.3"
