@@ -285,7 +285,8 @@ impl FromStr for Address {
 #[cfg_attr(
     feature = "strict_encoding",
     derive(StrictType, StrictDumb, StrictEncode, StrictDecode),
-    strict_type(lib = "BPCore", tags = custom, dumb = Self::Pkh(strict_dumb!()))
+    // This type should not be included in any library
+    strict_type(lib = "_", tags = custom, dumb = Self::Pkh(strict_dumb!()))
 )]
 pub enum AddressPayload {
     /// P2PKH payload.
