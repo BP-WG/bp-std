@@ -37,6 +37,9 @@ pub enum ConstructionError {
     #[display(inner)]
     Psbt(PsbtError),
 
+    /// the input spending {0} is not known for the current wallet.
+    UnknownInput(Outpoint),
+
     /// impossible to construct transaction having no inputs.
     NoInputs,
 
@@ -195,7 +198,7 @@ pub trait PsbtConstructor {
     type Descr: Descriptor<Self::Key>;
 
     fn descriptor(&self) -> &Self::Descr;
-    fn utxo(&self, outpoint: Outpoint) -> Option<Utxo>;
+    fn utxo(&self, outpoint: Outpoint) -> Option<(Utxo, ScriptPubkey)>;
     fn network(&self) -> Network;
     fn next_derivation_index(&mut self, keychain: impl Into<Keychain>, shift: bool) -> NormalIndex;
 
@@ -217,11 +220,12 @@ pub trait PsbtConstructor {
 
         // 1. Add inputs
         for coin in coins {
-            let utxo = self.utxo(coin).expect("wallet data inconsistency");
+            let (utxo, spk) = self.utxo(coin).ok_or(ConstructionError::UnknownInput(coin))?;
             psbt.construct_input_expect(
                 utxo.to_prevout(),
                 self.descriptor(),
                 utxo.terminal,
+                spk,
                 params.seq_no,
             );
         }

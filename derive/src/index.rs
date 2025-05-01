@@ -291,6 +291,7 @@ impl From<&NormalIndex> for NormalIndex {
 
 impl NormalIndex {
     pub const fn normal(child_number: u16) -> Self { NormalIndex(child_number as u32) }
+    pub(crate) const fn normal_unchecked(child_number: u32) -> Self { NormalIndex(child_number) }
 }
 
 impl IdxBase for NormalIndex {

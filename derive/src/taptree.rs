@@ -97,7 +97,11 @@ impl TapTreeBuilder {
 
 /// Non-empty taproot script tree.
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize), serde(crate = "serde_crate", transparent))]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(crate = "serde_crate", transparent)
+)]
 pub struct TapTree(Vec<LeafInfo>);
 
 impl Deref for TapTree {
@@ -153,7 +157,7 @@ impl TapTree {
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 #[cfg_attr(
     feature = "serde",
-    derive(Serialize),
+    derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 pub struct LeafInfo {

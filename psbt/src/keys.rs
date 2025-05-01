@@ -730,7 +730,7 @@ impl<'a, T: KeyType> KeyPair<T, Box<dyn Encode + 'a>, Box<dyn Encode + 'a>> {
 #[derive(Clone, PartialOrd, Ord, Eq, PartialEq, Hash, Debug, Display)]
 #[cfg_attr(
     feature = "serde",
-    derive(Serialize),
+    derive(Serialize, Deserialize),
     serde(crate = "serde_crate", rename_all = "camelCase")
 )]
 #[display("{identifier} {subtype:#x} {data:#x}")]

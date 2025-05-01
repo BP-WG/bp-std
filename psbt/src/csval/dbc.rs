@@ -21,7 +21,7 @@
 
 use bp::dbc::opret::OpretProof;
 use bp::dbc::tapret::TapretProof;
-use bp::dbc::{self, Anchor, Method};
+use bp::dbc::{self, Method};
 use commit_verify::mpc;
 
 use crate::{MpcPsbtError, OpretKeyError, Output, Psbt, TapretKeyError};
@@ -70,17 +70,14 @@ impl Psbt {
         })
     }
 
-    pub fn dbc_commit<D: DbcPsbtProof>(
-        &mut self,
-    ) -> Result<Anchor<mpc::MerkleBlock, D>, DbcPsbtError> {
+    pub fn dbc_commit<D: DbcPsbtProof>(&mut self) -> Result<(mpc::MerkleBlock, D), DbcPsbtError> {
         if self.are_outputs_modifiable() {
             return Err(DbcPsbtError::TxOutputsModifiable);
         }
 
         let output = self.dbc_output_mut::<D>().ok_or(DbcPsbtError::NoProperOutput(D::METHOD))?;
 
-        let (mpc_proof, dbc_proof) = D::dbc_commit(output)?;
-        Ok(Anchor::new(mpc_proof, dbc_proof))
+        D::dbc_commit(output)
     }
 }
 

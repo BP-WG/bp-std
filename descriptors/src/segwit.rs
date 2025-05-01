@@ -52,9 +52,10 @@ impl<K: DeriveCompr> Derive<DerivedScript> for Wpkh<K> {
         &self,
         keychain: impl Into<Keychain>,
         index: impl Into<NormalIndex>,
-    ) -> DerivedScript {
-        let key = self.0.derive(keychain, index);
-        DerivedScript::Bare(ScriptPubkey::p2wpkh(WPubkeyHash::from(key)))
+    ) -> impl Iterator<Item = DerivedScript> {
+        self.0
+            .derive(keychain, index)
+            .map(|key| DerivedScript::Bare(ScriptPubkey::p2wpkh(WPubkeyHash::from(key))))
     }
 }
 
@@ -72,10 +73,10 @@ impl<K: DeriveCompr> Descriptor<K> for Wpkh<K> {
     fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> { iter::once(self.0.xpub_spec()) }
 
     fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
-        let mut map = IndexMap::with_capacity(1);
-        let key = self.0.derive(terminal.keychain, terminal.index);
-        map.insert(key.into(), KeyOrigin::with(self.0.xpub_spec().origin().clone(), terminal));
-        map
+        self.0
+            .derive(terminal.keychain, terminal.index)
+            .map(|key| (key.into(), KeyOrigin::with(self.0.xpub_spec().origin().clone(), terminal)))
+            .collect()
     }
 
     fn xonly_keyset(&self, _terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation> {
