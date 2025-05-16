@@ -40,8 +40,8 @@ mod sign;
 
 pub use coders::{Decode, DecodeError, Encode, PsbtError};
 pub use constructor::{
-    Beneficiary, BeneficiaryParseError, ConstructionError, Payment, PsbtConstructor, PsbtMeta,
-    TxParams, Utxo,
+    Beneficiary, BeneficiaryParseError, ChangeInfo, ConstructionError, Payment, PsbtConstructor,
+    PsbtMeta, TxParams, Utxo,
 };
 #[cfg(feature = "client-side-validation")]
 pub use csval::*;
