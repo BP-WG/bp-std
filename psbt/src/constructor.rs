@@ -24,8 +24,8 @@ use std::num::ParseIntError;
 use std::str::FromStr;
 
 use derive::{
-    Address, AddressParseError, Keychain, LockTime, Network, NormalIndex, Outpoint, Sats,
-    ScriptPubkey, SeqNo, Terminal, Vout,
+    Address, AddressNetwork, AddressParseError, Keychain, LockTime, Network, NormalIndex, Outpoint,
+    Sats, ScriptPubkey, SeqNo, Terminal, Vout,
 };
 use descriptors::Descriptor;
 
@@ -183,6 +183,7 @@ pub struct ChangeInfo {
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub struct PsbtMeta {
+    pub network: AddressNetwork,
     pub fee: Sats,
     pub weight: u32,
     pub size: u32,
@@ -300,6 +301,7 @@ pub trait PsbtConstructor {
         };
 
         let meta = PsbtMeta {
+            network: self.network().into(),
             fee: params.fee,
             weight: 0, // TODO: Implement weight/size computation
             size: 0,
