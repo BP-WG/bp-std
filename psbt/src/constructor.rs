@@ -289,9 +289,16 @@ pub trait PsbtConstructor {
                 (None, None)
             };
 
-        Ok((psbt, PsbtMeta {
+        let meta = PsbtMeta {
             change_vout,
             change_terminal,
-        }))
+        };
+        self.after_construct_psbt(&psbt, &meta);
+
+        Ok((psbt, meta))
     }
+
+    /// A hook which is called by the default `Self::construct_psbt` before returning the newly
+    /// constructed PSBT to the caller.
+    fn after_construct_psbt(&mut self, psbt: &Psbt, meta: &PsbtMeta) {}
 }
