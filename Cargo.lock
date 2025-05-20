@@ -251,8 +251,9 @@ dependencies = [
  "bp-invoice",
  "descriptors",
  "getrandom 0.2.15",
+ "getrandom 0.3.2",
  "psbt",
- "rand 0.8.5",
+ "rand 0.9.1",
  "secp256k1",
  "serde",
  "wasm-bindgen",
@@ -412,9 +413,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73fea8450eea4bac3940448fb7ae50d91f034f941199fcd9d909a5a07aa455f0"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "r-efi",
  "wasi 0.14.2+wasi-0.2.4",
+ "wasm-bindgen",
 ]
 
 [[package]]
