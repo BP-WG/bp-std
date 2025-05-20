@@ -24,8 +24,8 @@ use std::num::ParseIntError;
 use std::str::FromStr;
 
 use derive::{
-    Address, AddressParseError, Keychain, LockTime, Network, NormalIndex, Outpoint, Sats,
-    ScriptPubkey, SeqNo, Terminal, Vout,
+    Address, AddressNetwork, AddressParseError, Keychain, LockTime, Network, NormalIndex, Outpoint,
+    Sats, ScriptPubkey, SeqNo, Terminal, Vout,
 };
 use descriptors::Descriptor;
 
@@ -176,9 +176,18 @@ impl TxParams {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
+pub struct ChangeInfo {
+    pub vout: Vout,
+    pub terminal: Terminal,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub struct PsbtMeta {
-    pub change_vout: Option<Vout>,
-    pub change_terminal: Option<Terminal>,
+    pub network: AddressNetwork,
+    pub fee: Sats,
+    pub weight: u32,
+    pub size: u32,
+    pub change: Option<ChangeInfo>,
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
@@ -276,22 +285,36 @@ pub trait PsbtConstructor {
         }
 
         // 3. Add change - only if exceeded the dust limit
-        let (change_vout, change_terminal) =
-            if remaining_value > self.descriptor().class().dust_limit() {
-                let change_index =
-                    self.next_derivation_index(params.change_keychain, params.change_shift);
-                let change_terminal = Terminal::new(params.change_keychain, change_index);
-                let change_vout = psbt
-                    .append_change_expect(self.descriptor(), change_terminal, remaining_value)
-                    .index();
-                (Some(Vout::from_u32(change_vout as u32)), Some(change_terminal))
-            } else {
-                (None, None)
-            };
+        let change = if remaining_value > self.descriptor().class().dust_limit() {
+            let change_index =
+                self.next_derivation_index(params.change_keychain, params.change_shift);
+            let change_terminal = Terminal::new(params.change_keychain, change_index);
+            let change_vout = psbt
+                .append_change_expect(self.descriptor(), change_terminal, remaining_value)
+                .index();
+            Some(ChangeInfo {
+                vout: Vout::from_u32(change_vout as u32),
+                terminal: change_terminal,
+            })
+        } else {
+            None
+        };
 
-        Ok((psbt, PsbtMeta {
-            change_vout,
-            change_terminal,
-        }))
+        let meta = PsbtMeta {
+            network: self.network().into(),
+            fee: params.fee,
+            weight: 0, // TODO: Implement weight/size computation
+            size: 0,
+            change,
+        };
+        self.after_construct_psbt(&psbt, &meta);
+
+        Ok((psbt, meta))
+    }
+
+    /// A hook which is called by the default `Self::construct_psbt` before returning the newly
+    /// constructed PSBT to the caller.
+    fn after_construct_psbt(&mut self, _psbt: &Psbt, _meta: &PsbtMeta) {
+        // By default, we do not use the hook
     }
 }
