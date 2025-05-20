@@ -3,7 +3,7 @@ members = ["invoice", "derive", "descriptors", "psbt", "."]
 resolver = "2"
 
 [workspace.package]
-version = "0.12.0-beta.6"
+version = "0.12.0-rc.1"
 keywords = ["bitcoin", "wallet", "descriptors", "psbt", "taproot"]
 categories = ["cryptography::cryptocurrencies"]
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
@@ -14,17 +14,17 @@ edition = "2021"
 license = "Apache-2.0"
 
 [workspace.dependencies]
-amplify = "4.8.0"
+amplify = "4.9.0"
 bech32 = "0.9.1"
 secp256k1 = "0.30.0" # 0.31 breaks WASM
-strict_encoding = "2.8.2"
-commit_verify = "=0.12.0-beta.6"
-bp-consensus = "=0.12.0-beta.6"
-bp-core = { version = "=0.12.0-beta.6" }
-bp-invoice = { version = "=0.12.0-beta.6", path = "invoice" }
-bp-derive = { version = "=0.12.0-beta.6", path = "derive" }
-descriptors = { version = "=0.12.0-beta.6", path = "descriptors" }
-psbt = { version = "=0.12.0-beta.6", path = "psbt" }
+strict_encoding = "2.9.1"
+commit_verify = "0.12.0-rc.1"
+bp-consensus = "0.12.0-rc.1"
+bp-core = { version = "0.12.0-rc.1" }
+bp-invoice = { version = "0.12.0-rc.1", path = "invoice" }
+bp-derive = { version = "0.12.0-rc.1", path = "derive" }
+descriptors = { version = "0.12.0-rc.1", path = "descriptors" }
+psbt = { version = "0.12.0-rc.1", path = "psbt" }
 indexmap = "2.4.0"
 serde = { version = "1", features = ["derive"] }
 

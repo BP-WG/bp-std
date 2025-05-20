@@ -287,13 +287,13 @@ impl Xpub {
     /// Returns the HASH160 of the chaincode
     pub fn identifier(&self) -> XpubId {
         let hash = Ripemd160::digest(self.core.public_key.serialize());
-        XpubId::from_slice_unsafe(hash)
+        XpubId::from_slice_checked(hash)
     }
 
     pub fn fingerprint(&self) -> XpubFp {
         let mut bytes = [0u8; 4];
         bytes.copy_from_slice(&self.identifier()[..4]);
-        XpubFp::from_slice_unsafe(bytes)
+        XpubFp::from_slice_checked(bytes)
     }
 
     /// Constructs ECDSA public key valid in legacy context (compressed by default).
