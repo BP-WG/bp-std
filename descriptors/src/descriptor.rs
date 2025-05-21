@@ -112,7 +112,6 @@ pub trait Descriptor<K = XpubDerivable, V = ()>: DeriveScripts + Clone + Display
     feature = "serde",
     derive(Serialize, Deserialize),
     serde(
-        crate = "serde_crate",
         rename_all = "camelCase",
         bound(
             serialize = "S::Compr: serde::Serialize, S::XOnly: serde::Serialize",
@@ -212,10 +211,10 @@ impl<S: DeriveSet> Derive<DerivedScript> for StdDescr<S> {
         &self,
         keychain: impl Into<Keychain>,
         index: impl Into<NormalIndex>,
-    ) -> DerivedScript {
+    ) -> impl Iterator<Item = DerivedScript> {
         match self {
-            StdDescr::Wpkh(d) => d.derive(keychain, index),
-            StdDescr::TrKey(d) => d.derive(keychain, index),
+            StdDescr::Wpkh(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
+            StdDescr::TrKey(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
         }
     }
 }

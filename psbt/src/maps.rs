@@ -44,11 +44,7 @@ pub type KeyData = ByteStr;
 #[derive(Wrapper, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default, Debug, Display, From)]
 #[wrapper(Deref, Index, RangeOps, AsSlice, BorrowSlice, Hex)]
 #[display(LowerHex)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", transparent)
-)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
 pub struct ValueData(ByteStr);
 
 impl From<Vec<u8>> for ValueData {
@@ -233,12 +229,18 @@ pub trait KeyMap: Sized {
         &mut self,
         key: PropKey,
         value: impl Into<ValueData>,
-    ) -> Result<(), KeyAlreadyPresent> {
-        if self.has_proprietary(&key) {
-            return Err(KeyAlreadyPresent(key));
+    ) -> Result<bool, KeyAlreadyPresent> {
+        let value = value.into();
+        if let Some(existing) = self.proprietary(&key) {
+            if &value != existing {
+                Err(KeyAlreadyPresent(key))
+            } else {
+                Ok(false)
+            }
+        } else {
+            self._proprietary_map_mut().insert(key, value);
+            Ok(true)
         }
-        self._proprietary_map_mut().insert(key, value.into());
-        Ok(())
     }
     fn remove_proprietary(&mut self, key: &PropKey) -> Option<ValueData> {
         self._proprietary_map_mut().shift_remove(key)

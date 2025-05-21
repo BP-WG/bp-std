@@ -81,11 +81,7 @@ impl Prevout {
     derive(StrictType, StrictDumb, StrictEncode, StrictDecode),
     strict_type(lib = crate::LIB_NAME_PSBT)
 )]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct UnsignedTx {
     pub version: TxVer,
     pub inputs: VarIntArray<UnsignedTxIn>,
@@ -134,11 +130,7 @@ impl UnsignedTx {
     derive(StrictType, StrictDumb, StrictEncode, StrictDecode),
     strict_type(lib = crate::LIB_NAME_PSBT)
 )]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct UnsignedTxIn {
     pub prev_output: Outpoint,
     pub sequence: SeqNo,
@@ -172,11 +164,7 @@ impl UnsignedTxIn {
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
+#[cfg_attr(feature = "serde", derive(Serialize), serde(rename_all = "camelCase"))]
 // Serde deserialize is not implemented and require manual implementation instead of derive, since
 // we need to correctly initialize inputs and outputs with their indexes and account for unknown
 // fields.
@@ -317,18 +305,25 @@ impl Psbt {
             .unwrap_or_default()
     }
 
-    pub fn construct_input<K, D: Descriptor<K>>(
+    /// # Panics
+    ///
+    /// If the descriptor generates less or more than one script per the provided terminal
+    pub fn append_input<K, D: Descriptor<K>>(
         &mut self,
         prevout: Prevout,
         descriptor: &D,
         terminal: Terminal,
+        script_pubkey: ScriptPubkey,
         sequence: SeqNo,
     ) -> Result<&mut Input, Unmodifiable> {
         if !self.are_inputs_modifiable() {
             return Err(Unmodifiable);
         }
 
-        let scripts = descriptor.derive(terminal.keychain, terminal.index);
+        let script = descriptor
+            .derive(terminal.keychain, terminal.index)
+            .find(|script| script.to_script_pubkey() == script_pubkey)
+            .expect("unable to generate input matching prevout");
         let input = Input {
             index: self.inputs.len(),
             previous_outpoint: prevout.outpoint(),
@@ -336,11 +331,11 @@ impl Psbt {
             required_time_lock: None,
             required_height_lock: None,
             non_witness_tx: None,
-            witness_utxo: Some(TxOut::new(scripts.to_script_pubkey(), prevout.value)),
+            witness_utxo: Some(TxOut::new(script.to_script_pubkey(), prevout.value)),
             partial_sigs: none!(),
             sighash_type: None,
-            redeem_script: scripts.to_redeem_script(),
-            witness_script: scripts.to_witness_script(),
+            redeem_script: script.to_redeem_script(),
+            witness_script: script.to_witness_script(),
             bip32_derivation: descriptor.legacy_keyset(terminal),
             // TODO #36: Fill hash preimages from descriptor
             final_script_sig: None,
@@ -352,10 +347,10 @@ impl Psbt {
             hash256: none!(),
             tap_key_sig: None,
             tap_script_sig: none!(),
-            tap_leaf_script: scripts.to_leaf_scripts(),
+            tap_leaf_script: script.to_leaf_scripts(),
             tap_bip32_derivation: descriptor.xonly_keyset(terminal),
-            tap_internal_key: scripts.to_internal_pk(),
-            tap_merkle_root: scripts.to_tap_root(),
+            tap_internal_key: script.to_internal_pk(),
+            tap_merkle_root: script.to_tap_root(),
             proprietary: none!(),
             unknown: none!(),
         };
@@ -363,19 +358,21 @@ impl Psbt {
         Ok(self.inputs.last_mut().expect("just inserted"))
     }
 
-    pub fn construct_input_expect<K, D: Descriptor<K>>(
+    pub fn append_input_expect<K, D: Descriptor<K>>(
         &mut self,
         prevout: Prevout,
         descriptor: &D,
         terminal: Terminal,
+        script_pubkey: ScriptPubkey,
         sequence: SeqNo,
     ) -> &mut Input {
-        self.construct_input(prevout, descriptor, terminal, sequence)
+        self.append_input(prevout, descriptor, terminal, script_pubkey, sequence)
             .expect("PSBT inputs are expected to be modifiable")
     }
 
-    pub fn construct_output(
+    pub fn insert_output(
         &mut self,
+        pos: usize,
         script_pubkey: ScriptPubkey,
         value: Sats,
     ) -> Result<&mut Output, Unmodifiable> {
@@ -386,22 +383,36 @@ impl Psbt {
         let output = Output {
             amount: value,
             script: script_pubkey,
-            ..Output::new(self.outputs.len())
+            ..Output::new(pos)
         };
-        self.outputs.push(output);
-        Ok(self.outputs.last_mut().expect("just inserted"))
+        self.outputs.insert(pos, output);
+        for no in pos..self.outputs.len() {
+            self.outputs[no].index = no;
+        }
+        Ok(&mut self.outputs[pos])
     }
 
-    pub fn construct_output_expect(
+    pub fn append_output(
+        &mut self,
+        script_pubkey: ScriptPubkey,
+        value: Sats,
+    ) -> Result<&mut Output, Unmodifiable> {
+        self.insert_output(self.outputs.len(), script_pubkey, value)
+    }
+
+    pub fn append_output_expect(
         &mut self,
         script_pubkey: ScriptPubkey,
         value: Sats,
     ) -> &mut Output {
-        self.construct_output(script_pubkey, value)
+        self.append_output(script_pubkey, value)
             .expect("PSBT outputs are expected to be modifiable")
     }
 
-    pub fn construct_change<K, D: Descriptor<K>>(
+    /// # Panics
+    ///
+    /// If the descriptor generates less or more than one script per the provided terminal
+    pub fn append_change<K, D: Descriptor<K>>(
         &mut self,
         descriptor: &D,
         change_terminal: Terminal,
@@ -411,16 +422,19 @@ impl Psbt {
             return Err(Unmodifiable);
         }
 
-        let scripts = descriptor.derive(change_terminal.keychain, change_terminal.index);
+        let script = descriptor
+            .derive(change_terminal.keychain, change_terminal.index)
+            .next()
+            .expect("unable to generate change script");
         let output = Output {
             index: self.outputs.len(),
             amount: value,
-            script: scripts.to_script_pubkey(),
-            redeem_script: scripts.to_redeem_script(),
-            witness_script: scripts.to_witness_script(),
+            script: script.to_script_pubkey(),
+            redeem_script: script.to_redeem_script(),
+            witness_script: script.to_witness_script(),
             bip32_derivation: descriptor.legacy_keyset(change_terminal),
-            tap_internal_key: scripts.to_internal_pk(),
-            tap_tree: scripts.to_tap_tree(),
+            tap_internal_key: script.to_internal_pk(),
+            tap_tree: script.to_tap_tree(),
             tap_bip32_derivation: descriptor.xonly_keyset(change_terminal),
             proprietary: none!(),
             unknown: none!(),
@@ -429,13 +443,13 @@ impl Psbt {
         Ok(self.outputs.last_mut().expect("just inserted"))
     }
 
-    pub fn construct_change_expect<K, D: Descriptor<K>>(
+    pub fn append_change_expect<K, D: Descriptor<K>>(
         &mut self,
         descriptor: &D,
         change_terminal: Terminal,
         value: Sats,
     ) -> &mut Output {
-        self.construct_change(descriptor, change_terminal, value)
+        self.append_change(descriptor, change_terminal, value)
             .expect("PSBT outputs are expected to be modifiable")
     }
 
@@ -599,11 +613,7 @@ impl Weight for Psbt {
  */
 
 #[derive(Clone, Eq, PartialEq, Debug)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
+#[cfg_attr(feature = "serde", derive(Serialize), serde(rename_all = "camelCase"))]
 pub struct Input {
     /// The index of this input. Used in error reporting.
     #[cfg_attr(feature = "serde", serde(skip))]
@@ -928,11 +938,7 @@ impl Input {
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
+#[cfg_attr(feature = "serde", derive(Serialize), serde(rename_all = "camelCase"))]
 pub struct Output {
     /// The index of this output. Used in error reporting.
     #[cfg_attr(feature = "serde", serde(skip))]
@@ -1041,16 +1047,12 @@ impl Output {
         if terminal.len() != 1 {
             return None;
         }
-        return terminal.first().copied();
+        terminal.first().copied()
     }
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct ModifiableFlags {
     pub inputs_modifiable: bool,
     pub outputs_modifiable: bool,

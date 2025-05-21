@@ -21,11 +21,10 @@ bp-derive = { workspace = true }
 descriptors = { workspace = true }
 indexmap = { workspace = true }
 base64 = "0.22.1"
-chrono = "0.4.38"
-serde_crate = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
 
 [features]
 default = []
 all = ["serde", "client-side-validation"]
 client-side-validation = ["bp-core", "commit_verify", "strict_encoding"]
-serde = ["serde_crate", "bp-derive/serde", "indexmap/serde"]
+serde = ["dep:serde", "bp-derive/serde", "indexmap/serde"]

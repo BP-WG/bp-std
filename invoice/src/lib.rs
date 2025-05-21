@@ -23,7 +23,11 @@
 #[macro_use]
 extern crate amplify;
 #[cfg(feature = "serde")]
-extern crate serde_crate as serde;
+#[macro_use]
+extern crate serde;
+#[cfg(feature = "strict_encoding")]
+#[macro_use]
+extern crate strict_encoding;
 
 pub mod base58;
 mod address;
@@ -32,4 +36,4 @@ mod network;
 pub use address::{
     Address, AddressError, AddressNetwork, AddressParseError, AddressPayload, AddressType,
 };
-pub use network::{Network, UnknownNetwork};
+pub use network::{Network, UnknownGenesisBlock, UnknownNetwork};

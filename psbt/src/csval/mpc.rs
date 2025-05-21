@@ -264,6 +264,7 @@ impl Output {
         let messages = self.mpc_message_map()?;
         let min_depth = self.mpc_min_tree_depth().map(u5::with).unwrap_or(MPC_MINIMAL_DEPTH);
         let source = mpc::MultiSource {
+            method: mpc::Method::Sha256t,
             min_depth,
             messages,
             static_entropy: self.mpc_entropy(),

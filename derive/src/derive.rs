@@ -23,6 +23,7 @@
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::fmt::Display;
+use std::iter;
 use std::num::ParseIntError;
 use std::str::FromStr;
 
@@ -31,10 +32,9 @@ use bc::{
     TapNodeHash, WitnessScript, XOnlyPk,
 };
 use indexmap::IndexMap;
-use invoice::AddressError;
 
 use crate::{
-    Address, AddressNetwork, AddressParseError, ControlBlockFactory, DerivationIndex, Idx, IdxBase,
+    Address, AddressNetwork, AddressParseError, ControlBlockFactory, DerivationIndex, IdxBase,
     IndexParseError, NormalIndex, TapTree, XpubAccount, XpubDerivable,
 };
 
@@ -128,8 +128,8 @@ impl FromStr for Terminal {
 
 #[cfg(feature = "serde")]
 mod _serde {
-    use serde_crate::de::Error;
-    use serde_crate::{Deserialize, Deserializer, Serialize, Serializer};
+    use serde::de::Error;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
     use super::*;
 
@@ -279,7 +279,7 @@ impl DerivedScript {
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
+    serde(rename_all = "camelCase")
 )]
 #[display("{addr}{terminal}")]
 pub struct DerivedAddr {
@@ -335,25 +335,23 @@ pub trait Derive<D> {
 
     fn keychains(&self) -> BTreeSet<Keychain>;
 
-    fn derive(&self, keychain: impl Into<Keychain>, index: impl Into<NormalIndex>) -> D;
+    fn derive(
+        &self,
+        keychain: impl Into<Keychain>,
+        index: impl Into<NormalIndex>,
+    ) -> impl Iterator<Item = D>;
 
-    fn derive_batch(
+    fn derive_range(
         &self,
         keychain: impl Into<Keychain>,
         from: impl Into<NormalIndex>,
-        max_count: u8,
-    ) -> Vec<D> {
-        let mut index = from.into();
-        let mut count = 0u8;
-        let mut batch = Vec::with_capacity(max_count as usize);
+        to: impl Into<NormalIndex>,
+    ) -> impl Iterator<Item = D> {
+        let from = from.into().child_number();
+        let to = to.into().child_number();
         let keychain = keychain.into();
-        loop {
-            batch.push(self.derive(keychain, index));
-            count += 1;
-            if index.checked_inc_assign().is_none() || count >= max_count {
-                return batch;
-            }
-        }
+        (from..to)
+            .flat_map(move |index| self.derive(keychain, NormalIndex::normal_unchecked(index)))
     }
 }
 
@@ -371,28 +369,33 @@ pub trait DeriveXOnly: DeriveKey<XOnlyPk> {}
 impl<T: DeriveKey<XOnlyPk>> DeriveXOnly for T {}
 
 pub trait DeriveScripts: Derive<DerivedScript> {
+    /// Derives addresses for a given index.
+    ///
+    /// If the descriptor is not representable in form of an address (uses non-standard script etc),
+    /// returns an empty iterator.
     fn derive_address(
         &self,
         network: AddressNetwork,
         keychain: impl Into<Keychain>,
         index: impl Into<NormalIndex>,
-    ) -> Result<Address, AddressError> {
-        let spk = self.derive(keychain, index).to_script_pubkey();
-        Address::with(&spk, network)
+    ) -> impl Iterator<Item = Address> {
+        self.derive(keychain, index)
+            .flat_map(move |spk| Address::with(&spk.to_script_pubkey(), network).ok())
     }
 
-    fn derive_address_batch(
+    /// Derives addresses for a range of indexes.
+    ///
+    /// If the descriptor is not representable in form of an address (uses non-standard script etc),
+    /// returns an empty iterator.
+    fn derive_address_range(
         &self,
         network: AddressNetwork,
         keychain: impl Into<Keychain>,
         from: impl Into<NormalIndex>,
-        max_count: u8,
-    ) -> Result<Vec<Address>, AddressError> {
-        self.derive_batch(keychain, from, max_count)
-            .iter()
-            .map(DerivedScript::to_script_pubkey)
-            .map(|spk| Address::with(&spk, network))
-            .collect()
+        to: impl Into<NormalIndex>,
+    ) -> impl Iterator<Item = Address> {
+        self.derive_range(keychain, from, to)
+            .flat_map(move |spk| Address::with(&spk.to_script_pubkey(), network).ok())
     }
 }
 impl<T: Derive<DerivedScript>> DeriveScripts for T {}
@@ -416,8 +419,12 @@ impl Derive<LegacyPk> for XpubDerivable {
     #[inline]
     fn keychains(&self) -> BTreeSet<Keychain> { self.keychains.to_set() }
 
-    fn derive(&self, keychain: impl Into<Keychain>, index: impl Into<NormalIndex>) -> LegacyPk {
-        self.xpub().derive_pub([keychain.into().into(), index.into()]).to_legacy_pk()
+    fn derive(
+        &self,
+        keychain: impl Into<Keychain>,
+        index: impl Into<NormalIndex>,
+    ) -> impl Iterator<Item = LegacyPk> {
+        iter::once(self.xpub().derive_pub([keychain.into().into(), index.into()]).to_legacy_pk())
     }
 }
 
@@ -428,8 +435,12 @@ impl Derive<CompressedPk> for XpubDerivable {
     #[inline]
     fn keychains(&self) -> BTreeSet<Keychain> { self.keychains.to_set() }
 
-    fn derive(&self, keychain: impl Into<Keychain>, index: impl Into<NormalIndex>) -> CompressedPk {
-        self.xpub().derive_pub([keychain.into().into(), index.into()]).to_compr_pk()
+    fn derive(
+        &self,
+        keychain: impl Into<Keychain>,
+        index: impl Into<NormalIndex>,
+    ) -> impl Iterator<Item = CompressedPk> {
+        iter::once(self.xpub().derive_pub([keychain.into().into(), index.into()]).to_compr_pk())
     }
 }
 
@@ -440,8 +451,12 @@ impl Derive<XOnlyPk> for XpubDerivable {
     #[inline]
     fn keychains(&self) -> BTreeSet<Keychain> { self.keychains.to_set() }
 
-    fn derive(&self, keychain: impl Into<Keychain>, index: impl Into<NormalIndex>) -> XOnlyPk {
-        self.xpub().derive_pub([keychain.into().into(), index.into()]).to_xonly_pk()
+    fn derive(
+        &self,
+        keychain: impl Into<Keychain>,
+        index: impl Into<NormalIndex>,
+    ) -> impl Iterator<Item = XOnlyPk> {
+        iter::once(self.xpub().derive_pub([keychain.into().into(), index.into()]).to_xonly_pk())
     }
 }
 

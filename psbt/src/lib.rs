@@ -27,7 +27,7 @@ extern crate amplify;
 extern crate strict_encoding;
 #[cfg(feature = "serde")]
 #[macro_use]
-extern crate serde_crate as serde;
+extern crate serde;
 
 mod data;
 mod keys;
@@ -40,14 +40,14 @@ mod sign;
 
 pub use coders::{Decode, DecodeError, Encode, PsbtError};
 pub use constructor::{
-    Beneficiary, BeneficiaryParseError, ConstructionError, Payment, PsbtConstructor, PsbtMeta,
-    TxParams, Utxo,
+    Beneficiary, BeneficiaryParseError, ChangeInfo, ConstructionError, Payment, PsbtConstructor,
+    PsbtMeta, TxParams, Utxo,
 };
 #[cfg(feature = "client-side-validation")]
 pub use csval::*;
 pub use data::{
-    Input, ModifiableFlags, Output, Prevout, Psbt, PsbtParseError, UnfinalizedInputs, UnsignedTx,
-    UnsignedTxIn,
+    Input, ModifiableFlags, Output, Prevout, Psbt, PsbtParseError, UnfinalizedInputs, Unmodifiable,
+    UnsignedTx, UnsignedTxIn,
 };
 pub use keys::{GlobalKey, InputKey, KeyPair, KeyType, OutputKey, PropKey};
 pub use maps::{KeyAlreadyPresent, KeyData, KeyMap, Map, MapName, ValueData};
@@ -61,11 +61,7 @@ pub const LIB_NAME_PSBT: &str = "Psbt";
 pub struct PsbtUnsupportedVer(u32);
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
+#[cfg_attr(feature = "serde", derive(Serialize), serde(rename_all = "camelCase"))]
 pub enum PsbtVer {
     #[display("v0")]
     V0 = 0,

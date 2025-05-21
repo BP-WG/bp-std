@@ -24,12 +24,14 @@
 //! Supports deterministic bitcoin commitments with tapret and opret schemes and multi-protocol
 //! commitment structures used by all of them.
 
+mod mmb;
 mod mpc;
 mod dbc;
 pub mod opret;
 pub mod tapret;
 
 pub use dbc::DbcPsbtError;
+pub use mmb::{MmbPsbtError, PSBT_IN_MMB_MESSAGE, PSBT_MMB_PREFIX};
 pub use mpc::{
     MpcPsbtError, PSBT_MPC_PREFIX, PSBT_OUT_MPC_COMMITMENT, PSBT_OUT_MPC_ENTROPY,
     PSBT_OUT_MPC_MESSAGE, PSBT_OUT_MPC_MIN_TREE_DEPTH, PSBT_OUT_MPC_PROOF,

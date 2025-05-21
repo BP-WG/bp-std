@@ -3,30 +3,30 @@ members = ["invoice", "derive", "descriptors", "psbt", "."]
 resolver = "2"
 
 [workspace.package]
-version = "0.11.0-beta.9"
+version = "0.12.0-rc.1"
 keywords = ["bitcoin", "wallet", "descriptors", "psbt", "taproot"]
 categories = ["cryptography::cryptocurrencies"]
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
 homepage = "https://lnp-bp.org"
 repository = "https://github.com/BP-WG/bp-wallet"
-rust-version = "1.77.0" # Due to `rustfix`
+rust-version = "1.82.0"
 edition = "2021"
 license = "Apache-2.0"
 
 [workspace.dependencies]
-amplify = "4.7.0"
+amplify = "4.9.0"
 bech32 = "0.9.1"
-secp256k1 = "0.30.0"
-strict_encoding = "2.7.0"
-commit_verify = "0.11.0-beta.9"
-bp-consensus = "0.11.0-beta.9"
-bp-core = { version = "0.11.0-beta.9" }
-bp-invoice = { version = "0.11.0-beta.9", path = "invoice" }
-bp-derive = { version = "0.11.0-beta.9", path = "derive" }
-descriptors = { version = "0.11.0-beta.9", path = "descriptors" }
-psbt = { version = "0.11.0-beta.9", path = "psbt" }
+secp256k1 = "0.30.0" # 0.31 breaks WASM
+strict_encoding = "2.9.1"
+commit_verify = "0.12.0-rc.1"
+bp-consensus = "0.12.0-rc.1"
+bp-core = { version = "0.12.0-rc.1" }
+bp-invoice = { version = "0.12.0-rc.1", path = "invoice" }
+bp-derive = { version = "0.12.0-rc.1", path = "derive" }
+descriptors = { version = "0.12.0-rc.1", path = "descriptors" }
+psbt = { version = "0.12.0-rc.1", path = "psbt" }
 indexmap = "2.4.0"
-serde_crate = { package = "serde", version = "1", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
 
 [package]
 name = "bp-std"
@@ -54,20 +54,21 @@ bp-invoice = { workspace = true }
 bp-derive = { workspace = true }
 descriptors = { workspace = true }
 psbt = { workspace = true }
-serde_crate = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
 
 [features]
 default = []
 all = ["signers", "client-side-validation", "strict_encoding", "serde", "psbt/all"]
 signers = ["secp256k1/global-context", "secp256k1/rand"]
-strict_encoding = ["psbt/strict_encoding"]
+strict_encoding = ["psbt/strict_encoding", "bp-invoice/strict_encoding"]
 client-side-validation = ["bp-core", "psbt/client-side-validation"]
-serde = ["serde_crate", "bp-consensus/serde", "bp-invoice/serde", "bp-derive/serde", "descriptors/serde", "psbt/serde"]
+serde = ["dep:serde", "bp-consensus/serde", "bp-core/serde", "bp-invoice/serde", "bp-derive/serde", "descriptors/serde", "psbt/serde"]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2"
-rand = { version = "0.8.4", optional = true }
-getrandom = { version = "0.2", features = ["js"] }
+rand = { version = "0.9.1", optional = true }
+getrandom = { version = "0.3", features = ["wasm_js"] }
+getrandom2 = { package = "getrandom", version = "0.2", features = ["js"] }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen-test = "0.3"

@@ -24,8 +24,8 @@ use std::num::ParseIntError;
 use std::str::FromStr;
 
 use derive::{
-    Address, AddressParseError, Keychain, LockTime, Network, NormalIndex, Outpoint, Sats,
-    ScriptPubkey, SeqNo, Terminal, Vout,
+    Address, AddressNetwork, AddressParseError, Keychain, LockTime, Network, NormalIndex, Outpoint,
+    Sats, ScriptPubkey, SeqNo, Terminal, Vout,
 };
 use descriptors::Descriptor;
 
@@ -36,6 +36,9 @@ use crate::{Prevout, Psbt, PsbtError, PsbtVer};
 pub enum ConstructionError {
     #[display(inner)]
     Psbt(PsbtError),
+
+    /// the input spending {0} is not known for the current wallet.
+    UnknownInput(Outpoint),
 
     /// impossible to construct transaction having no inputs.
     NoInputs,
@@ -50,13 +53,16 @@ pub enum ConstructionError {
         output_value: Sats,
     },
 
-    /// not enough funds to pay fee of {fee} sats; all inputs contain {input_value} sats and
+    /// not enough funds to pay fee of {fee} sats; the sum of inputs is {input_value} sats, and
     /// outputs spends {output_value} sats out of them.
     NoFundsForFee {
         input_value: Sats,
         output_value: Sats,
         fee: Sats,
     },
+
+    /// network for address {0} mismatch the one used by the wallet.
+    NetworkMismatch(Address),
 }
 
 #[derive(Clone, Debug, Display, Error, From)]
@@ -170,9 +176,18 @@ impl TxParams {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
+pub struct ChangeInfo {
+    pub vout: Vout,
+    pub terminal: Terminal,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub struct PsbtMeta {
-    pub change_vout: Option<Vout>,
-    pub change_terminal: Option<Terminal>,
+    pub network: AddressNetwork,
+    pub fee: Sats,
+    pub weight: u32,
+    pub size: u32,
+    pub change: Option<ChangeInfo>,
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
@@ -192,14 +207,14 @@ pub trait PsbtConstructor {
     type Descr: Descriptor<Self::Key>;
 
     fn descriptor(&self) -> &Self::Descr;
-    fn utxo(&self, outpoint: Outpoint) -> Option<Utxo>;
+    fn utxo(&self, outpoint: Outpoint) -> Option<(Utxo, ScriptPubkey)>;
     fn network(&self) -> Network;
     fn next_derivation_index(&mut self, keychain: impl Into<Keychain>, shift: bool) -> NormalIndex;
 
-    fn construct_psbt<'a, 'b>(
+    fn construct_psbt(
         &mut self,
         coins: impl IntoIterator<Item = Outpoint>,
-        beneficiaries: impl IntoIterator<Item = &'b Beneficiary>,
+        beneficiaries: impl IntoIterator<Item = Beneficiary>,
         params: TxParams,
     ) -> Result<(Psbt, PsbtMeta), ConstructionError> {
         let mut psbt = Psbt::create(PsbtVer::V2);
@@ -214,11 +229,15 @@ pub trait PsbtConstructor {
 
         // 1. Add inputs
         for coin in coins {
-            let utxo = self.utxo(coin).expect("wallet data inconsistency");
-            psbt.construct_input_expect(
+            let (utxo, spk) = self.utxo(coin).ok_or(ConstructionError::UnknownInput(coin))?;
+            if psbt.inputs().any(|inp| inp.previous_outpoint == utxo.outpoint) {
+                continue;
+            }
+            psbt.append_input_expect(
                 utxo.to_prevout(),
                 self.descriptor(),
                 utxo.terminal,
+                spk,
                 params.seq_no,
             );
         }
@@ -231,11 +250,14 @@ pub trait PsbtConstructor {
         let mut max = Vec::new();
         let mut output_value = Sats::ZERO;
         for beneficiary in beneficiaries {
+            if beneficiary.address.network != self.network().into() {
+                return Err(ConstructionError::NetworkMismatch(beneficiary.address));
+            }
             let amount = beneficiary.amount.unwrap_or(Sats::ZERO);
             output_value
                 .checked_add_assign(amount)
                 .ok_or(ConstructionError::Overflow(output_value))?;
-            let out = psbt.construct_output_expect(beneficiary.script_pubkey(), amount);
+            let out = psbt.append_output_expect(beneficiary.script_pubkey(), amount);
             if beneficiary.amount.is_max() {
                 max.push(out.index());
             }
@@ -263,22 +285,36 @@ pub trait PsbtConstructor {
         }
 
         // 3. Add change - only if exceeded the dust limit
-        let (change_vout, change_terminal) =
-            if remaining_value > self.descriptor().class().dust_limit() {
-                let change_index =
-                    self.next_derivation_index(params.change_keychain, params.change_shift);
-                let change_terminal = Terminal::new(params.change_keychain, change_index);
-                let change_vout = psbt
-                    .construct_change_expect(self.descriptor(), change_terminal, remaining_value)
-                    .index();
-                (Some(Vout::from_u32(change_vout as u32)), Some(change_terminal))
-            } else {
-                (None, None)
-            };
+        let change = if remaining_value > self.descriptor().class().dust_limit() {
+            let change_index =
+                self.next_derivation_index(params.change_keychain, params.change_shift);
+            let change_terminal = Terminal::new(params.change_keychain, change_index);
+            let change_vout = psbt
+                .append_change_expect(self.descriptor(), change_terminal, remaining_value)
+                .index();
+            Some(ChangeInfo {
+                vout: Vout::from_u32(change_vout as u32),
+                terminal: change_terminal,
+            })
+        } else {
+            None
+        };
 
-        Ok((psbt, PsbtMeta {
-            change_vout,
-            change_terminal,
-        }))
+        let meta = PsbtMeta {
+            network: self.network().into(),
+            fee: params.fee,
+            weight: 0, // TODO: Implement weight/size computation
+            size: 0,
+            change,
+        };
+        self.after_construct_psbt(&psbt, &meta);
+
+        Ok((psbt, meta))
+    }
+
+    /// A hook which is called by the default `Self::construct_psbt` before returning the newly
+    /// constructed PSBT to the caller.
+    fn after_construct_psbt(&mut self, _psbt: &Psbt, _meta: &PsbtMeta) {
+        // By default, we do not use the hook
     }
 }

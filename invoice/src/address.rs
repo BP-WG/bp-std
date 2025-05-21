@@ -281,25 +281,37 @@ impl FromStr for Address {
 
 /// Internal address content. Consists of serialized hashes or x-only key value.
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
+#[cfg_attr(
+    feature = "strict_encoding",
+    derive(StrictType, StrictDumb, StrictEncode, StrictDecode),
+    // This type should not be included in any library
+    strict_type(lib = "_", tags = custom, dumb = Self::Pkh(strict_dumb!()))
+)]
 pub enum AddressPayload {
     /// P2PKH payload.
     #[from]
+    #[cfg_attr(feature = "strict_encoding", strict_type(tag = 1))]
     Pkh(PubkeyHash),
 
     /// P2SH and SegWit nested (proprietary) P2WPKH/WSH-in-P2SH payloads.
     #[from]
+    #[cfg_attr(feature = "strict_encoding", strict_type(tag = 2))]
     Sh(ScriptHash),
 
     /// P2WPKH payload.
     #[from]
+    #[cfg_attr(feature = "strict_encoding", strict_type(tag = 0x10))]
     Wpkh(WPubkeyHash),
 
     /// P2WSH payload.
     #[from]
+    #[cfg_attr(feature = "strict_encoding", strict_type(tag = 0x11))]
     Wsh(WScriptHash),
 
     /// P2TR payload.
     #[from]
+    #[cfg_attr(feature = "strict_encoding", strict_type(tag = 0x20))]
     Tr(OutputPk),
 }
 

@@ -24,15 +24,13 @@
 extern crate amplify;
 #[cfg(feature = "serde")]
 #[macro_use]
-extern crate serde_crate as serde;
+extern crate serde;
 
-mod factory;
 mod descriptor;
 mod multisig;
 mod segwit;
 mod taproot;
 
 pub use descriptor::{Descriptor, LegacyKeySig, SpkClass, StdDescr, TaprootKeySig};
-pub use factory::AddressFactory;
 pub use segwit::Wpkh;
-pub use taproot::TrKey;
+pub use taproot::{Tr, TrKey};

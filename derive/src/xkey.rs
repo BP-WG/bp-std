@@ -165,11 +165,7 @@ pub struct XpubCore {
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default, Debug, Display, From)]
 #[wrapper(RangeOps, Hex, FromStr)]
 #[display(LowerHex)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", transparent)
-)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
 pub struct XpubFp(
     #[from]
     #[from([u8; 4])]
@@ -191,11 +187,7 @@ impl XpubFp {
 #[derive(Wrapper, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default, Debug, Display, From)]
 #[wrapper(RangeOps, Hex, FromStr)]
 #[display(LowerHex)]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", transparent)
-)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
 pub struct XpubId(
     #[from]
     #[from([u8; 20])]
@@ -295,13 +287,13 @@ impl Xpub {
     /// Returns the HASH160 of the chaincode
     pub fn identifier(&self) -> XpubId {
         let hash = Ripemd160::digest(self.core.public_key.serialize());
-        XpubId::from_slice_unsafe(hash)
+        XpubId::from_slice_checked(hash)
     }
 
     pub fn fingerprint(&self) -> XpubFp {
         let mut bytes = [0u8; 4];
         bytes.copy_from_slice(&self.identifier()[..4]);
-        XpubFp::from_slice_unsafe(bytes)
+        XpubFp::from_slice_checked(bytes)
     }
 
     /// Constructs ECDSA public key valid in legacy context (compressed by default).
@@ -364,6 +356,8 @@ impl Xpub {
             core,
         }
     }
+
+    pub fn chain_code(&self) -> ChainCode { self.core.chain_code }
 }
 
 impl Display for Xpub {
@@ -588,6 +582,8 @@ impl Xpriv {
             },
         }
     }
+
+    pub fn chain_code(&self) -> ChainCode { self.core.chain_code }
 }
 
 impl Display for Xpriv {
@@ -607,11 +603,7 @@ impl FromStr for Xpriv {
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
 #[display("{master_fp}{derivation}", alt = "{master_fp}{derivation:#}")]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct XkeyOrigin {
     master_fp: XpubFp,
     derivation: DerivationPath<HardenedIndex>,
@@ -642,7 +634,7 @@ impl XkeyOrigin {
         self.derivation.iter().copied().map(DerivationIndex::from).collect()
     }
 
-    pub fn child_derivation<'a>(&'a self, child: &'a KeyOrigin) -> Option<&[DerivationIndex]> {
+    pub fn child_derivation<'a>(&'a self, child: &'a KeyOrigin) -> Option<&'a [DerivationIndex]> {
         if self.master_fp() == child.master_fp() {
             let d = child.derivation();
             let shared = d.shared_prefix(self.derivation());
@@ -689,11 +681,7 @@ pub enum OriginParseError {
 
 #[derive(Getters, Clone, Eq, PartialEq, Hash, Debug, Display)]
 #[display("{master_fp}{derivation}", alt = "{master_fp}{derivation:#}")]
-#[cfg_attr(
-    feature = "serde",
-    derive(Serialize, Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase")
-)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct KeyOrigin {
     #[getter(as_copy)]
     master_fp: XpubFp,
@@ -1018,7 +1006,7 @@ impl FromStr for XpubDerivable {
 
 #[cfg(feature = "serde")]
 mod _serde {
-    use serde_crate::{de, Deserialize, Deserializer, Serialize, Serializer};
+    use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
     use super::*;
 

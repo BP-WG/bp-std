@@ -19,12 +19,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use bp::dbc::opret::OpretProof;
 use bp::dbc::tapret::TapretProof;
-use bp::dbc::{self, Anchor, Method};
 use commit_verify::mpc;
 
-use crate::{MpcPsbtError, OpretKeyError, Output, Psbt, TapretKeyError};
+use crate::{MmbPsbtError, MpcPsbtError, OpretKeyError, Psbt, TapretKeyError};
 
 #[derive(Clone, PartialEq, Eq, Debug, Display, Error, From)]
 #[display(doc_comments)]
@@ -32,8 +30,8 @@ pub enum DbcPsbtError {
     /// the first output valid for a DBC commitment is not marked as a commitment host.
     NoHostOutput,
 
-    /// the transactions contains no output valid for {0} DBC commitment.
-    NoProperOutput(Method),
+    /// the transaction contains no output valid for a DBC commitment.
+    NoProperOutput,
 
     /// DBC commitment is already present.
     AlreadyPresent,
@@ -41,6 +39,10 @@ pub enum DbcPsbtError {
     /// transaction outputs are marked as modifiable, thus deterministic bitcoin commitment can't
     /// be created.
     TxOutputsModifiable,
+
+    #[from]
+    #[display(inner)]
+    Mmb(MmbPsbtError),
 
     #[from]
     #[display(inner)]
@@ -56,62 +58,34 @@ pub enum DbcPsbtError {
 }
 
 impl Psbt {
-    pub fn dbc_output<D: DbcPsbtProof>(&mut self) -> Option<&Output> {
-        self.outputs().find(|output| {
-            (output.script.is_p2tr() && D::METHOD == Method::TapretFirst)
-                || (output.script.is_op_return() && D::METHOD == Method::OpretFirst)
-        })
-    }
-
-    pub fn dbc_output_mut<D: DbcPsbtProof>(&mut self) -> Option<&mut Output> {
-        self.outputs_mut().find(|output| {
-            (output.script.is_p2tr() && D::METHOD == Method::TapretFirst)
-                || (output.script.is_op_return() && D::METHOD == Method::OpretFirst)
-        })
-    }
-
-    pub fn dbc_commit<D: DbcPsbtProof>(
-        &mut self,
-    ) -> Result<Anchor<mpc::MerkleBlock, D>, DbcPsbtError> {
+    pub fn dbc_commit(&mut self) -> Result<(mpc::MerkleBlock, Option<TapretProof>), DbcPsbtError> {
         if self.are_outputs_modifiable() {
             return Err(DbcPsbtError::TxOutputsModifiable);
         }
 
-        let output = self.dbc_output_mut::<D>().ok_or(DbcPsbtError::NoProperOutput(D::METHOD))?;
+        let map = self.mmb_complete()?;
+        let output = self
+            .outputs_mut()
+            .find(|out| out.script.is_op_return() || out.script.is_p2tr())
+            .ok_or(DbcPsbtError::NoProperOutput)?;
 
-        let (mpc_proof, dbc_proof) = D::dbc_commit(output)?;
-        Ok(Anchor::new(mpc_proof, dbc_proof))
-    }
-}
-
-pub trait DbcPsbtProof: dbc::Proof {
-    const METHOD: Method;
-    fn dbc_commit(output: &mut Output) -> Result<(mpc::MerkleBlock, Self), DbcPsbtError>;
-}
-
-impl DbcPsbtProof for TapretProof {
-    const METHOD: Method = Method::TapretFirst;
-
-    fn dbc_commit(output: &mut Output) -> Result<(mpc::MerkleBlock, Self), DbcPsbtError> {
-        let (commitment, mpc_proof) = output.mpc_commit()?;
-        if !output.is_tapret_host() {
-            return Err(DbcPsbtError::NoHostOutput);
+        for (id, msg) in map {
+            output.set_mpc_message(id, msg)?;
         }
-        let tapret_proof = output.tapret_commit(commitment)?;
-
-        Ok((mpc_proof, tapret_proof))
-    }
-}
-
-impl DbcPsbtProof for OpretProof {
-    const METHOD: Method = Method::OpretFirst;
-
-    fn dbc_commit(output: &mut Output) -> Result<(mpc::MerkleBlock, Self), DbcPsbtError> {
         let (commitment, mpc_proof) = output.mpc_commit()?;
-        if !output.is_opret_host() {
-            return Err(DbcPsbtError::NoHostOutput);
+
+        if output.script.is_op_return() {
+            if !output.is_opret_host() {
+                return Err(DbcPsbtError::NoHostOutput);
+            }
+            output.opret_commit(commitment)?;
+            Ok((mpc_proof, None))
+        } else {
+            if !output.is_tapret_host() {
+                return Err(DbcPsbtError::NoHostOutput);
+            }
+            let tapret_proof = output.tapret_commit(commitment)?;
+            Ok((mpc_proof, Some(tapret_proof)))
         }
-        output.opret_commit(commitment)?;
-        Ok((mpc_proof, OpretProof::default()))
     }
 }

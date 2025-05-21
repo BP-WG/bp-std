@@ -22,6 +22,8 @@
 
 use std::str::FromStr;
 
+use bc::BlockHash;
+
 use crate::AddressNetwork;
 
 /// Bitcoin network used by the address
@@ -29,7 +31,7 @@ use crate::AddressNetwork;
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize),
-    serde(crate = "serde_crate", rename_all = "camelCase",)
+    serde(rename_all = "camelCase",)
 )]
 #[display(lowercase)]
 pub enum Network {
@@ -54,6 +56,16 @@ impl Network {
     /// Detects whether the network is a kind of test network (testnet, signet,
     /// regtest).
     pub fn is_testnet(self) -> bool { self != Self::Mainnet }
+
+    pub const fn genesis_hash(self) -> BlockHash {
+        match self {
+            Network::Mainnet => BlockHash::GENESIS_MAINNET,
+            Network::Testnet3 => BlockHash::GENESIS_TESTNET3,
+            Network::Testnet4 => BlockHash::GENESIS_TESTNET4,
+            Network::Signet => BlockHash::GENESIS_SIGNET,
+            Network::Regtest => BlockHash::GENESIS_REGTEST,
+        }
+    }
 }
 
 impl From<Network> for AddressNetwork {
@@ -62,6 +74,25 @@ impl From<Network> for AddressNetwork {
             Network::Mainnet => AddressNetwork::Mainnet,
             Network::Testnet3 | Network::Testnet4 | Network::Signet => AddressNetwork::Testnet,
             Network::Regtest => AddressNetwork::Regtest,
+        }
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Display, Error)]
+#[display("unknown genesis block hash '{0}'")]
+pub struct UnknownGenesisBlock(pub BlockHash);
+
+impl TryFrom<BlockHash> for Network {
+    type Error = UnknownGenesisBlock;
+
+    fn try_from(hash: BlockHash) -> Result<Self, Self::Error> {
+        match hash {
+            BlockHash::GENESIS_MAINNET => Ok(Network::Mainnet),
+            BlockHash::GENESIS_TESTNET3 => Ok(Network::Testnet3),
+            BlockHash::GENESIS_TESTNET4 => Ok(Network::Testnet4),
+            BlockHash::GENESIS_SIGNET => Ok(Network::Signet),
+            BlockHash::GENESIS_REGTEST => Ok(Network::Regtest),
+            _ => Err(UnknownGenesisBlock(hash)),
         }
     }
 }
