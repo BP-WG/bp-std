@@ -22,6 +22,7 @@
 
 use std::collections::{BTreeSet, HashMap};
 use std::fmt::{self, Display, Formatter};
+use std::hash::Hash;
 use std::iter;
 
 use derive::{

@@ -25,13 +25,13 @@ use std::fmt::{Display, Formatter};
 use std::{fmt, iter};
 
 use derive::{
-    Bip340Sig, Derive, DeriveCompr, DeriveScripts, DeriveSet, DeriveXOnly, DerivedScript,
-    KeyOrigin, Keychain, LegacyPk, LegacySig, NormalIndex, Sats, SigScript, TapDerivation,
-    Terminal, Witness, XOnlyPk, XpubAccount, XpubDerivable,
+    Bip340Sig, Derive, DeriveCompr, DeriveLegacy, DeriveScripts, DeriveSet, DeriveXOnly,
+    DerivedScript, KeyOrigin, Keychain, LegacyPk, LegacySig, NormalIndex, Sats, SigScript,
+    TapDerivation, Terminal, Witness, XOnlyPk, XpubAccount, XpubDerivable,
 };
 use indexmap::IndexMap;
 
-use crate::{TrKey, Wpkh};
+use crate::{TrKey, Wpkh, WshSortedMulti};
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
 #[display(lowercase)]
@@ -127,13 +127,13 @@ pub enum StdDescr<S: DeriveSet = XpubDerivable> {
 
     #[from]
     Pkh(Pkh<S::Legacy>),
+    */
+    //#[from]
+    //ShMulti(ShMulti<S::Legacy>),
+    //#[from]
+    //ShSortedMulti(ShSortedMulti<S>),
 
-    #[from]
-    ShMulti(ShMulti<S::Legacy>),
-
-    #[from]
-    ShSortedMulti(ShSortedMulti<S::Legacy>),
-
+    /*
     #[from]
     ShTlMulti(ShTlMulti<S::Legacy>),
 
@@ -143,13 +143,12 @@ pub enum StdDescr<S: DeriveSet = XpubDerivable> {
     #[from]
     Wpkh(Wpkh<S::Compr>),
 
-    /*
-    #[from]
-    WshMulti(WshMulti<S::Compr>),
-
+    //#[from]
+    //WshMulti(WshMulti<S::Compr>),
     #[from]
     WshSortedMulti(WshSortedMulti<S::Compr>),
 
+    /*
     #[from]
     WshTlMulti(WshTlMulti<S::Compr>),
 
@@ -170,32 +169,14 @@ pub enum StdDescr<S: DeriveSet = XpubDerivable> {
 
     #[from]
     TrTree(TrTree<S::XOnly>),
-
-    // This should go into LNP:
-    Bolt(Bolt<S::Compr>)
-
-    // The rest should go to RGB:
-    #[from]
-    TapretKey(TapretKey<S::XOnly),
-
-    #[from]
-    TapretMusig(TapretMusig<S::XOnly>),
-
-    #[from]
-    TrMulti(TapretMulti<S::XOnly>),
-
-    #[from]
-    TapretTlMulti(TapretTlMulti<S::XOnly>),
-
-    #[from]
-    TapretTree(TapretTree<S::XOnly>),
-     */
+    */
 }
 
 impl<S: DeriveSet> Derive<DerivedScript> for StdDescr<S> {
     fn default_keychain(&self) -> Keychain {
         match self {
             StdDescr::Wpkh(d) => d.default_keychain(),
+            StdDescr::WshSortedMulti(d) => d.default_keychain(),
             StdDescr::TrKey(d) => d.default_keychain(),
         }
     }
@@ -203,6 +184,7 @@ impl<S: DeriveSet> Derive<DerivedScript> for StdDescr<S> {
     fn keychains(&self) -> BTreeSet<Keychain> {
         match self {
             StdDescr::Wpkh(d) => d.keychains(),
+            StdDescr::WshSortedMulti(d) => d.keychains(),
             StdDescr::TrKey(d) => d.keychains(),
         }
     }
@@ -214,17 +196,22 @@ impl<S: DeriveSet> Derive<DerivedScript> for StdDescr<S> {
     ) -> impl Iterator<Item = DerivedScript> {
         match self {
             StdDescr::Wpkh(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
+            StdDescr::WshSortedMulti(d) => {
+                d.derive(keychain, index).collect::<Vec<_>>().into_iter()
+            }
             StdDescr::TrKey(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
         }
     }
 }
 
-impl<K: DeriveSet<Compr = K, XOnly = K> + DeriveCompr + DeriveXOnly> Descriptor<K> for StdDescr<K>
+impl<K: DeriveSet<Legacy = K, Compr = K, XOnly = K> + DeriveLegacy + DeriveCompr + DeriveXOnly>
+    Descriptor<K> for StdDescr<K>
 where Self: Derive<DerivedScript>
 {
     fn class(&self) -> SpkClass {
         match self {
             StdDescr::Wpkh(d) => d.class(),
+            StdDescr::WshSortedMulti(d) => d.class(),
             StdDescr::TrKey(d) => d.class(),
         }
     }
@@ -233,6 +220,7 @@ where Self: Derive<DerivedScript>
     where K: 'a {
         match self {
             StdDescr::Wpkh(d) => d.keys().collect::<Vec<_>>(),
+            StdDescr::WshSortedMulti(d) => d.keys().collect::<Vec<_>>(),
             StdDescr::TrKey(d) => d.keys().collect::<Vec<_>>(),
         }
         .into_iter()
@@ -246,6 +234,7 @@ where Self: Derive<DerivedScript>
     fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> {
         match self {
             StdDescr::Wpkh(d) => d.xpubs().collect::<Vec<_>>(),
+            StdDescr::WshSortedMulti(d) => d.xpubs().collect::<Vec<_>>(),
             StdDescr::TrKey(d) => d.xpubs().collect::<Vec<_>>(),
         }
         .into_iter()
@@ -254,6 +243,7 @@ where Self: Derive<DerivedScript>
     fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
         match self {
             StdDescr::Wpkh(d) => d.legacy_keyset(terminal),
+            StdDescr::WshSortedMulti(d) => d.legacy_keyset(terminal),
             StdDescr::TrKey(d) => d.legacy_keyset(terminal),
         }
     }
@@ -261,6 +251,7 @@ where Self: Derive<DerivedScript>
     fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation> {
         match self {
             StdDescr::Wpkh(d) => d.xonly_keyset(terminal),
+            StdDescr::WshSortedMulti(d) => d.xonly_keyset(terminal),
             StdDescr::TrKey(d) => d.xonly_keyset(terminal),
         }
     }
@@ -271,6 +262,7 @@ where Self: Derive<DerivedScript>
     ) -> Option<(SigScript, Witness)> {
         match self {
             StdDescr::Wpkh(d) => d.legacy_witness(keysigs),
+            StdDescr::WshSortedMulti(d) => d.legacy_witness(keysigs),
             StdDescr::TrKey(d) => d.legacy_witness(keysigs),
         }
     }
@@ -278,6 +270,7 @@ where Self: Derive<DerivedScript>
     fn taproot_witness(&self, keysigs: HashMap<&KeyOrigin, TaprootKeySig>) -> Option<Witness> {
         match self {
             StdDescr::Wpkh(d) => d.taproot_witness(keysigs),
+            StdDescr::WshSortedMulti(d) => d.taproot_witness(keysigs),
             StdDescr::TrKey(d) => d.taproot_witness(keysigs),
         }
     }
@@ -292,6 +285,7 @@ where
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             StdDescr::Wpkh(d) => Display::fmt(d, f),
+            StdDescr::WshSortedMulti(d) => Display::fmt(d, f),
             StdDescr::TrKey(d) => Display::fmt(d, f),
         }
     }

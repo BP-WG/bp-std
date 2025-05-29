@@ -155,8 +155,7 @@ dependencies = [
 [[package]]
 name = "bp-consensus"
 version = "0.12.0-rc.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f8fc724e127c7200466ebdc34129ce24c8c74a379f858aceca4da6464b13dfa"
+source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#b244b2c85d1d1fdf717bf239f3952303f5d92ae5"
 dependencies = [
  "amplify",
  "chrono",
@@ -172,8 +171,7 @@ dependencies = [
 [[package]]
 name = "bp-core"
 version = "0.12.0-rc.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "27f3e3aecaa825a3ae0dd1187df4e703fcdc40473cc9fa3b5982453add7161f4"
+source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#b244b2c85d1d1fdf717bf239f3952303f5d92ae5"
 dependencies = [
  "bp-consensus",
  "bp-dbc",
@@ -189,8 +187,7 @@ dependencies = [
 [[package]]
 name = "bp-dbc"
 version = "0.12.0-rc.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7bd879682db0453a306c04bb82421135d2122aed189e8d3f50a79fef71050a03"
+source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#b244b2c85d1d1fdf717bf239f3952303f5d92ae5"
 dependencies = [
  "amplify",
  "base85",
@@ -233,8 +230,7 @@ dependencies = [
 [[package]]
 name = "bp-seals"
 version = "0.12.0-rc.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8c64e1419c261cbda361175befe23ae6c6071b8db1f642351e3fecf2fd79a8ea"
+source = "git+https://github.com/BP-WG/bp-core?branch=v0.12#b244b2c85d1d1fdf717bf239f3952303f5d92ae5"
 dependencies = [
  "amplify",
  "bp-consensus",

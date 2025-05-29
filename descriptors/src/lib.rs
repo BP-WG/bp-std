@@ -32,5 +32,6 @@ mod segwit;
 mod taproot;
 
 pub use descriptor::{Descriptor, LegacyKeySig, SpkClass, StdDescr, TaprootKeySig};
+pub use multisig::WshSortedMulti;
 pub use segwit::Wpkh;
 pub use taproot::{Tr, TrKey};

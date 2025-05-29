@@ -24,4 +24,4 @@ serde = { workspace = true, optional = true }
 [features]
 default = []
 all = ["serde"]
-serde = ["dep:serde", "bp-derive/serde"]
+serde = ["dep:serde", "bp-derive/serde", "indexmap/serde"]

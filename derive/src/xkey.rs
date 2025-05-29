@@ -601,7 +601,7 @@ impl FromStr for Xpriv {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
 #[display("{master_fp}{derivation}", alt = "{master_fp}{derivation:#}")]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct XkeyOrigin {
