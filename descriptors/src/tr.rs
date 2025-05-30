@@ -26,7 +26,8 @@ use std::iter;
 
 use derive::{
     Derive, DeriveXOnly, DerivedScript, InternalPk, KeyOrigin, Keychain, LegacyPk, NormalIndex,
-    SigScript, TapDerivation, Terminal, Witness, XOnlyPk, XpubAccount, XpubDerivable,
+    RedeemScript, SigScript, TapDerivation, Terminal, Witness, WitnessScript, XOnlyPk, XpubAccount,
+    XpubDerivable,
 };
 use indexmap::IndexMap;
 
@@ -117,9 +118,11 @@ impl<K: DeriveXOnly> Descriptor<K> for Tr<K> {
     fn legacy_witness(
         &self,
         keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
-    ) -> Option<(SigScript, Witness)> {
+        redeem_script: Option<RedeemScript>,
+        witness_script: Option<WitnessScript>,
+    ) -> Option<(SigScript, Option<Witness>)> {
         match self {
-            Tr::KeyOnly(d) => d.legacy_witness(keysigs),
+            Tr::KeyOnly(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
         }
     }
 
@@ -197,7 +200,9 @@ impl<K: DeriveXOnly> Descriptor<K> for TrKey<K> {
     fn legacy_witness(
         &self,
         _keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
-    ) -> Option<(SigScript, Witness)> {
+        _redeem_script: Option<RedeemScript>,
+        _witness_script: Option<WitnessScript>,
+    ) -> Option<(SigScript, Option<Witness>)> {
         None
     }
 

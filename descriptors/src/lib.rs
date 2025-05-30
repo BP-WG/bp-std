@@ -27,11 +27,13 @@ extern crate amplify;
 extern crate serde;
 
 mod descriptor;
+mod pkh;
 mod multisig;
-mod segwit;
-mod taproot;
+mod wpkh;
+mod tr;
 
 pub use descriptor::{Descriptor, LegacyKeySig, SpkClass, StdDescr, TaprootKeySig};
 pub use multisig::{ShMulti, ShSortedMulti, WshMulti, WshSortedMulti};
-pub use segwit::Wpkh;
-pub use taproot::{Tr, TrKey};
+pub use pkh::Pkh;
+pub use tr::{Tr, TrKey};
+pub use wpkh::Wpkh;

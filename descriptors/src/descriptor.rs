@@ -26,12 +26,13 @@ use std::{fmt, iter};
 
 use derive::{
     Bip340Sig, Derive, DeriveCompr, DeriveLegacy, DeriveScripts, DeriveSet, DeriveXOnly,
-    DerivedScript, KeyOrigin, Keychain, LegacyPk, LegacySig, NormalIndex, Sats, SigScript,
-    TapDerivation, Terminal, Witness, XOnlyPk, XpubAccount, XpubDerivable,
+    DerivedScript, KeyOrigin, Keychain, LegacyPk, LegacySig, NormalIndex, RedeemScript, Sats,
+    SigScript, TapDerivation, Terminal, Witness, WitnessScript, XOnlyPk, XpubAccount,
+    XpubDerivable,
 };
 use indexmap::IndexMap;
 
-use crate::{ShMulti, ShSortedMulti, TrKey, Wpkh, WshMulti, WshSortedMulti};
+use crate::{Pkh, ShMulti, ShSortedMulti, TrKey, Wpkh, WshMulti, WshSortedMulti};
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
 #[display(lowercase)]
@@ -102,7 +103,9 @@ pub trait Descriptor<K = XpubDerivable, V = ()>: DeriveScripts + Clone + Display
     fn legacy_witness(
         &self,
         keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
-    ) -> Option<(SigScript, Witness)>;
+        redeem_script: Option<RedeemScript>,
+        witness_script: Option<WitnessScript>,
+    ) -> Option<(SigScript, Option<Witness>)>;
 
     fn taproot_witness(&self, keysigs: HashMap<&KeyOrigin, TaprootKeySig>) -> Option<Witness>;
 }
@@ -123,10 +126,9 @@ pub trait Descriptor<K = XpubDerivable, V = ()>: DeriveScripts + Clone + Display
 )]
 #[non_exhaustive]
 pub enum StdDescr<S: DeriveSet = XpubDerivable> {
-    /*
     #[from]
     Pkh(Pkh<S::Legacy>),
-    */
+
     #[from]
     ShMulti(ShMulti<S::Legacy>),
 
@@ -142,8 +144,12 @@ pub enum StdDescr<S: DeriveSet = XpubDerivable> {
     #[from]
     WshSortedMulti(WshSortedMulti<S::Compr>),
 
+    // TODO:
+    //ShWpkh(Pkh<S::Legacy>),
+    //ShWsh(ShWsh<S::Compr>),
     #[from]
     TrKey(TrKey<S::XOnly>),
+    // TODO:
     /*
     #[from]
     TrMusig(TrMusig<S::XOnly>),
@@ -156,6 +162,7 @@ pub enum StdDescr<S: DeriveSet = XpubDerivable> {
 impl<S: DeriveSet> Derive<DerivedScript> for StdDescr<S> {
     fn default_keychain(&self) -> Keychain {
         match self {
+            StdDescr::Pkh(d) => d.default_keychain(),
             StdDescr::ShMulti(d) => d.default_keychain(),
             StdDescr::ShSortedMulti(d) => d.default_keychain(),
             StdDescr::Wpkh(d) => d.default_keychain(),
@@ -167,6 +174,7 @@ impl<S: DeriveSet> Derive<DerivedScript> for StdDescr<S> {
 
     fn keychains(&self) -> BTreeSet<Keychain> {
         match self {
+            StdDescr::Pkh(d) => d.keychains(),
             StdDescr::ShMulti(d) => d.keychains(),
             StdDescr::ShSortedMulti(d) => d.keychains(),
             StdDescr::Wpkh(d) => d.keychains(),
@@ -182,6 +190,7 @@ impl<S: DeriveSet> Derive<DerivedScript> for StdDescr<S> {
         index: impl Into<NormalIndex>,
     ) -> impl Iterator<Item = DerivedScript> {
         match self {
+            StdDescr::Pkh(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
             StdDescr::ShMulti(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
             StdDescr::ShSortedMulti(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
             StdDescr::Wpkh(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
@@ -200,6 +209,7 @@ where Self: Derive<DerivedScript>
 {
     fn class(&self) -> SpkClass {
         match self {
+            StdDescr::Pkh(d) => d.class(),
             StdDescr::ShMulti(d) => d.class(),
             StdDescr::ShSortedMulti(d) => d.class(),
             StdDescr::Wpkh(d) => d.class(),
@@ -212,6 +222,7 @@ where Self: Derive<DerivedScript>
     fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
     where K: 'a {
         match self {
+            StdDescr::Pkh(d) => d.keys().collect::<Vec<_>>(),
             StdDescr::ShMulti(d) => d.keys().collect::<Vec<_>>(),
             StdDescr::ShSortedMulti(d) => d.keys().collect::<Vec<_>>(),
             StdDescr::Wpkh(d) => d.keys().collect::<Vec<_>>(),
@@ -229,6 +240,7 @@ where Self: Derive<DerivedScript>
 
     fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> {
         match self {
+            StdDescr::Pkh(d) => d.xpubs().collect::<Vec<_>>(),
             StdDescr::ShMulti(d) => d.xpubs().collect::<Vec<_>>(),
             StdDescr::ShSortedMulti(d) => d.xpubs().collect::<Vec<_>>(),
             StdDescr::Wpkh(d) => d.xpubs().collect::<Vec<_>>(),
@@ -241,6 +253,7 @@ where Self: Derive<DerivedScript>
 
     fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
         match self {
+            StdDescr::Pkh(d) => d.legacy_keyset(terminal),
             StdDescr::ShMulti(d) => d.legacy_keyset(terminal),
             StdDescr::ShSortedMulti(d) => d.legacy_keyset(terminal),
             StdDescr::Wpkh(d) => d.legacy_keyset(terminal),
@@ -252,6 +265,7 @@ where Self: Derive<DerivedScript>
 
     fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation> {
         match self {
+            StdDescr::Pkh(d) => d.xonly_keyset(terminal),
             StdDescr::ShMulti(d) => d.xonly_keyset(terminal),
             StdDescr::ShSortedMulti(d) => d.xonly_keyset(terminal),
             StdDescr::Wpkh(d) => d.xonly_keyset(terminal),
@@ -264,19 +278,23 @@ where Self: Derive<DerivedScript>
     fn legacy_witness(
         &self,
         keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
-    ) -> Option<(SigScript, Witness)> {
+        redeem_script: Option<RedeemScript>,
+        witness_script: Option<WitnessScript>,
+    ) -> Option<(SigScript, Option<Witness>)> {
         match self {
-            StdDescr::ShMulti(d) => d.legacy_witness(keysigs),
-            StdDescr::ShSortedMulti(d) => d.legacy_witness(keysigs),
-            StdDescr::Wpkh(d) => d.legacy_witness(keysigs),
-            StdDescr::WshMulti(d) => d.legacy_witness(keysigs),
-            StdDescr::WshSortedMulti(d) => d.legacy_witness(keysigs),
-            StdDescr::TrKey(d) => d.legacy_witness(keysigs),
+            StdDescr::Pkh(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
+            StdDescr::ShMulti(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
+            StdDescr::ShSortedMulti(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
+            StdDescr::Wpkh(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
+            StdDescr::WshMulti(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
+            StdDescr::WshSortedMulti(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
+            StdDescr::TrKey(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
         }
     }
 
     fn taproot_witness(&self, keysigs: HashMap<&KeyOrigin, TaprootKeySig>) -> Option<Witness> {
         match self {
+            StdDescr::Pkh(d) => d.taproot_witness(keysigs),
             StdDescr::ShMulti(d) => d.taproot_witness(keysigs),
             StdDescr::ShSortedMulti(d) => d.taproot_witness(keysigs),
             StdDescr::Wpkh(d) => d.taproot_witness(keysigs),
@@ -295,6 +313,7 @@ where
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
+            StdDescr::Pkh(d) => Display::fmt(d, f),
             StdDescr::ShMulti(d) => Display::fmt(d, f),
             StdDescr::ShSortedMulti(d) => Display::fmt(d, f),
             StdDescr::Wpkh(d) => Display::fmt(d, f),

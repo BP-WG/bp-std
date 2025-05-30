@@ -26,8 +26,9 @@ use std::hash::Hash;
 use std::iter;
 
 use derive::{
-    Derive, DeriveCompr, DerivedScript, KeyOrigin, Keychain, LegacyPk, NormalIndex, ScriptPubkey,
-    SigScript, TapDerivation, Terminal, WPubkeyHash, Witness, XOnlyPk, XpubAccount, XpubDerivable,
+    Derive, DeriveCompr, DerivedScript, KeyOrigin, Keychain, LegacyPk, NormalIndex, RedeemScript,
+    ScriptPubkey, SigScript, TapDerivation, Terminal, WPubkeyHash, Witness, WitnessScript, XOnlyPk,
+    XpubAccount, XpubDerivable,
 };
 use indexmap::IndexMap;
 
@@ -87,12 +88,14 @@ impl<K: DeriveCompr> Descriptor<K> for Wpkh<K> {
     fn legacy_witness(
         &self,
         keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
-    ) -> Option<(SigScript, Witness)> {
+        _redeem_script: Option<RedeemScript>,
+        _witness_script: Option<WitnessScript>,
+    ) -> Option<(SigScript, Option<Witness>)> {
         let our_origin = self.0.xpub_spec().origin();
         let keysig =
             keysigs.iter().find(|(origin, _)| our_origin.is_subset_of(origin)).map(|(_, ks)| ks)?;
         let witness = Witness::from_consensus_stack([keysig.sig.to_vec(), keysig.key.to_vec()]);
-        Some((empty!(), witness))
+        Some((empty!(), Some(witness)))
     }
 
     fn taproot_witness(&self, _keysigs: HashMap<&KeyOrigin, TaprootKeySig>) -> Option<Witness> {

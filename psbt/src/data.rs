@@ -897,7 +897,7 @@ impl Input {
                             descriptor.taproot_witness(keysigs)
                         })
                 })
-                .map(|witness| (empty!(), witness))
+                .map(|witness| (empty!(), Some(witness)))
         } else {
             let keysigs = self
                 .partial_sigs
@@ -905,22 +905,26 @@ impl Input {
                 .map(|(pk, sig)| LegacyKeySig::new(*pk, *sig))
                 .filter_map(|ks| self.bip32_derivation.get(&ks.key).map(|origin| (origin, ks)))
                 .collect();
-            descriptor.legacy_witness(keysigs)
+            descriptor.legacy_witness(
+                keysigs,
+                self.redeem_script.clone(),
+                self.witness_script.clone(),
+            )
         };
         let Some((sig_script, witness)) = satisfaction else {
             return false;
         };
 
         self.final_script_sig = Some(sig_script);
-        self.final_witness = Some(witness);
+        self.final_witness = witness;
         // reset everything
         self.partial_sigs.clear(); // 0x02
         self.sighash_type = None; // 0x03
         self.redeem_script = None; // 0x04
         self.witness_script = None; // 0x05
         self.bip32_derivation.clear(); // 0x05
-                                       // finalized witness 0x06 and 0x07 are not clear
-                                       // 0x09 Proof of reserves not yet supported
+                                       // finalized witness 0x06 and 0x07 are not cleared
+                                       // 0x09 Proof of reserves is not yet supported
         self.ripemd160.clear(); // 0x0a
         self.sha256.clear(); // 0x0b
         self.hash160.clear(); // 0x0c

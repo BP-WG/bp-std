@@ -69,7 +69,8 @@ impl<K: DeriveLegacy> Derive<DerivedScript> for ShMulti<K> {
         let keychain = keychain.into();
         let index = index.into();
         let derived_set = derive(&self.keys, keychain, index).collect::<Vec<_>>();
-        redeem_script(self.threshold, derived_set)
+        let redeem_script = redeem_script(self.threshold, derived_set);
+        iter::once(DerivedScript::Bip13(redeem_script))
     }
 }
 
@@ -99,8 +100,13 @@ where Self: Derive<DerivedScript>
     fn legacy_witness(
         &self,
         keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
-    ) -> Option<(SigScript, Witness)> {
-        witness(&self.keys, keysigs)
+        redeem_script: Option<RedeemScript>,
+        witness_script: Option<WitnessScript>,
+    ) -> Option<(SigScript, Option<Witness>)> {
+        if witness_script.is_some() {
+            return None;
+        }
+        sig_script(self.keys(), keysigs, redeem_script?)
     }
 
     fn taproot_witness(&self, _keysigs: HashMap<&KeyOrigin, TaprootKeySig>) -> Option<Witness> {
@@ -151,7 +157,8 @@ impl<K: DeriveLegacy> Derive<DerivedScript> for ShSortedMulti<K> {
         let index = index.into();
         // Use of BTreeSet performs key sorting
         let derived_set = derive(&self.keys, keychain, index).collect::<BTreeSet<_>>();
-        redeem_script(self.threshold, derived_set)
+        let redeem_script = redeem_script(self.threshold, derived_set);
+        iter::once(DerivedScript::Bip13(redeem_script))
     }
 }
 
@@ -181,8 +188,13 @@ where Self: Derive<DerivedScript>
     fn legacy_witness(
         &self,
         keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
-    ) -> Option<(SigScript, Witness)> {
-        witness(&self.keys, keysigs)
+        redeem_script: Option<RedeemScript>,
+        witness_script: Option<WitnessScript>,
+    ) -> Option<(SigScript, Option<Witness>)> {
+        if witness_script.is_some() {
+            return None;
+        }
+        sig_script(self.keys(), keysigs, redeem_script?)
     }
 
     fn taproot_witness(&self, _keysigs: HashMap<&KeyOrigin, TaprootKeySig>) -> Option<Witness> {
@@ -232,7 +244,8 @@ impl<K: DeriveCompr> Derive<DerivedScript> for WshMulti<K> {
         let keychain = keychain.into();
         let index = index.into();
         let derived_set = derive(&self.keys, keychain, index).collect::<Vec<_>>();
-        witness_script(self.threshold, derived_set)
+        let witness_script = witness_script(self.threshold, derived_set);
+        iter::once(DerivedScript::Segwit(witness_script))
     }
 }
 
@@ -262,8 +275,13 @@ where Self: Derive<DerivedScript>
     fn legacy_witness(
         &self,
         keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
-    ) -> Option<(SigScript, Witness)> {
-        witness(self.keys(), keysigs)
+        redeem_script: Option<RedeemScript>,
+        witness_script: Option<WitnessScript>,
+    ) -> Option<(SigScript, Option<Witness>)> {
+        if redeem_script.is_some() {
+            return None;
+        }
+        witness(self.keys(), keysigs, witness_script?)
     }
 
     fn taproot_witness(&self, _keysigs: HashMap<&KeyOrigin, TaprootKeySig>) -> Option<Witness> {
@@ -314,7 +332,8 @@ impl<K: DeriveCompr> Derive<DerivedScript> for WshSortedMulti<K> {
         let index = index.into();
         // Use of BTreeSet performs key sorting
         let derived_set = derive(&self.keys, keychain, index).collect::<BTreeSet<_>>();
-        witness_script(self.threshold, derived_set)
+        let witness_script = witness_script(self.threshold, derived_set);
+        iter::once(DerivedScript::Segwit(witness_script))
     }
 }
 
@@ -344,8 +363,13 @@ where Self: Derive<DerivedScript>
     fn legacy_witness(
         &self,
         keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
-    ) -> Option<(SigScript, Witness)> {
-        witness(self.keys(), keysigs)
+        redeem_script: Option<RedeemScript>,
+        witness_script: Option<WitnessScript>,
+    ) -> Option<(SigScript, Option<Witness>)> {
+        if redeem_script.is_some() {
+            return None;
+        }
+        witness(self.keys(), keysigs, witness_script?)
     }
 
     fn taproot_witness(&self, _keysigs: HashMap<&KeyOrigin, TaprootKeySig>) -> Option<Witness> {
@@ -381,13 +405,8 @@ fn derive<'k, T, K: Derive<T> + 'k, I: IntoIterator<Item = &'k K>>(
         .map(move |xkey| xkey.derive(keychain, index).next().expect("no derivation found"))
 }
 
-fn redeem_script<I: IntoIterator<Item = LegacyPk>>(
-    threshold: u4,
-    keys: I,
-) -> impl Iterator<Item = DerivedScript>
-where
-    I::IntoIter: ExactSizeIterator,
-{
+fn redeem_script<I: IntoIterator<Item = LegacyPk>>(threshold: u4, keys: I) -> RedeemScript
+where I::IntoIter: ExactSizeIterator {
     let keys = keys.into_iter();
     let key_count = keys.len();
 
@@ -399,16 +418,11 @@ where
     redeem_script.push_num(key_count as u8);
     redeem_script.push_opcode(OpCode::CheckMultiSig);
 
-    iter::once(DerivedScript::Bip13(redeem_script))
+    redeem_script
 }
 
-fn witness_script<I: IntoIterator<Item = CompressedPk>>(
-    threshold: u4,
-    keys: I,
-) -> impl Iterator<Item = DerivedScript>
-where
-    I::IntoIter: ExactSizeIterator,
-{
+fn witness_script<I: IntoIterator<Item = CompressedPk>>(threshold: u4, keys: I) -> WitnessScript
+where I::IntoIter: ExactSizeIterator {
     let keys = keys.into_iter();
     let key_count = keys.len();
 
@@ -420,7 +434,7 @@ where
     witness_script.push_num(key_count as u8);
     witness_script.push_opcode(OpCode::CheckMultiSig);
 
-    iter::once(DerivedScript::Segwit(witness_script))
+    witness_script
 }
 
 fn legacy_keyset<'k, T: Into<LegacyPk>, K: DeriveKey<T> + 'k, I: IntoIterator<Item = &'k K>>(
@@ -438,22 +452,44 @@ fn legacy_keyset<'k, T: Into<LegacyPk>, K: DeriveKey<T> + 'k, I: IntoIterator<It
         .collect()
 }
 
-fn witness<'k, T, K: DeriveKey<T> + 'k, I: IntoIterator<Item = &'k K>>(
+fn sig_script<'k, K: DeriveLegacy + 'k, I: IntoIterator<Item = &'k K>>(
     keys: I,
     keysigs: HashMap<&'k KeyOrigin, LegacyKeySig>,
-) -> Option<(SigScript, Witness)> {
+    redeem_script: RedeemScript,
+) -> Option<(SigScript, Option<Witness>)> {
+    // Check that all sigs match our keys
+    if !check_sigs(keys.into_iter().map(K::xpub_spec), &keysigs) {
+        return None;
+    }
+
+    let mut sig_script = SigScript::new();
+    sig_script.push_num(0); // The infamous OP_CHECKMULTISIG bug
+    for sig in keysigs.values() {
+        sig_script.push_slice(&sig.sig.to_vec());
+    }
+    sig_script.push_slice(redeem_script.as_ref());
+
+    Some((sig_script, None))
+}
+
+fn witness<'k, K: DeriveCompr + 'k, I: IntoIterator<Item = &'k K>>(
+    keys: I,
+    keysigs: HashMap<&'k KeyOrigin, LegacyKeySig>,
+    witness_script: WitnessScript,
+) -> Option<(SigScript, Option<Witness>)> {
     // Check that all sigs match our keys
     if !check_sigs(keys.into_iter().map(K::xpub_spec), &keysigs) {
         return None;
     }
 
     let mut stack = Vec::with_capacity(keysigs.len() + 1);
+    stack.push(vec![]); // The infamous OP_CHECKMULTISIG bug
     for sig in keysigs.values() {
         stack.push(sig.sig.to_vec());
     }
-    stack.push(vec![]);
+    stack.push(witness_script.to_vec());
     let witness = Witness::from_consensus_stack(stack);
-    Some((empty!(), witness))
+    Some((empty!(), Some(witness)))
 }
 
 fn fmt<'k, K: Display + 'k>(
