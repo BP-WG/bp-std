@@ -36,6 +36,6 @@ mod tr;
 pub use descriptor::{Descriptor, LegacyKeySig, SpkClass, StdDescr, TaprootKeySig};
 pub use multisig::{ShMulti, ShSortedMulti, ShWsh, WshMulti, WshSortedMulti};
 pub use pkh::Pkh;
-pub use script::{ScriptDescr, ScriptItem, WitnessItem};
+pub use script::{Bare, ScriptDescr, ScriptItem, Sh, WitnessItem, Wsh};
 pub use tr::{Tr, TrKey, TrScript};
 pub use wpkh::{ShWpkh, Wpkh};

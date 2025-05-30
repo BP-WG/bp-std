@@ -34,18 +34,25 @@ use derive::{
 };
 use indexmap::IndexMap;
 
-use crate::{Descriptor, LegacyKeySig, SpkClass, TaprootKeySig};
+use crate::{Descriptor, LegacyKeySig, SpkClass, TaprootKeySig, Wsh};
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(untagged))]
 pub enum ShWsh<K: DeriveCompr = XpubDerivable> {
+    #[from]
+    Wsh(Wsh<K>),
+
+    #[from]
     Multi(WshMulti<K>),
+
+    #[from]
     SortedMulti(WshSortedMulti<K>),
 }
 
 impl<K: DeriveCompr> Derive<DerivedScript> for ShWsh<K> {
     fn default_keychain(&self) -> Keychain {
         match self {
+            Self::Wsh(d) => d.default_keychain(),
             Self::Multi(d) => d.default_keychain(),
             Self::SortedMulti(d) => d.default_keychain(),
         }
@@ -53,6 +60,7 @@ impl<K: DeriveCompr> Derive<DerivedScript> for ShWsh<K> {
 
     fn keychains(&self) -> BTreeSet<Keychain> {
         match self {
+            Self::Wsh(d) => d.keychains(),
             Self::Multi(d) => d.keychains(),
             Self::SortedMulti(d) => d.keychains(),
         }
@@ -68,6 +76,7 @@ impl<K: DeriveCompr> Derive<DerivedScript> for ShWsh<K> {
             _ => unreachable!(),
         };
         match self {
+            Self::Wsh(d) => d.derive(keychain, index).map(convert).collect::<Vec<_>>(),
             Self::Multi(d) => d.derive(keychain, index).map(convert).collect::<Vec<_>>(),
             Self::SortedMulti(d) => d.derive(keychain, index).map(convert).collect::<Vec<_>>(),
         }
@@ -81,6 +90,7 @@ impl<K: DeriveCompr> Descriptor<K> for ShWsh<K> {
     fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
     where K: 'a {
         match self {
+            Self::Wsh(d) => d.keys().collect::<Vec<_>>(),
             Self::Multi(d) => d.keys().collect::<Vec<_>>(),
             Self::SortedMulti(d) => d.keys().collect::<Vec<_>>(),
         }
@@ -90,6 +100,7 @@ impl<K: DeriveCompr> Descriptor<K> for ShWsh<K> {
     fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
     where (): 'a {
         match self {
+            Self::Wsh(d) => d.vars().collect::<Vec<_>>(),
             Self::Multi(d) => d.vars().collect::<Vec<_>>(),
             Self::SortedMulti(d) => d.vars().collect::<Vec<_>>(),
         }
@@ -98,6 +109,7 @@ impl<K: DeriveCompr> Descriptor<K> for ShWsh<K> {
 
     fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> {
         match self {
+            Self::Wsh(d) => d.xpubs().collect::<Vec<_>>(),
             Self::Multi(d) => d.xpubs().collect::<Vec<_>>(),
             Self::SortedMulti(d) => d.xpubs().collect::<Vec<_>>(),
         }
@@ -106,6 +118,7 @@ impl<K: DeriveCompr> Descriptor<K> for ShWsh<K> {
 
     fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
         match self {
+            Self::Wsh(d) => d.legacy_keyset(terminal),
             Self::Multi(d) => d.legacy_keyset(terminal),
             Self::SortedMulti(d) => d.legacy_keyset(terminal),
         }
@@ -113,6 +126,7 @@ impl<K: DeriveCompr> Descriptor<K> for ShWsh<K> {
 
     fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation> {
         match self {
+            Self::Wsh(d) => d.xonly_keyset(terminal),
             Self::Multi(d) => d.xonly_keyset(terminal),
             Self::SortedMulti(d) => d.xonly_keyset(terminal),
         }
@@ -125,6 +139,7 @@ impl<K: DeriveCompr> Descriptor<K> for ShWsh<K> {
         witness_script: Option<WitnessScript>,
     ) -> Option<(SigScript, Option<Witness>)> {
         let (_sig_script, witness) = match self {
+            Self::Wsh(d) => d.legacy_witness(keysigs, redeem_script.clone(), witness_script),
             Self::Multi(d) => d.legacy_witness(keysigs, redeem_script.clone(), witness_script),
             Self::SortedMulti(d) => {
                 d.legacy_witness(keysigs, redeem_script.clone(), witness_script)
@@ -142,6 +157,7 @@ impl<K: DeriveCompr> Descriptor<K> for ShWsh<K> {
         keysigs: HashMap<&KeyOrigin, TaprootKeySig>,
     ) -> Option<Witness> {
         match self {
+            Self::Wsh(d) => d.taproot_witness(cb, keysigs),
             Self::Multi(d) => d.taproot_witness(cb, keysigs),
             Self::SortedMulti(d) => d.taproot_witness(cb, keysigs),
         }
@@ -152,6 +168,7 @@ impl<K: DeriveCompr> Display for ShWsh<K> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str("sh(")?;
         match self {
+            Self::Wsh(d) => Display::fmt(d, f)?,
             Self::Multi(d) => Display::fmt(d, f)?,
             Self::SortedMulti(d) => Display::fmt(d, f)?,
         }

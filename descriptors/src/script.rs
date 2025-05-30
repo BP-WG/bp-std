@@ -20,17 +20,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::fmt::{self, Display, Formatter, Write};
 use std::hash::Hash;
 use std::iter;
 
 use amplify::confinement::Collection;
 use amplify::hex::ToHex;
+use amplify::Wrapper;
 use derive::{
-    Derive, DeriveCompr, DeriveLegacy, DeriveXOnly, KeyOrigin, Keychain, LeafScript, NormalIndex,
-    OpCode, RedeemScript, TapCode, TapScript, WitnessScript, XkeyOrigin,
+    ControlBlock, Derive, DeriveCompr, DeriveLegacy, DeriveXOnly, DerivedScript, KeyOrigin,
+    Keychain, LeafScript, LegacyPk, NormalIndex, OpCode, RedeemScript, ScriptPubkey, SigScript,
+    TapCode, TapDerivation, TapScript, Terminal, Witness, WitnessScript, XOnlyPk, XkeyOrigin,
+    XpubAccount, XpubDerivable,
 };
+use indexmap::IndexMap;
+
+use crate::{Descriptor, LegacyKeySig, SpkClass, TaprootKeySig};
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -202,4 +208,262 @@ impl<S: Display, K: Display> Display for ScriptDescr<S, K> {
         }
         Ok(())
     }
+}
+
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
+pub struct Bare<K: DeriveLegacy = XpubDerivable>(ScriptDescr<OpCode, K>);
+
+impl<K: DeriveLegacy> Derive<DerivedScript> for Bare<K> {
+    #[inline]
+    fn default_keychain(&self) -> Keychain { self.0.default_keychain() }
+
+    #[inline]
+    fn keychains(&self) -> BTreeSet<Keychain> { self.0.keychains() }
+
+    fn derive(
+        &self,
+        keychain: impl Into<Keychain>,
+        index: impl Into<NormalIndex>,
+    ) -> impl Iterator<Item = DerivedScript> {
+        self.0
+            .derive(keychain, index)
+            .map(|redeem_script| ScriptPubkey::from_checked(redeem_script.to_vec()))
+            .map(DerivedScript::Bare)
+    }
+}
+
+impl<K: DeriveLegacy> Descriptor<K> for Bare<K> {
+    fn class(&self) -> SpkClass { SpkClass::Bare }
+
+    fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
+    where K: 'a {
+        self.0.keys()
+    }
+    fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
+    where (): 'a {
+        iter::empty()
+    }
+    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> { self.keys().map(K::xpub_spec) }
+
+    fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
+        self.keys()
+            .map(|xkey| {
+                let key = xkey
+                    .derive(terminal.keychain, terminal.index)
+                    .next()
+                    .expect("xkey derivation is empty");
+                (key.into(), KeyOrigin::with(xkey.xpub_spec().origin().clone(), terminal))
+            })
+            .collect()
+    }
+
+    fn xonly_keyset(&self, _terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation> {
+        IndexMap::new()
+    }
+
+    fn legacy_witness(
+        &self,
+        keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
+        redeem_script: Option<RedeemScript>,
+        witness_script: Option<WitnessScript>,
+    ) -> Option<(SigScript, Option<Witness>)> {
+        debug_assert!(redeem_script.is_none(), "redeemScript in Wsh descriptor must is empty");
+        let mut stack = vec![];
+        for item in &self.0.satisfaction {
+            match item {
+                WitnessItem::Signature(origin) => {
+                    let Some(src) = keysigs.get(origin) else {
+                        break;
+                    };
+                    stack.push(src.sig.to_vec());
+                }
+                WitnessItem::Data(data) => stack.push(data.clone()),
+            }
+        }
+        stack.push(witness_script?.into_inner().into_vec());
+        Some((SigScript::new(), Some(Witness::from_consensus_stack(stack))))
+    }
+
+    fn taproot_witness(
+        &self,
+        _cb: Option<&ControlBlock>,
+        _keysigs: HashMap<&KeyOrigin, TaprootKeySig>,
+    ) -> Option<Witness> {
+        None
+    }
+}
+
+impl<K: DeriveLegacy> Display for Bare<K> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { write!(f, "bare({})", self.0) }
+}
+
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
+pub struct Sh<K: DeriveLegacy = XpubDerivable>(ScriptDescr<OpCode, K>);
+
+impl<K: DeriveLegacy> Derive<DerivedScript> for Sh<K> {
+    #[inline]
+    fn default_keychain(&self) -> Keychain { self.0.default_keychain() }
+
+    #[inline]
+    fn keychains(&self) -> BTreeSet<Keychain> { self.0.keychains() }
+
+    fn derive(
+        &self,
+        keychain: impl Into<Keychain>,
+        index: impl Into<NormalIndex>,
+    ) -> impl Iterator<Item = DerivedScript> {
+        self.0.derive(keychain, index).map(DerivedScript::Bip13)
+    }
+}
+
+impl<K: DeriveLegacy> Descriptor<K> for Sh<K> {
+    fn class(&self) -> SpkClass { SpkClass::P2sh }
+
+    fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
+    where K: 'a {
+        self.0.keys()
+    }
+    fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
+    where (): 'a {
+        iter::empty()
+    }
+    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> { self.keys().map(K::xpub_spec) }
+
+    fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
+        self.keys()
+            .map(|xkey| {
+                let key = xkey
+                    .derive(terminal.keychain, terminal.index)
+                    .next()
+                    .expect("xkey derivation is empty");
+                (key.into(), KeyOrigin::with(xkey.xpub_spec().origin().clone(), terminal))
+            })
+            .collect()
+    }
+
+    fn xonly_keyset(&self, _terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation> {
+        IndexMap::new()
+    }
+
+    fn legacy_witness(
+        &self,
+        keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
+        redeem_script: Option<RedeemScript>,
+        witness_script: Option<WitnessScript>,
+    ) -> Option<(SigScript, Option<Witness>)> {
+        debug_assert!(redeem_script.is_none(), "redeemScript in Wsh descriptor must is empty");
+        let mut stack = vec![];
+        for item in &self.0.satisfaction {
+            match item {
+                WitnessItem::Signature(origin) => {
+                    let Some(src) = keysigs.get(origin) else {
+                        break;
+                    };
+                    stack.push(src.sig.to_vec());
+                }
+                WitnessItem::Data(data) => stack.push(data.clone()),
+            }
+        }
+        stack.push(witness_script?.into_inner().into_vec());
+        Some((SigScript::new(), Some(Witness::from_consensus_stack(stack))))
+    }
+
+    fn taproot_witness(
+        &self,
+        _cb: Option<&ControlBlock>,
+        _keysigs: HashMap<&KeyOrigin, TaprootKeySig>,
+    ) -> Option<Witness> {
+        None
+    }
+}
+
+impl<K: DeriveLegacy> Display for Sh<K> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { write!(f, "sh({})", self.0) }
+}
+
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
+pub struct Wsh<K: DeriveCompr = XpubDerivable>(ScriptDescr<OpCode, K>);
+
+impl<K: DeriveCompr> Derive<DerivedScript> for Wsh<K> {
+    #[inline]
+    fn default_keychain(&self) -> Keychain { self.0.default_keychain() }
+
+    #[inline]
+    fn keychains(&self) -> BTreeSet<Keychain> { self.0.keychains() }
+
+    fn derive(
+        &self,
+        keychain: impl Into<Keychain>,
+        index: impl Into<NormalIndex>,
+    ) -> impl Iterator<Item = DerivedScript> {
+        self.0.derive(keychain, index).map(DerivedScript::Segwit)
+    }
+}
+
+impl<K: DeriveCompr> Descriptor<K> for Wsh<K> {
+    fn class(&self) -> SpkClass { SpkClass::P2wsh }
+
+    fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
+    where K: 'a {
+        self.0.keys()
+    }
+    fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
+    where (): 'a {
+        iter::empty()
+    }
+    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> { self.keys().map(K::xpub_spec) }
+
+    fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
+        self.keys()
+            .map(|xkey| {
+                let key = xkey
+                    .derive(terminal.keychain, terminal.index)
+                    .next()
+                    .expect("xkey derivation is empty");
+                (key.into(), KeyOrigin::with(xkey.xpub_spec().origin().clone(), terminal))
+            })
+            .collect()
+    }
+
+    fn xonly_keyset(&self, _terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation> {
+        IndexMap::new()
+    }
+
+    fn legacy_witness(
+        &self,
+        keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
+        redeem_script: Option<RedeemScript>,
+        witness_script: Option<WitnessScript>,
+    ) -> Option<(SigScript, Option<Witness>)> {
+        debug_assert!(redeem_script.is_none(), "redeemScript in Wsh descriptor must is empty");
+        let mut stack = vec![];
+        for item in &self.0.satisfaction {
+            match item {
+                WitnessItem::Signature(origin) => {
+                    let Some(src) = keysigs.get(origin) else {
+                        break;
+                    };
+                    stack.push(src.sig.to_vec());
+                }
+                WitnessItem::Data(data) => stack.push(data.clone()),
+            }
+        }
+        stack.push(witness_script?.into_inner().into_vec());
+        Some((SigScript::new(), Some(Witness::from_consensus_stack(stack))))
+    }
+
+    fn taproot_witness(
+        &self,
+        _cb: Option<&ControlBlock>,
+        _keysigs: HashMap<&KeyOrigin, TaprootKeySig>,
+    ) -> Option<Witness> {
+        None
+    }
+}
+
+impl<K: DeriveCompr> Display for Wsh<K> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { write!(f, "wsh({})", self.0) }
 }
