@@ -27,22 +27,13 @@ use std::{fmt, iter, vec};
 use amplify::confinement::Confined;
 use amplify::num::u4;
 use derive::{
-    Derive, DeriveCompr, DeriveLegacy, DerivedScript, KeyOrigin, Keychain, LegacyPk, NormalIndex,
-    OpCode, RedeemScript, SigScript, TapDerivation, Terminal, Witness, WitnessScript, XOnlyPk,
-    XkeyOrigin, XpubAccount, XpubDerivable,
+    CompressedPk, Derive, DeriveCompr, DeriveKey, DeriveLegacy, DerivedScript, KeyOrigin, Keychain,
+    LegacyPk, NormalIndex, OpCode, RedeemScript, SigScript, TapDerivation, Terminal, Witness,
+    WitnessScript, XOnlyPk, XkeyOrigin, XpubAccount, XpubDerivable,
 };
 use indexmap::IndexMap;
 
 use crate::{Descriptor, LegacyKeySig, SpkClass, TaprootKeySig};
-
-/// Check that all sigs match our keys
-fn check_sigs<'a>(
-    accounts: impl Iterator<Item = &'a XpubAccount>,
-    keysigs: &HashMap<&'a KeyOrigin, LegacyKeySig>,
-) -> bool {
-    let set = accounts.map(XpubAccount::origin).map(XkeyOrigin::master_fp).collect::<BTreeSet<_>>();
-    keysigs.keys().all(|origin| set.contains(&origin.master_fp()))
-}
 
 /// Representation of BIP-383 `sortedmulti` as it is used inside `sh`.
 ///
@@ -77,23 +68,9 @@ impl<K: DeriveLegacy> Derive<DerivedScript> for ShSortedMulti<K> {
     ) -> impl Iterator<Item = DerivedScript> {
         let keychain = keychain.into();
         let index = index.into();
-
         // Use of BTreeSet performs key sorting
-        let derived_set = self
-            .keys
-            .iter()
-            .map(|xkey| xkey.derive(keychain, index).next().expect("no derivation found"))
-            .collect::<BTreeSet<_>>();
-
-        let mut redeem_script = RedeemScript::with_capacity(self.keys.len() * 34 + 4);
-        redeem_script.push_num(self.threshold.into_u8());
-        for key in derived_set {
-            redeem_script.push_slice(&key.serialize());
-        }
-        redeem_script.push_num(self.key_count());
-        redeem_script.push_opcode(OpCode::CheckMultiSig);
-
-        iter::once(DerivedScript::Bip13(redeem_script))
+        let derived_set = derive(&self.keys, keychain, index).collect::<BTreeSet<_>>();
+        redeem_script(self.threshold, derived_set)
     }
 }
 
@@ -113,16 +90,7 @@ where Self: Derive<DerivedScript>
     fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> { self.keys().map(|key| key.xpub_spec()) }
 
     fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
-        self.keys
-            .iter()
-            .map(|xkey| {
-                let key = xkey
-                    .derive(terminal.keychain, terminal.index)
-                    .next()
-                    .expect("multisig must derive one key per path");
-                (key.into(), KeyOrigin::with(xkey.xpub_spec().origin().clone(), terminal))
-            })
-            .collect()
+        legacy_keyset(&self.keys, terminal)
     }
 
     fn xonly_keyset(&self, _terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation> {
@@ -133,18 +101,7 @@ where Self: Derive<DerivedScript>
         &self,
         keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
     ) -> Option<(SigScript, Witness)> {
-        // Check that all sigs match our keys
-        if !check_sigs(self.keys().map(K::xpub_spec), &keysigs) {
-            return None;
-        }
-
-        let mut stack = Vec::with_capacity(keysigs.len() + 1);
-        for sig in keysigs.values() {
-            stack.push(sig.sig.to_vec());
-        }
-        stack.push(vec![]);
-        let witness = Witness::from_consensus_stack(stack);
-        Some((empty!(), witness))
+        witness(&self.keys, keysigs)
     }
 
     fn taproot_witness(&self, _keysigs: HashMap<&KeyOrigin, TaprootKeySig>) -> Option<Witness> {
@@ -154,11 +111,9 @@ where Self: Derive<DerivedScript>
 
 impl<S: DeriveLegacy> Display for ShSortedMulti<S> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "sh(sortedmulti({}", self.threshold)?;
-        for key in self.keys() {
-            write!(f, ",{key}")?;
-        }
-        f.write_str("))")
+        f.write_str("sh(")?;
+        fmt(self.threshold, self.keys(), f)?;
+        f.write_str(")")
     }
 }
 
@@ -195,23 +150,9 @@ impl<K: DeriveCompr> Derive<DerivedScript> for WshSortedMulti<K> {
     ) -> impl Iterator<Item = DerivedScript> {
         let keychain = keychain.into();
         let index = index.into();
-
         // Use of BTreeSet performs key sorting
-        let derived_set = self
-            .keys
-            .iter()
-            .map(|xkey| xkey.derive(keychain, index).next().expect("no derivation found"))
-            .collect::<BTreeSet<_>>();
-
-        let mut witness_script = WitnessScript::with_capacity(self.keys.len() * 34 + 4);
-        witness_script.push_num(self.threshold.into_u8());
-        for key in derived_set {
-            witness_script.push_slice(&key.serialize());
-        }
-        witness_script.push_num(self.key_count());
-        witness_script.push_opcode(OpCode::CheckMultiSig);
-
-        iter::once(DerivedScript::Segwit(witness_script))
+        let derived_set = derive(&self.keys, keychain, index).collect::<BTreeSet<_>>();
+        witness_script(self.threshold, derived_set)
     }
 }
 
@@ -231,16 +172,7 @@ where Self: Derive<DerivedScript>
     fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> { self.keys().map(|key| key.xpub_spec()) }
 
     fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
-        self.keys
-            .iter()
-            .map(|xkey| {
-                let key = xkey
-                    .derive(terminal.keychain, terminal.index)
-                    .next()
-                    .expect("multisig must derive one key per path");
-                (key.into(), KeyOrigin::with(xkey.xpub_spec().origin().clone(), terminal))
-            })
-            .collect()
+        legacy_keyset(self.keys(), terminal)
     }
 
     fn xonly_keyset(&self, _terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation> {
@@ -251,18 +183,7 @@ where Self: Derive<DerivedScript>
         &self,
         keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
     ) -> Option<(SigScript, Witness)> {
-        // Check that all sigs match our keys
-        if !check_sigs(self.keys().map(K::xpub_spec), &keysigs) {
-            return None;
-        }
-
-        let mut stack = Vec::with_capacity(keysigs.len() + 1);
-        stack.push(vec![]);
-        for sig in keysigs.values() {
-            stack.push(sig.sig.to_vec());
-        }
-        let witness = Witness::from_consensus_stack(stack);
-        Some((empty!(), witness))
+        witness(self.keys(), keysigs)
     }
 
     fn taproot_witness(&self, _keysigs: HashMap<&KeyOrigin, TaprootKeySig>) -> Option<Witness> {
@@ -272,10 +193,115 @@ where Self: Derive<DerivedScript>
 
 impl<S: DeriveCompr> Display for WshSortedMulti<S> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "wsh(sortedmulti({}", self.threshold)?;
-        for key in self.keys() {
-            write!(f, ",{key}")?;
-        }
-        f.write_str("))")
+        f.write_str("wsh(")?;
+        fmt(self.threshold, self.keys(), f)?;
+        f.write_str(")")
     }
+}
+
+// ------------------------------------------------------------------------------------------------
+
+/// Check that all sigs match our keys
+fn check_sigs<'a>(
+    accounts: impl Iterator<Item = &'a XpubAccount>,
+    keysigs: &HashMap<&'a KeyOrigin, LegacyKeySig>,
+) -> bool {
+    let set = accounts.map(XpubAccount::origin).map(XkeyOrigin::master_fp).collect::<BTreeSet<_>>();
+    keysigs.keys().all(|origin| set.contains(&origin.master_fp()))
+}
+
+fn derive<'k, T, K: Derive<T> + 'k, I: IntoIterator<Item = &'k K>>(
+    keys: I,
+    keychain: Keychain,
+    index: NormalIndex,
+) -> impl Iterator<Item = T> + use<'k, T, K, I> {
+    keys.into_iter()
+        .map(move |xkey| xkey.derive(keychain, index).next().expect("no derivation found"))
+}
+
+fn redeem_script<I: IntoIterator<Item = LegacyPk>>(
+    threshold: u4,
+    keys: I,
+) -> impl Iterator<Item = DerivedScript>
+where
+    I::IntoIter: ExactSizeIterator,
+{
+    let keys = keys.into_iter();
+    let key_count = keys.len();
+
+    let mut redeem_script = RedeemScript::with_capacity(key_count * 34 + 4);
+    redeem_script.push_num(threshold.into_u8());
+    for key in keys {
+        redeem_script.push_slice(&key.serialize());
+    }
+    redeem_script.push_num(key_count as u8);
+    redeem_script.push_opcode(OpCode::CheckMultiSig);
+
+    iter::once(DerivedScript::Bip13(redeem_script))
+}
+
+fn witness_script<I: IntoIterator<Item = CompressedPk>>(
+    threshold: u4,
+    keys: I,
+) -> impl Iterator<Item = DerivedScript>
+where
+    I::IntoIter: ExactSizeIterator,
+{
+    let keys = keys.into_iter();
+    let key_count = keys.len();
+
+    let mut witness_script = WitnessScript::with_capacity(key_count * 34 + 4);
+    witness_script.push_num(threshold.into_u8());
+    for key in keys {
+        witness_script.push_slice(&key.serialize());
+    }
+    witness_script.push_num(key_count as u8);
+    witness_script.push_opcode(OpCode::CheckMultiSig);
+
+    iter::once(DerivedScript::Segwit(witness_script))
+}
+
+fn legacy_keyset<'k, T: Into<LegacyPk>, K: DeriveKey<T> + 'k, I: IntoIterator<Item = &'k K>>(
+    keys: I,
+    terminal: Terminal,
+) -> IndexMap<LegacyPk, KeyOrigin> {
+    keys.into_iter()
+        .map(|xkey| {
+            let key = xkey
+                .derive(terminal.keychain, terminal.index)
+                .next()
+                .expect("multisig must derive one key per path");
+            (key.into(), KeyOrigin::with(xkey.xpub_spec().origin().clone(), terminal))
+        })
+        .collect()
+}
+
+fn witness<'k, T, K: DeriveKey<T> + 'k, I: IntoIterator<Item = &'k K>>(
+    keys: I,
+    keysigs: HashMap<&'k KeyOrigin, LegacyKeySig>,
+) -> Option<(SigScript, Witness)> {
+    // Check that all sigs match our keys
+    if !check_sigs(keys.into_iter().map(K::xpub_spec), &keysigs) {
+        return None;
+    }
+
+    let mut stack = Vec::with_capacity(keysigs.len() + 1);
+    for sig in keysigs.values() {
+        stack.push(sig.sig.to_vec());
+    }
+    stack.push(vec![]);
+    let witness = Witness::from_consensus_stack(stack);
+    Some((empty!(), witness))
+}
+
+fn fmt<'k, K: Display + 'k>(
+    threshold: u4,
+    keys: impl IntoIterator<Item = &'k K>,
+    f: &mut Formatter<'_>,
+) -> fmt::Result {
+    write!(f, "sortedmulti({}", threshold)?;
+    for key in keys {
+        write!(f, ",{key}")?;
+    }
+    f.write_str(")")
 }
