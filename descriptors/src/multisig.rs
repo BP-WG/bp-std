@@ -26,6 +26,7 @@ use std::{fmt, iter, vec};
 
 use amplify::confinement::Confined;
 use amplify::num::u4;
+use amplify::Wrapper;
 use derive::{
     CompressedPk, Derive, DeriveCompr, DeriveKey, DeriveLegacy, DerivedScript, KeyOrigin, Keychain,
     LegacyPk, NormalIndex, OpCode, RedeemScript, SigScript, TapDerivation, Terminal, Witness,
@@ -34,6 +35,128 @@ use derive::{
 use indexmap::IndexMap;
 
 use crate::{Descriptor, LegacyKeySig, SpkClass, TaprootKeySig};
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(untagged))]
+pub enum ShWsh<K: DeriveCompr = XpubDerivable> {
+    Multi(WshMulti<K>),
+    SortedMulti(WshSortedMulti<K>),
+}
+
+impl<K: DeriveCompr> Derive<DerivedScript> for ShWsh<K> {
+    fn default_keychain(&self) -> Keychain {
+        match self {
+            Self::Multi(d) => d.default_keychain(),
+            Self::SortedMulti(d) => d.default_keychain(),
+        }
+    }
+
+    fn keychains(&self) -> BTreeSet<Keychain> {
+        match self {
+            Self::Multi(d) => d.keychains(),
+            Self::SortedMulti(d) => d.keychains(),
+        }
+    }
+
+    fn derive(
+        &self,
+        keychain: impl Into<Keychain>,
+        index: impl Into<NormalIndex>,
+    ) -> impl Iterator<Item = DerivedScript> {
+        let convert = |script| match script {
+            DerivedScript::Segwit(s) => DerivedScript::Nested(s),
+            _ => unreachable!(),
+        };
+        match self {
+            Self::Multi(d) => d.derive(keychain, index).map(convert).collect::<Vec<_>>(),
+            Self::SortedMulti(d) => d.derive(keychain, index).map(convert).collect::<Vec<_>>(),
+        }
+        .into_iter()
+    }
+}
+
+impl<K: DeriveCompr> Descriptor<K> for ShWsh<K> {
+    fn class(&self) -> SpkClass {
+        match self {
+            Self::Multi(d) => d.class(),
+            Self::SortedMulti(d) => d.class(),
+        }
+    }
+
+    fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
+    where K: 'a {
+        match self {
+            Self::Multi(d) => d.keys().collect::<Vec<_>>(),
+            Self::SortedMulti(d) => d.keys().collect::<Vec<_>>(),
+        }
+        .into_iter()
+    }
+
+    fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
+    where (): 'a {
+        match self {
+            Self::Multi(d) => d.vars().collect::<Vec<_>>(),
+            Self::SortedMulti(d) => d.vars().collect::<Vec<_>>(),
+        }
+        .into_iter()
+    }
+
+    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> {
+        match self {
+            Self::Multi(d) => d.xpubs().collect::<Vec<_>>(),
+            Self::SortedMulti(d) => d.xpubs().collect::<Vec<_>>(),
+        }
+        .into_iter()
+    }
+
+    fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
+        match self {
+            Self::Multi(d) => d.legacy_keyset(terminal),
+            Self::SortedMulti(d) => d.legacy_keyset(terminal),
+        }
+    }
+
+    fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation> {
+        match self {
+            Self::Multi(d) => d.xonly_keyset(terminal),
+            Self::SortedMulti(d) => d.xonly_keyset(terminal),
+        }
+    }
+
+    fn legacy_witness(
+        &self,
+        keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
+        redeem_script: Option<RedeemScript>,
+        witness_script: Option<WitnessScript>,
+    ) -> Option<(SigScript, Option<Witness>)> {
+        let (_sig_script, witness) = match self {
+            Self::Multi(d) => d.legacy_witness(keysigs, redeem_script.clone(), witness_script),
+            Self::SortedMulti(d) => {
+                d.legacy_witness(keysigs, redeem_script.clone(), witness_script)
+            }
+        }?;
+        let witness = witness?;
+
+        let sig_script = SigScript::from_checked(redeem_script?.into_inner().into_vec());
+        Some((sig_script, Some(witness)))
+    }
+
+    fn taproot_witness(&self, keysigs: HashMap<&KeyOrigin, TaprootKeySig>) -> Option<Witness> {
+        match self {
+            Self::Multi(d) => d.taproot_witness(keysigs),
+            Self::SortedMulti(d) => d.taproot_witness(keysigs),
+        }
+    }
+}
+
+impl<K: DeriveCompr> Display for ShWsh<K> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Multi(d) => Display::fmt(d, f),
+            Self::SortedMulti(d) => Display::fmt(d, f),
+        }
+    }
+}
 
 /// Representation of BIP-383 `multi` as it is used inside `sh`.
 ///
