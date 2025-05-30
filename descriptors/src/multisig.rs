@@ -35,6 +35,87 @@ use indexmap::IndexMap;
 
 use crate::{Descriptor, LegacyKeySig, SpkClass, TaprootKeySig};
 
+/// Representation of BIP-383 `multi` as it is used inside `sh`.
+///
+/// # Nota bene
+///
+/// The structure does not support 16-of-16 multisig (only 15-of-16 is possible).
+/// The cost of the support will increase code multifold, so we just ignore this rare case.
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct ShMulti<K: DeriveLegacy = XpubDerivable> {
+    pub threshold: u4,
+    // TODO: Switch to an IndexSet when supported by amplify
+    pub keys: Confined<Vec<K>, 1, 16>,
+}
+
+impl<K: DeriveLegacy> ShMulti<K> {
+    pub fn key_count(&self) -> u8 { self.keys.len() as u8 }
+    pub fn threshold(&self) -> u8 { self.threshold.into_u8() }
+}
+
+impl<K: DeriveLegacy> Derive<DerivedScript> for ShMulti<K> {
+    #[inline]
+    fn default_keychain(&self) -> Keychain { self.keys[0].default_keychain() }
+
+    #[inline]
+    fn keychains(&self) -> BTreeSet<Keychain> { self.keys[0].keychains() }
+
+    fn derive(
+        &self,
+        keychain: impl Into<Keychain>,
+        index: impl Into<NormalIndex>,
+    ) -> impl Iterator<Item = DerivedScript> {
+        let keychain = keychain.into();
+        let index = index.into();
+        let derived_set = derive(&self.keys, keychain, index).collect::<Vec<_>>();
+        redeem_script(self.threshold, derived_set)
+    }
+}
+
+impl<K: DeriveLegacy> Descriptor<K> for ShMulti<K>
+where Self: Derive<DerivedScript>
+{
+    fn class(&self) -> SpkClass { SpkClass::P2sh }
+
+    fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
+    where K: 'a {
+        self.keys.iter()
+    }
+    fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
+    where (): 'a {
+        iter::empty()
+    }
+    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> { self.keys().map(|key| key.xpub_spec()) }
+
+    fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
+        legacy_keyset(&self.keys, terminal)
+    }
+
+    fn xonly_keyset(&self, _terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation> {
+        IndexMap::new()
+    }
+
+    fn legacy_witness(
+        &self,
+        keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
+    ) -> Option<(SigScript, Witness)> {
+        witness(&self.keys, keysigs)
+    }
+
+    fn taproot_witness(&self, _keysigs: HashMap<&KeyOrigin, TaprootKeySig>) -> Option<Witness> {
+        None
+    }
+}
+
+impl<S: DeriveLegacy> Display for ShMulti<S> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str("sh(")?;
+        fmt(self.threshold, self.keys(), f)?;
+        f.write_str(")")
+    }
+}
+
 /// Representation of BIP-383 `sortedmulti` as it is used inside `sh`.
 ///
 /// # Nota bene
@@ -111,7 +192,88 @@ where Self: Derive<DerivedScript>
 
 impl<S: DeriveLegacy> Display for ShSortedMulti<S> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.write_str("sh(")?;
+        f.write_str("sh(sorted")?;
+        fmt(self.threshold, self.keys(), f)?;
+        f.write_str(")")
+    }
+}
+
+/// Representation of BIP-383 `multi` as it is used inside `wsh`.
+///
+/// # Nota bene
+///
+/// The structure does not support 16-of-16 multisig (only 15-of-16 is possible).
+/// The cost of the support will increase code multifold, so we just ignore this rare case.
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct WshMulti<K: DeriveCompr = XpubDerivable> {
+    pub threshold: u4,
+    // TODO: Switch to an IndexSet when supported by amplify
+    pub keys: Confined<Vec<K>, 1, 16>,
+}
+
+impl<K: DeriveCompr> WshMulti<K> {
+    pub fn key_count(&self) -> u8 { self.keys.len() as u8 }
+    pub fn threshold(&self) -> u8 { self.threshold.into_u8() }
+}
+
+impl<K: DeriveCompr> Derive<DerivedScript> for WshMulti<K> {
+    #[inline]
+    fn default_keychain(&self) -> Keychain { self.keys[0].default_keychain() }
+
+    #[inline]
+    fn keychains(&self) -> BTreeSet<Keychain> { self.keys[0].keychains() }
+
+    fn derive(
+        &self,
+        keychain: impl Into<Keychain>,
+        index: impl Into<NormalIndex>,
+    ) -> impl Iterator<Item = DerivedScript> {
+        let keychain = keychain.into();
+        let index = index.into();
+        let derived_set = derive(&self.keys, keychain, index).collect::<Vec<_>>();
+        witness_script(self.threshold, derived_set)
+    }
+}
+
+impl<K: DeriveCompr> Descriptor<K> for WshMulti<K>
+where Self: Derive<DerivedScript>
+{
+    fn class(&self) -> SpkClass { SpkClass::P2wsh }
+
+    fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
+    where K: 'a {
+        self.keys.iter()
+    }
+    fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
+    where (): 'a {
+        iter::empty()
+    }
+    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> { self.keys().map(|key| key.xpub_spec()) }
+
+    fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
+        legacy_keyset(self.keys(), terminal)
+    }
+
+    fn xonly_keyset(&self, _terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation> {
+        IndexMap::new()
+    }
+
+    fn legacy_witness(
+        &self,
+        keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
+    ) -> Option<(SigScript, Witness)> {
+        witness(self.keys(), keysigs)
+    }
+
+    fn taproot_witness(&self, _keysigs: HashMap<&KeyOrigin, TaprootKeySig>) -> Option<Witness> {
+        None
+    }
+}
+
+impl<S: DeriveCompr> Display for WshMulti<S> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str("wsh(sorted")?;
         fmt(self.threshold, self.keys(), f)?;
         f.write_str(")")
     }
@@ -193,7 +355,7 @@ where Self: Derive<DerivedScript>
 
 impl<S: DeriveCompr> Display for WshSortedMulti<S> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.write_str("wsh(")?;
+        f.write_str("wsh(sorted")?;
         fmt(self.threshold, self.keys(), f)?;
         f.write_str(")")
     }
@@ -299,7 +461,7 @@ fn fmt<'k, K: Display + 'k>(
     keys: impl IntoIterator<Item = &'k K>,
     f: &mut Formatter<'_>,
 ) -> fmt::Result {
-    write!(f, "sortedmulti({}", threshold)?;
+    write!(f, "multi({}", threshold)?;
     for key in keys {
         write!(f, ",{key}")?;
     }
