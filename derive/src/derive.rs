@@ -27,9 +27,10 @@ use std::iter;
 use std::num::ParseIntError;
 use std::str::FromStr;
 
+use amplify::Wrapper;
 use bc::{
-    CompressedPk, ControlBlock, InternalPk, LeafScript, LegacyPk, RedeemScript, ScriptPubkey,
-    TapNodeHash, WitnessScript, XOnlyPk,
+    CompressedPk, ControlBlock, InternalPk, LeafScript, LegacyPk, PubkeyHash, RedeemScript,
+    ScriptPubkey, TapNodeHash, WitnessScript, XOnlyPk,
 };
 use indexmap::IndexMap;
 
@@ -191,7 +192,8 @@ pub enum DerivedScript {
     Bare(ScriptPubkey),
     Bip13(RedeemScript),
     Segwit(WitnessScript),
-    Nested(WitnessScript),
+    NestedKey(CompressedPk),
+    NestedScript(WitnessScript),
     TaprootKeyOnly(InternalPk),
     TaprootScript(InternalPk, TapTree),
 }
@@ -202,7 +204,12 @@ impl DerivedScript {
             DerivedScript::Bare(script_pubkey) => script_pubkey.clone(),
             DerivedScript::Bip13(redeem_script) => redeem_script.to_script_pubkey(),
             DerivedScript::Segwit(witness_script) => witness_script.to_script_pubkey(),
-            DerivedScript::Nested(witness_script) => {
+            DerivedScript::NestedKey(_) => self
+                .to_redeem_script()
+                .expect("redeedm script must be defined for ShWpkh")
+                .to_script_pubkey(),
+
+            DerivedScript::NestedScript(witness_script) => {
                 witness_script.to_redeem_script().to_script_pubkey()
             }
             DerivedScript::TaprootKeyOnly(internal_key) => {
@@ -219,7 +226,10 @@ impl DerivedScript {
             DerivedScript::Bare(_) => None,
             DerivedScript::Bip13(redeem_script) => Some(redeem_script.clone()),
             DerivedScript::Segwit(_) => None,
-            DerivedScript::Nested(witness_script) => Some(witness_script.to_redeem_script()),
+            DerivedScript::NestedKey(pk) => Some(RedeemScript::from_checked(
+                ScriptPubkey::p2pkh(PubkeyHash::from(*pk)).into_inner().into_vec(),
+            )),
+            DerivedScript::NestedScript(witness_script) => Some(witness_script.to_redeem_script()),
             DerivedScript::TaprootKeyOnly(_) => None,
             DerivedScript::TaprootScript(_, _) => None,
         }
@@ -228,7 +238,8 @@ impl DerivedScript {
         match self {
             DerivedScript::Bare(_) => None,
             DerivedScript::Bip13(_) => None,
-            DerivedScript::Segwit(witness_script) | DerivedScript::Nested(witness_script) => {
+            DerivedScript::NestedKey(_) => None,
+            DerivedScript::Segwit(witness_script) | DerivedScript::NestedScript(witness_script) => {
                 Some(witness_script)
             }
             DerivedScript::TaprootKeyOnly(_) => None,
@@ -242,7 +253,8 @@ impl DerivedScript {
             DerivedScript::Bare(_)
             | DerivedScript::Bip13(_)
             | DerivedScript::Segwit(_)
-            | DerivedScript::Nested(_) => None,
+            | DerivedScript::NestedKey(_)
+            | DerivedScript::NestedScript(_) => None,
             DerivedScript::TaprootKeyOnly(internal_key) => Some(*internal_key),
             DerivedScript::TaprootScript(internal_key, _) => Some(*internal_key),
         }
@@ -253,7 +265,8 @@ impl DerivedScript {
             DerivedScript::Bare(_)
             | DerivedScript::Bip13(_)
             | DerivedScript::Segwit(_)
-            | DerivedScript::Nested(_)
+            | DerivedScript::NestedKey(_)
+            | DerivedScript::NestedScript(_)
             | DerivedScript::TaprootKeyOnly(_) => None,
             DerivedScript::TaprootScript(_, tap_tree) => Some(tap_tree),
         }

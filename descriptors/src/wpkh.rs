@@ -106,3 +106,74 @@ impl<K: DeriveCompr> Descriptor<K> for Wpkh<K> {
 impl<K: DeriveCompr> Display for Wpkh<K> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { write!(f, "wpkh({})", self.0) }
 }
+
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
+pub struct ShWpkh<K: DeriveCompr = XpubDerivable>(K);
+
+impl<K: DeriveCompr> ShWpkh<K> {
+    pub fn as_key(&self) -> &K { &self.0 }
+    pub fn into_key(self) -> K { self.0 }
+}
+
+impl<K: DeriveCompr> Derive<DerivedScript> for ShWpkh<K> {
+    #[inline]
+    fn default_keychain(&self) -> Keychain { self.0.default_keychain() }
+
+    #[inline]
+    fn keychains(&self) -> BTreeSet<Keychain> { self.0.keychains() }
+
+    fn derive(
+        &self,
+        keychain: impl Into<Keychain>,
+        index: impl Into<NormalIndex>,
+    ) -> impl Iterator<Item = DerivedScript> {
+        self.0.derive(keychain, index).map(DerivedScript::NestedKey)
+    }
+}
+
+impl<K: DeriveCompr> Descriptor<K> for ShWpkh<K> {
+    fn class(&self) -> SpkClass { SpkClass::P2sh }
+
+    fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
+    where K: 'a {
+        iter::once(&self.0)
+    }
+    fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
+    where (): 'a {
+        iter::empty()
+    }
+    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> { iter::once(self.0.xpub_spec()) }
+
+    fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
+        self.0
+            .derive(terminal.keychain, terminal.index)
+            .map(|key| (key.into(), KeyOrigin::with(self.0.xpub_spec().origin().clone(), terminal)))
+            .collect()
+    }
+
+    fn xonly_keyset(&self, _terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation> {
+        IndexMap::new()
+    }
+
+    fn legacy_witness(
+        &self,
+        keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
+        _redeem_script: Option<RedeemScript>,
+        _witness_script: Option<WitnessScript>,
+    ) -> Option<(SigScript, Option<Witness>)> {
+        let our_origin = self.0.xpub_spec().origin();
+        let keysig =
+            keysigs.iter().find(|(origin, _)| our_origin.is_subset_of(origin)).map(|(_, ks)| ks)?;
+        let witness = Witness::from_consensus_stack([keysig.sig.to_vec(), keysig.key.to_vec()]);
+        Some((empty!(), Some(witness)))
+    }
+
+    fn taproot_witness(&self, _keysigs: HashMap<&KeyOrigin, TaprootKeySig>) -> Option<Witness> {
+        None
+    }
+}
+
+impl<K: DeriveCompr> Display for ShWpkh<K> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { write!(f, "sh(wpkh({}))", self.0) }
+}

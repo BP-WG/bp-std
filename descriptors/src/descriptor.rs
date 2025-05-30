@@ -32,7 +32,7 @@ use derive::{
 };
 use indexmap::IndexMap;
 
-use crate::{Pkh, ShMulti, ShSortedMulti, ShWsh, TrKey, Wpkh, WshMulti, WshSortedMulti};
+use crate::{Pkh, ShMulti, ShSortedMulti, ShWpkh, ShWsh, TrKey, Wpkh, WshMulti, WshSortedMulti};
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
 #[display(lowercase)]
@@ -144,7 +144,9 @@ pub enum StdDescr<S: DeriveSet = XpubDerivable> {
     #[from]
     WshSortedMulti(WshSortedMulti<S::Compr>),
 
-    //ShWpkh(Pkh<S::Legacy>),
+    #[from]
+    ShWpkh(ShWpkh<S::Compr>),
+
     #[from]
     ShWsh(ShWsh<S::Compr>),
 
@@ -166,6 +168,7 @@ impl<S: DeriveSet> Derive<DerivedScript> for StdDescr<S> {
             StdDescr::Pkh(d) => d.default_keychain(),
             StdDescr::ShMulti(d) => d.default_keychain(),
             StdDescr::ShSortedMulti(d) => d.default_keychain(),
+            StdDescr::ShWpkh(d) => d.default_keychain(),
             StdDescr::ShWsh(d) => d.default_keychain(),
             StdDescr::Wpkh(d) => d.default_keychain(),
             StdDescr::WshMulti(d) => d.default_keychain(),
@@ -179,6 +182,7 @@ impl<S: DeriveSet> Derive<DerivedScript> for StdDescr<S> {
             StdDescr::Pkh(d) => d.keychains(),
             StdDescr::ShMulti(d) => d.keychains(),
             StdDescr::ShSortedMulti(d) => d.keychains(),
+            StdDescr::ShWpkh(d) => d.keychains(),
             StdDescr::ShWsh(d) => d.keychains(),
             StdDescr::Wpkh(d) => d.keychains(),
             StdDescr::WshMulti(d) => d.keychains(),
@@ -196,6 +200,7 @@ impl<S: DeriveSet> Derive<DerivedScript> for StdDescr<S> {
             StdDescr::Pkh(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
             StdDescr::ShMulti(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
             StdDescr::ShSortedMulti(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
+            StdDescr::ShWpkh(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
             StdDescr::ShWsh(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
             StdDescr::Wpkh(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
             StdDescr::WshMulti(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
@@ -216,6 +221,7 @@ where Self: Derive<DerivedScript>
             StdDescr::Pkh(d) => d.class(),
             StdDescr::ShMulti(d) => d.class(),
             StdDescr::ShSortedMulti(d) => d.class(),
+            StdDescr::ShWpkh(d) => d.class(),
             StdDescr::ShWsh(d) => d.class(),
             StdDescr::Wpkh(d) => d.class(),
             StdDescr::WshMulti(d) => d.class(),
@@ -230,6 +236,7 @@ where Self: Derive<DerivedScript>
             StdDescr::Pkh(d) => d.keys().collect::<Vec<_>>(),
             StdDescr::ShMulti(d) => d.keys().collect::<Vec<_>>(),
             StdDescr::ShSortedMulti(d) => d.keys().collect::<Vec<_>>(),
+            StdDescr::ShWpkh(d) => d.keys().collect::<Vec<_>>(),
             StdDescr::ShWsh(d) => d.keys().collect::<Vec<_>>(),
             StdDescr::Wpkh(d) => d.keys().collect::<Vec<_>>(),
             StdDescr::WshMulti(d) => d.keys().collect::<Vec<_>>(),
@@ -249,6 +256,7 @@ where Self: Derive<DerivedScript>
             StdDescr::Pkh(d) => d.xpubs().collect::<Vec<_>>(),
             StdDescr::ShMulti(d) => d.xpubs().collect::<Vec<_>>(),
             StdDescr::ShSortedMulti(d) => d.xpubs().collect::<Vec<_>>(),
+            StdDescr::ShWpkh(d) => d.xpubs().collect::<Vec<_>>(),
             StdDescr::ShWsh(d) => d.xpubs().collect::<Vec<_>>(),
             StdDescr::Wpkh(d) => d.xpubs().collect::<Vec<_>>(),
             StdDescr::WshMulti(d) => d.xpubs().collect::<Vec<_>>(),
@@ -263,6 +271,7 @@ where Self: Derive<DerivedScript>
             StdDescr::Pkh(d) => d.legacy_keyset(terminal),
             StdDescr::ShMulti(d) => d.legacy_keyset(terminal),
             StdDescr::ShSortedMulti(d) => d.legacy_keyset(terminal),
+            StdDescr::ShWpkh(d) => d.legacy_keyset(terminal),
             StdDescr::ShWsh(d) => d.legacy_keyset(terminal),
             StdDescr::Wpkh(d) => d.legacy_keyset(terminal),
             StdDescr::WshMulti(d) => d.legacy_keyset(terminal),
@@ -276,6 +285,7 @@ where Self: Derive<DerivedScript>
             StdDescr::Pkh(d) => d.xonly_keyset(terminal),
             StdDescr::ShMulti(d) => d.xonly_keyset(terminal),
             StdDescr::ShSortedMulti(d) => d.xonly_keyset(terminal),
+            StdDescr::ShWpkh(d) => d.xonly_keyset(terminal),
             StdDescr::ShWsh(d) => d.xonly_keyset(terminal),
             StdDescr::Wpkh(d) => d.xonly_keyset(terminal),
             StdDescr::WshMulti(d) => d.xonly_keyset(terminal),
@@ -294,6 +304,7 @@ where Self: Derive<DerivedScript>
             StdDescr::Pkh(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
             StdDescr::ShMulti(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
             StdDescr::ShSortedMulti(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
+            StdDescr::ShWpkh(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
             StdDescr::ShWsh(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
             StdDescr::Wpkh(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
             StdDescr::WshMulti(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
@@ -307,6 +318,7 @@ where Self: Derive<DerivedScript>
             StdDescr::Pkh(d) => d.taproot_witness(keysigs),
             StdDescr::ShMulti(d) => d.taproot_witness(keysigs),
             StdDescr::ShSortedMulti(d) => d.taproot_witness(keysigs),
+            StdDescr::ShWpkh(d) => d.taproot_witness(keysigs),
             StdDescr::ShWsh(d) => d.taproot_witness(keysigs),
             StdDescr::Wpkh(d) => d.taproot_witness(keysigs),
             StdDescr::WshMulti(d) => d.taproot_witness(keysigs),
@@ -327,6 +339,7 @@ where
             StdDescr::Pkh(d) => Display::fmt(d, f),
             StdDescr::ShMulti(d) => Display::fmt(d, f),
             StdDescr::ShSortedMulti(d) => Display::fmt(d, f),
+            StdDescr::ShWpkh(d) => Display::fmt(d, f),
             StdDescr::ShWsh(d) => Display::fmt(d, f),
             StdDescr::Wpkh(d) => Display::fmt(d, f),
             StdDescr::WshMulti(d) => Display::fmt(d, f),

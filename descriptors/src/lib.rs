@@ -36,4 +36,4 @@ pub use descriptor::{Descriptor, LegacyKeySig, SpkClass, StdDescr, TaprootKeySig
 pub use multisig::{ShMulti, ShSortedMulti, ShWsh, WshMulti, WshSortedMulti};
 pub use pkh::Pkh;
 pub use tr::{Tr, TrKey};
-pub use wpkh::Wpkh;
+pub use wpkh::{ShWpkh, Wpkh};

@@ -64,7 +64,7 @@ impl<K: DeriveCompr> Derive<DerivedScript> for ShWsh<K> {
         index: impl Into<NormalIndex>,
     ) -> impl Iterator<Item = DerivedScript> {
         let convert = |script| match script {
-            DerivedScript::Segwit(s) => DerivedScript::Nested(s),
+            DerivedScript::Segwit(s) => DerivedScript::NestedScript(s),
             _ => unreachable!(),
         };
         match self {
