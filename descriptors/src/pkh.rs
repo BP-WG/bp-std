@@ -107,5 +107,5 @@ impl<K: DeriveLegacy> Descriptor<K> for Pkh<K> {
 }
 
 impl<K: DeriveLegacy> Display for Pkh<K> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { write!(f, "wpkh({})", self.0) }
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { write!(f, "pkh({})", self.0) }
 }

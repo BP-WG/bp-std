@@ -76,12 +76,7 @@ impl<K: DeriveCompr> Derive<DerivedScript> for ShWsh<K> {
 }
 
 impl<K: DeriveCompr> Descriptor<K> for ShWsh<K> {
-    fn class(&self) -> SpkClass {
-        match self {
-            Self::Multi(d) => d.class(),
-            Self::SortedMulti(d) => d.class(),
-        }
-    }
+    fn class(&self) -> SpkClass { SpkClass::P2sh }
 
     fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
     where K: 'a {
@@ -151,10 +146,12 @@ impl<K: DeriveCompr> Descriptor<K> for ShWsh<K> {
 
 impl<K: DeriveCompr> Display for ShWsh<K> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str("sh(")?;
         match self {
-            Self::Multi(d) => Display::fmt(d, f),
-            Self::SortedMulti(d) => Display::fmt(d, f),
+            Self::Multi(d) => Display::fmt(d, f)?,
+            Self::SortedMulti(d) => Display::fmt(d, f)?,
         }
+        f.write_str(")")
     }
 }
 
