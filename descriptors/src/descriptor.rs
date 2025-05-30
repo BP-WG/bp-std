@@ -31,7 +31,7 @@ use derive::{
 };
 use indexmap::IndexMap;
 
-use crate::{TrKey, Wpkh, WshSortedMulti};
+use crate::{ShSortedMulti, TrKey, Wpkh, WshSortedMulti};
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
 #[display(lowercase)]
@@ -114,8 +114,10 @@ pub trait Descriptor<K = XpubDerivable, V = ()>: DeriveScripts + Clone + Display
     serde(
         rename_all = "camelCase",
         bound(
-            serialize = "S::Compr: serde::Serialize, S::XOnly: serde::Serialize",
-            deserialize = "S::Compr: serde::Deserialize<'de>, S::XOnly: serde::Deserialize<'de>"
+            serialize = "S::Legacy: serde::Serialize, S::Compr: serde::Serialize, S::XOnly: \
+                         serde::Serialize",
+            deserialize = "S::Legacy: serde::Deserialize<'de>, S::Compr: serde::Deserialize<'de>, \
+                           S::XOnly: serde::Deserialize<'de>"
         )
     )
 )]
@@ -130,8 +132,8 @@ pub enum StdDescr<S: DeriveSet = XpubDerivable> {
     */
     //#[from]
     //ShMulti(ShMulti<S::Legacy>),
-    //#[from]
-    //ShSortedMulti(ShSortedMulti<S>),
+    #[from]
+    ShSortedMulti(ShSortedMulti<S::Legacy>),
 
     /*
     #[from]
@@ -175,6 +177,7 @@ pub enum StdDescr<S: DeriveSet = XpubDerivable> {
 impl<S: DeriveSet> Derive<DerivedScript> for StdDescr<S> {
     fn default_keychain(&self) -> Keychain {
         match self {
+            StdDescr::ShSortedMulti(d) => d.default_keychain(),
             StdDescr::Wpkh(d) => d.default_keychain(),
             StdDescr::WshSortedMulti(d) => d.default_keychain(),
             StdDescr::TrKey(d) => d.default_keychain(),
@@ -183,6 +186,7 @@ impl<S: DeriveSet> Derive<DerivedScript> for StdDescr<S> {
 
     fn keychains(&self) -> BTreeSet<Keychain> {
         match self {
+            StdDescr::ShSortedMulti(d) => d.keychains(),
             StdDescr::Wpkh(d) => d.keychains(),
             StdDescr::WshSortedMulti(d) => d.keychains(),
             StdDescr::TrKey(d) => d.keychains(),
@@ -195,6 +199,7 @@ impl<S: DeriveSet> Derive<DerivedScript> for StdDescr<S> {
         index: impl Into<NormalIndex>,
     ) -> impl Iterator<Item = DerivedScript> {
         match self {
+            StdDescr::ShSortedMulti(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
             StdDescr::Wpkh(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
             StdDescr::WshSortedMulti(d) => {
                 d.derive(keychain, index).collect::<Vec<_>>().into_iter()
@@ -210,6 +215,7 @@ where Self: Derive<DerivedScript>
 {
     fn class(&self) -> SpkClass {
         match self {
+            StdDescr::ShSortedMulti(d) => d.class(),
             StdDescr::Wpkh(d) => d.class(),
             StdDescr::WshSortedMulti(d) => d.class(),
             StdDescr::TrKey(d) => d.class(),
@@ -219,6 +225,7 @@ where Self: Derive<DerivedScript>
     fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
     where K: 'a {
         match self {
+            StdDescr::ShSortedMulti(d) => d.keys().collect::<Vec<_>>(),
             StdDescr::Wpkh(d) => d.keys().collect::<Vec<_>>(),
             StdDescr::WshSortedMulti(d) => d.keys().collect::<Vec<_>>(),
             StdDescr::TrKey(d) => d.keys().collect::<Vec<_>>(),
@@ -233,6 +240,7 @@ where Self: Derive<DerivedScript>
 
     fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> {
         match self {
+            StdDescr::ShSortedMulti(d) => d.xpubs().collect::<Vec<_>>(),
             StdDescr::Wpkh(d) => d.xpubs().collect::<Vec<_>>(),
             StdDescr::WshSortedMulti(d) => d.xpubs().collect::<Vec<_>>(),
             StdDescr::TrKey(d) => d.xpubs().collect::<Vec<_>>(),
@@ -242,6 +250,7 @@ where Self: Derive<DerivedScript>
 
     fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
         match self {
+            StdDescr::ShSortedMulti(d) => d.legacy_keyset(terminal),
             StdDescr::Wpkh(d) => d.legacy_keyset(terminal),
             StdDescr::WshSortedMulti(d) => d.legacy_keyset(terminal),
             StdDescr::TrKey(d) => d.legacy_keyset(terminal),
@@ -250,6 +259,7 @@ where Self: Derive<DerivedScript>
 
     fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation> {
         match self {
+            StdDescr::ShSortedMulti(d) => d.xonly_keyset(terminal),
             StdDescr::Wpkh(d) => d.xonly_keyset(terminal),
             StdDescr::WshSortedMulti(d) => d.xonly_keyset(terminal),
             StdDescr::TrKey(d) => d.xonly_keyset(terminal),
@@ -261,6 +271,7 @@ where Self: Derive<DerivedScript>
         keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
     ) -> Option<(SigScript, Witness)> {
         match self {
+            StdDescr::ShSortedMulti(d) => d.legacy_witness(keysigs),
             StdDescr::Wpkh(d) => d.legacy_witness(keysigs),
             StdDescr::WshSortedMulti(d) => d.legacy_witness(keysigs),
             StdDescr::TrKey(d) => d.legacy_witness(keysigs),
@@ -269,6 +280,7 @@ where Self: Derive<DerivedScript>
 
     fn taproot_witness(&self, keysigs: HashMap<&KeyOrigin, TaprootKeySig>) -> Option<Witness> {
         match self {
+            StdDescr::ShSortedMulti(d) => d.taproot_witness(keysigs),
             StdDescr::Wpkh(d) => d.taproot_witness(keysigs),
             StdDescr::WshSortedMulti(d) => d.taproot_witness(keysigs),
             StdDescr::TrKey(d) => d.taproot_witness(keysigs),
@@ -284,6 +296,7 @@ where
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
+            StdDescr::ShSortedMulti(d) => Display::fmt(d, f),
             StdDescr::Wpkh(d) => Display::fmt(d, f),
             StdDescr::WshSortedMulti(d) => Display::fmt(d, f),
             StdDescr::TrKey(d) => Display::fmt(d, f),
