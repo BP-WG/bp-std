@@ -26,6 +26,7 @@ extern crate amplify;
 #[macro_use]
 extern crate serde;
 
+mod script;
 mod descriptor;
 mod pkh;
 mod multisig;
@@ -35,5 +36,6 @@ mod tr;
 pub use descriptor::{Descriptor, LegacyKeySig, SpkClass, StdDescr, TaprootKeySig};
 pub use multisig::{ShMulti, ShSortedMulti, ShWsh, WshMulti, WshSortedMulti};
 pub use pkh::Pkh;
-pub use tr::{Tr, TrKey};
+pub use script::{ScriptDescr, ScriptItem, WitnessItem};
+pub use tr::{Tr, TrKey, TrScript};
 pub use wpkh::{ShWpkh, Wpkh};

@@ -25,14 +25,16 @@ use std::fmt::{Display, Formatter};
 use std::{fmt, iter};
 
 use derive::{
-    Bip340Sig, Derive, DeriveCompr, DeriveLegacy, DeriveScripts, DeriveSet, DeriveXOnly,
-    DerivedScript, KeyOrigin, Keychain, LegacyPk, LegacySig, NormalIndex, RedeemScript, Sats,
-    SigScript, TapDerivation, Terminal, Witness, WitnessScript, XOnlyPk, XpubAccount,
-    XpubDerivable,
+    Bip340Sig, ControlBlock, Derive, DeriveCompr, DeriveLegacy, DeriveScripts, DeriveSet,
+    DeriveXOnly, DerivedScript, KeyOrigin, Keychain, LegacyPk, LegacySig, NormalIndex,
+    RedeemScript, Sats, SigScript, TapDerivation, Terminal, Witness, WitnessScript, XOnlyPk,
+    XpubAccount, XpubDerivable,
 };
 use indexmap::IndexMap;
 
-use crate::{Pkh, ShMulti, ShSortedMulti, ShWpkh, ShWsh, TrKey, Wpkh, WshMulti, WshSortedMulti};
+use crate::{
+    Pkh, ShMulti, ShSortedMulti, ShWpkh, ShWsh, TrKey, TrScript, Wpkh, WshMulti, WshSortedMulti,
+};
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
 #[display(lowercase)]
@@ -107,7 +109,11 @@ pub trait Descriptor<K = XpubDerivable, V = ()>: DeriveScripts + Clone + Display
         witness_script: Option<WitnessScript>,
     ) -> Option<(SigScript, Option<Witness>)>;
 
-    fn taproot_witness(&self, keysigs: HashMap<&KeyOrigin, TaprootKeySig>) -> Option<Witness>;
+    fn taproot_witness(
+        &self,
+        cb: Option<&ControlBlock>,
+        keysigs: HashMap<&KeyOrigin, TaprootKeySig>,
+    ) -> Option<Witness>;
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
@@ -152,14 +158,9 @@ pub enum StdDescr<S: DeriveSet = XpubDerivable> {
 
     #[from]
     TrKey(TrKey<S::XOnly>),
-    // TODO:
-    /*
-    #[from]
-    TrMusig(TrMusig<S::XOnly>),
 
     #[from]
-    TrTree(TrTree<S::XOnly>),
-    */
+    TrTree(TrScript<S::XOnly>),
 }
 
 impl<S: DeriveSet> Derive<DerivedScript> for StdDescr<S> {
@@ -174,6 +175,7 @@ impl<S: DeriveSet> Derive<DerivedScript> for StdDescr<S> {
             StdDescr::WshMulti(d) => d.default_keychain(),
             StdDescr::WshSortedMulti(d) => d.default_keychain(),
             StdDescr::TrKey(d) => d.default_keychain(),
+            StdDescr::TrTree(d) => d.default_keychain(),
         }
     }
 
@@ -188,6 +190,7 @@ impl<S: DeriveSet> Derive<DerivedScript> for StdDescr<S> {
             StdDescr::WshMulti(d) => d.keychains(),
             StdDescr::WshSortedMulti(d) => d.keychains(),
             StdDescr::TrKey(d) => d.keychains(),
+            StdDescr::TrTree(d) => d.keychains(),
         }
     }
 
@@ -208,6 +211,7 @@ impl<S: DeriveSet> Derive<DerivedScript> for StdDescr<S> {
                 d.derive(keychain, index).collect::<Vec<_>>().into_iter()
             }
             StdDescr::TrKey(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
+            StdDescr::TrTree(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
         }
     }
 }
@@ -227,6 +231,7 @@ where Self: Derive<DerivedScript>
             StdDescr::WshMulti(d) => d.class(),
             StdDescr::WshSortedMulti(d) => d.class(),
             StdDescr::TrKey(d) => d.class(),
+            StdDescr::TrTree(d) => d.class(),
         }
     }
 
@@ -242,6 +247,7 @@ where Self: Derive<DerivedScript>
             StdDescr::WshMulti(d) => d.keys().collect::<Vec<_>>(),
             StdDescr::WshSortedMulti(d) => d.keys().collect::<Vec<_>>(),
             StdDescr::TrKey(d) => d.keys().collect::<Vec<_>>(),
+            StdDescr::TrTree(d) => d.keys().collect::<Vec<_>>(),
         }
         .into_iter()
     }
@@ -262,6 +268,7 @@ where Self: Derive<DerivedScript>
             StdDescr::WshMulti(d) => d.xpubs().collect::<Vec<_>>(),
             StdDescr::WshSortedMulti(d) => d.xpubs().collect::<Vec<_>>(),
             StdDescr::TrKey(d) => d.xpubs().collect::<Vec<_>>(),
+            StdDescr::TrTree(d) => d.xpubs().collect::<Vec<_>>(),
         }
         .into_iter()
     }
@@ -277,6 +284,7 @@ where Self: Derive<DerivedScript>
             StdDescr::WshMulti(d) => d.legacy_keyset(terminal),
             StdDescr::WshSortedMulti(d) => d.legacy_keyset(terminal),
             StdDescr::TrKey(d) => d.legacy_keyset(terminal),
+            StdDescr::TrTree(d) => d.legacy_keyset(terminal),
         }
     }
 
@@ -291,6 +299,7 @@ where Self: Derive<DerivedScript>
             StdDescr::WshMulti(d) => d.xonly_keyset(terminal),
             StdDescr::WshSortedMulti(d) => d.xonly_keyset(terminal),
             StdDescr::TrKey(d) => d.xonly_keyset(terminal),
+            StdDescr::TrTree(d) => d.xonly_keyset(terminal),
         }
     }
 
@@ -310,20 +319,26 @@ where Self: Derive<DerivedScript>
             StdDescr::WshMulti(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
             StdDescr::WshSortedMulti(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
             StdDescr::TrKey(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
+            StdDescr::TrTree(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
         }
     }
 
-    fn taproot_witness(&self, keysigs: HashMap<&KeyOrigin, TaprootKeySig>) -> Option<Witness> {
+    fn taproot_witness(
+        &self,
+        cb: Option<&ControlBlock>,
+        keysigs: HashMap<&KeyOrigin, TaprootKeySig>,
+    ) -> Option<Witness> {
         match self {
-            StdDescr::Pkh(d) => d.taproot_witness(keysigs),
-            StdDescr::ShMulti(d) => d.taproot_witness(keysigs),
-            StdDescr::ShSortedMulti(d) => d.taproot_witness(keysigs),
-            StdDescr::ShWpkh(d) => d.taproot_witness(keysigs),
-            StdDescr::ShWsh(d) => d.taproot_witness(keysigs),
-            StdDescr::Wpkh(d) => d.taproot_witness(keysigs),
-            StdDescr::WshMulti(d) => d.taproot_witness(keysigs),
-            StdDescr::WshSortedMulti(d) => d.taproot_witness(keysigs),
-            StdDescr::TrKey(d) => d.taproot_witness(keysigs),
+            StdDescr::Pkh(d) => d.taproot_witness(cb, keysigs),
+            StdDescr::ShMulti(d) => d.taproot_witness(cb, keysigs),
+            StdDescr::ShSortedMulti(d) => d.taproot_witness(cb, keysigs),
+            StdDescr::ShWpkh(d) => d.taproot_witness(cb, keysigs),
+            StdDescr::ShWsh(d) => d.taproot_witness(cb, keysigs),
+            StdDescr::Wpkh(d) => d.taproot_witness(cb, keysigs),
+            StdDescr::WshMulti(d) => d.taproot_witness(cb, keysigs),
+            StdDescr::WshSortedMulti(d) => d.taproot_witness(cb, keysigs),
+            StdDescr::TrKey(d) => d.taproot_witness(cb, keysigs),
+            StdDescr::TrTree(d) => d.taproot_witness(cb, keysigs),
         }
     }
 }
@@ -345,6 +360,7 @@ where
             StdDescr::WshMulti(d) => Display::fmt(d, f),
             StdDescr::WshSortedMulti(d) => Display::fmt(d, f),
             StdDescr::TrKey(d) => Display::fmt(d, f),
+            StdDescr::TrTree(d) => Display::fmt(d, f),
         }
     }
 }

@@ -26,9 +26,9 @@ use std::hash::Hash;
 use std::iter;
 
 use derive::{
-    Derive, DeriveLegacy, DerivedScript, KeyOrigin, Keychain, LegacyPk, NormalIndex, PubkeyHash,
-    RedeemScript, ScriptPubkey, SigScript, TapDerivation, Terminal, Witness, WitnessScript,
-    XOnlyPk, XpubAccount, XpubDerivable,
+    ControlBlock, Derive, DeriveLegacy, DerivedScript, KeyOrigin, Keychain, LegacyPk, NormalIndex,
+    PubkeyHash, RedeemScript, ScriptPubkey, SigScript, TapDerivation, Terminal, Witness,
+    WitnessScript, XOnlyPk, XpubAccount, XpubDerivable,
 };
 use indexmap::IndexMap;
 
@@ -101,7 +101,11 @@ impl<K: DeriveLegacy> Descriptor<K> for Pkh<K> {
         Some((sig_script, None))
     }
 
-    fn taproot_witness(&self, _keysigs: HashMap<&KeyOrigin, TaprootKeySig>) -> Option<Witness> {
+    fn taproot_witness(
+        &self,
+        _cb: Option<&ControlBlock>,
+        _keysigs: HashMap<&KeyOrigin, TaprootKeySig>,
+    ) -> Option<Witness> {
         None
     }
 }

@@ -256,6 +256,15 @@ impl<I: Idx> DerivationPath<I> {
         Some(Terminal::new(keychain, index))
     }
 
+    pub fn starts_with<I2>(&self, master: impl AsRef<[I2]>) -> bool
+    where
+        I: Into<DerivationIndex>,
+        I2: Idx + Into<DerivationIndex>,
+    {
+        let master = master.as_ref();
+        self.shared_prefix(master) == master.len()
+    }
+
     pub fn shared_prefix<I2>(&self, master: impl AsRef<[I2]>) -> usize
     where
         I: Into<DerivationIndex>,

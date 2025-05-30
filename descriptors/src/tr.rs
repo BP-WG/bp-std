@@ -25,29 +25,34 @@ use std::fmt::{self, Display, Formatter};
 use std::iter;
 
 use derive::{
-    Derive, DeriveXOnly, DerivedScript, InternalPk, KeyOrigin, Keychain, LegacyPk, NormalIndex,
-    RedeemScript, SigScript, TapDerivation, Terminal, Witness, WitnessScript, XOnlyPk, XpubAccount,
-    XpubDerivable,
+    ConsensusEncode, ControlBlock, Derive, DeriveXOnly, DerivedScript, InternalPk, KeyOrigin,
+    Keychain, LegacyPk, NormalIndex, RedeemScript, SigScript, TapCode, TapDerivation, TapScript,
+    TapTree, Terminal, Witness, WitnessScript, XOnlyPk, XpubAccount, XpubDerivable,
 };
 use indexmap::IndexMap;
 
-use crate::{Descriptor, LegacyKeySig, SpkClass, TaprootKeySig};
+use crate::{
+    Descriptor, LegacyKeySig, ScriptDescr, ScriptItem, SpkClass, TaprootKeySig, WitnessItem,
+};
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(untagged))]
 pub enum Tr<K: DeriveXOnly = XpubDerivable> {
     KeyOnly(TrKey<K>),
+    Script(TrScript<K>),
 }
 
 impl<K: DeriveXOnly> Tr<K> {
     pub fn as_internal_key(&self) -> &K {
         match self {
             Tr::KeyOnly(d) => d.as_internal_key(),
+            Tr::Script(d) => d.as_internal_key(),
         }
     }
     pub fn into_internal_key(self) -> K {
         match self {
             Tr::KeyOnly(d) => d.into_internal_key(),
+            Tr::Script(d) => d.into_internal_key(),
         }
     }
 }
@@ -56,12 +61,14 @@ impl<K: DeriveXOnly> Derive<DerivedScript> for Tr<K> {
     fn default_keychain(&self) -> Keychain {
         match self {
             Tr::KeyOnly(d) => d.default_keychain(),
+            Tr::Script(d) => d.default_keychain(),
         }
     }
 
     fn keychains(&self) -> BTreeSet<Keychain> {
         match self {
             Tr::KeyOnly(d) => d.keychains(),
+            Tr::Script(d) => d.keychains(),
         }
     }
 
@@ -71,8 +78,10 @@ impl<K: DeriveXOnly> Derive<DerivedScript> for Tr<K> {
         index: impl Into<NormalIndex>,
     ) -> impl Iterator<Item = DerivedScript> {
         match self {
-            Tr::KeyOnly(d) => d.derive(keychain, index),
+            Tr::KeyOnly(d) => d.derive(keychain, index).collect::<Vec<_>>(),
+            Tr::Script(d) => d.derive(keychain, index).collect::<Vec<_>>(),
         }
+        .into_iter()
     }
 }
 
@@ -80,38 +89,47 @@ impl<K: DeriveXOnly> Descriptor<K> for Tr<K> {
     fn class(&self) -> SpkClass {
         match self {
             Tr::KeyOnly(d) => d.class(),
+            Tr::Script(d) => d.class(),
         }
     }
 
     fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
     where K: 'a {
         match self {
-            Tr::KeyOnly(d) => d.keys(),
+            Tr::KeyOnly(d) => d.keys().collect::<Vec<_>>(),
+            Tr::Script(d) => d.keys().collect::<Vec<_>>(),
         }
+        .into_iter()
     }
 
     fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
     where (): 'a {
         match self {
-            Tr::KeyOnly(d) => d.vars(),
+            Tr::KeyOnly(d) => d.vars().collect::<Vec<_>>(),
+            Tr::Script(d) => d.vars().collect::<Vec<_>>(),
         }
+        .into_iter()
     }
 
     fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> {
         match self {
-            Tr::KeyOnly(d) => d.xpubs(),
+            Tr::KeyOnly(d) => d.xpubs().collect::<Vec<_>>(),
+            Tr::Script(d) => d.xpubs().collect::<Vec<_>>(),
         }
+        .into_iter()
     }
 
     fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
         match self {
             Tr::KeyOnly(d) => d.legacy_keyset(terminal),
+            Tr::Script(d) => d.legacy_keyset(terminal),
         }
     }
 
     fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation> {
         match self {
             Tr::KeyOnly(d) => d.xonly_keyset(terminal),
+            Tr::Script(d) => d.xonly_keyset(terminal),
         }
     }
 
@@ -123,12 +141,18 @@ impl<K: DeriveXOnly> Descriptor<K> for Tr<K> {
     ) -> Option<(SigScript, Option<Witness>)> {
         match self {
             Tr::KeyOnly(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
+            Tr::Script(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
         }
     }
 
-    fn taproot_witness(&self, keysigs: HashMap<&KeyOrigin, TaprootKeySig>) -> Option<Witness> {
+    fn taproot_witness(
+        &self,
+        cb: Option<&ControlBlock>,
+        keysigs: HashMap<&KeyOrigin, TaprootKeySig>,
+    ) -> Option<Witness> {
         match self {
-            Tr::KeyOnly(d) => d.taproot_witness(keysigs),
+            Tr::KeyOnly(d) => d.taproot_witness(cb, keysigs),
+            Tr::Script(d) => d.taproot_witness(cb, keysigs),
         }
     }
 }
@@ -137,6 +161,7 @@ impl<K: DeriveXOnly> Display for Tr<K> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Tr::KeyOnly(d) => Display::fmt(d, f),
+            Tr::Script(d) => Display::fmt(d, f),
         }
     }
 }
@@ -206,7 +231,12 @@ impl<K: DeriveXOnly> Descriptor<K> for TrKey<K> {
         None
     }
 
-    fn taproot_witness(&self, keysigs: HashMap<&KeyOrigin, TaprootKeySig>) -> Option<Witness> {
+    fn taproot_witness(
+        &self,
+        cb: Option<&ControlBlock>,
+        keysigs: HashMap<&KeyOrigin, TaprootKeySig>,
+    ) -> Option<Witness> {
+        cb?;
         let our_origin = self.0.xpub_spec().origin();
         let keysig =
             keysigs.iter().find(|(origin, _)| our_origin.is_subset_of(origin)).map(|(_, ks)| ks)?;
@@ -218,9 +248,148 @@ impl<K: DeriveXOnly> Display for TrKey<K> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { write!(f, "tr({})", self.0) }
 }
 
-/*
+#[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct TrScript<K: DeriveXOnly> {
     internal_key: K,
-    tap_tree: TapTree<Policy<K>>,
+    tap_tree: TapTree<ScriptDescr<TapCode, K>>,
 }
-*/
+
+impl<K: DeriveXOnly> TrScript<K> {
+    pub fn as_internal_key(&self) -> &K { &self.internal_key }
+    pub fn into_internal_key(self) -> K { self.internal_key }
+}
+
+impl<K: DeriveXOnly> Derive<DerivedScript> for TrScript<K> {
+    #[inline]
+    fn default_keychain(&self) -> Keychain { self.internal_key.default_keychain() }
+
+    #[inline]
+    fn keychains(&self) -> BTreeSet<Keychain> { self.internal_key.keychains() }
+
+    fn derive(
+        &self,
+        keychain: impl Into<Keychain>,
+        index: impl Into<NormalIndex>,
+    ) -> impl Iterator<Item = DerivedScript> {
+        let keychain = keychain.into();
+        let index = index.into();
+        let internal_key =
+            self.internal_key.derive(keychain, index).next().expect("no derivation found");
+        let tree = self
+            .tap_tree
+            .clone()
+            .map(|script| script.derive(keychain, index).next().expect("no derivation found"));
+        iter::once(DerivedScript::TaprootScript(InternalPk::from_unchecked(internal_key), tree))
+    }
+}
+
+impl<K: DeriveXOnly> Descriptor<K> for TrScript<K> {
+    fn class(&self) -> SpkClass { SpkClass::P2tr }
+
+    fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
+    where K: 'a {
+        let mut keys = set![&self.internal_key];
+        for leaf in &self.tap_tree {
+            keys.extend(leaf.script.keys());
+        }
+        keys.into_iter()
+    }
+    fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
+    where (): 'a {
+        iter::empty()
+    }
+    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> { self.keys().map(K::xpub_spec) }
+
+    fn legacy_keyset(&self, _terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
+        IndexMap::new()
+    }
+
+    fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation> {
+        self.keys()
+            .map(|xkey| {
+                let key =
+                    xkey.derive(terminal.keychain, terminal.index).next().expect("no key found");
+                (key, TapDerivation::with_internal_pk(xkey.xpub_spec().origin().clone(), terminal))
+            })
+            .collect()
+    }
+
+    fn legacy_witness(
+        &self,
+        _keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
+        _redeem_script: Option<RedeemScript>,
+        _witness_script: Option<WitnessScript>,
+    ) -> Option<(SigScript, Option<Witness>)> {
+        None
+    }
+
+    fn taproot_witness(
+        &self,
+        cb: Option<&ControlBlock>,
+        keysigs: HashMap<&KeyOrigin, TaprootKeySig>,
+    ) -> Option<Witness> {
+        if let Some(cb) = cb {
+            for leaf in &self.tap_tree {
+                let descr = &leaf.script;
+                let mut stack = vec![];
+                let mut fail = false;
+                for item in &descr.satisfaction {
+                    match item {
+                        WitnessItem::Signature(origin) => {
+                            let Some(src) = keysigs.get(origin) else {
+                                fail = true;
+                                break;
+                            };
+                            stack.push(src.sig.to_vec());
+                        }
+                        WitnessItem::Data(data) => stack.push(data.clone()),
+                    }
+                }
+                if fail {
+                    continue;
+                }
+                let mut script = TapScript::new();
+                for item in &descr.condition {
+                    match item {
+                        ScriptItem::Key(origin, _) => {
+                            let derivation = origin.as_derivation();
+                            let Some((_, src)) = keysigs
+                                .iter()
+                                .find(|(o, _)| o.as_derivation().starts_with(derivation))
+                            else {
+                                continue;
+                            };
+                            script.push_slice(&src.key.to_byte_array());
+                        }
+                        ScriptItem::Code(code) => {
+                            for tapcode in code {
+                                script.push_opcode(*tapcode);
+                            }
+                        }
+                        ScriptItem::Data(fata) => script.push_slice(fata),
+                    }
+                }
+                stack.push(script.to_vec());
+                stack.push(cb.consensus_serialize());
+                return Some(Witness::from_consensus_stack(stack));
+            }
+            None
+        } else {
+            let our_origin = self.internal_key.xpub_spec().origin();
+            let keysig = keysigs
+                .iter()
+                .find(|(origin, _)| our_origin.is_subset_of(origin))
+                .map(|(_, ks)| ks)?;
+            Some(Witness::from_consensus_stack([keysig.sig.to_vec()]))
+        }
+    }
+}
+
+impl<K: DeriveXOnly> Display for TrScript<K>
+where K: Display
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "tr({}, {})", self.internal_key, self.tap_tree)
+    }
+}

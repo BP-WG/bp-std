@@ -872,30 +872,27 @@ impl Input {
                 .zip(self.tap_key_sig)
                 .and_then(|((origin, pk), sig)| {
                     // First, we try key path
-                    descriptor.taproot_witness(map! { origin => TaprootKeySig::new(pk, sig) })
+                    descriptor.taproot_witness(None, map! { origin => TaprootKeySig::new(pk, sig) })
                 })
                 .or_else(|| {
                     // If we can't satisfy key path, we try script paths until we succeed
-                    self.tap_leaf_script
-                        .keys()
-                        .filter_map(|cb| cb.merkle_branch.first())
-                        .copied()
-                        .map(|hash| TapLeafHash::from_byte_array(hash.to_byte_array()))
-                        .find_map(|leafhash| {
-                            let keysigs = self
-                                .tap_script_sig
-                                .iter()
-                                .filter(|((_, lh), _)| *lh == leafhash)
-                                .map(|((pk, _), sig)| TaprootKeySig::new(*pk, *sig))
-                                .filter_map(|ks| {
-                                    self.tap_bip32_derivation
-                                        .get(&ks.key)
-                                        .filter(|d| d.leaf_hashes.contains(&leafhash))
-                                        .map(|d| (&d.origin, ks))
-                                })
-                                .collect();
-                            descriptor.taproot_witness(keysigs)
-                        })
+                    self.tap_leaf_script.keys().find_map(|cb| {
+                        let hash = cb.merkle_branch.first()?;
+                        let leafhash = TapLeafHash::from_byte_array(hash.to_byte_array());
+                        let keysigs = self
+                            .tap_script_sig
+                            .iter()
+                            .filter(|((_, lh), _)| *lh == leafhash)
+                            .map(|((pk, _), sig)| TaprootKeySig::new(*pk, *sig))
+                            .filter_map(|ks| {
+                                self.tap_bip32_derivation
+                                    .get(&ks.key)
+                                    .filter(|d| d.leaf_hashes.contains(&leafhash))
+                                    .map(|d| (&d.origin, ks))
+                            })
+                            .collect();
+                        descriptor.taproot_witness(Some(cb), keysigs)
+                    })
                 })
                 .map(|witness| (empty!(), Some(witness)))
         } else {
@@ -1041,11 +1038,11 @@ impl Output {
         let terminal = self
             .bip32_derivation
             .values()
-            .flat_map(|origin| origin.derivation().terminal())
+            .flat_map(|origin| origin.as_derivation().terminal())
             .chain(
                 self.tap_bip32_derivation
                     .values()
-                    .flat_map(|derivation| derivation.origin.derivation().terminal()),
+                    .flat_map(|derivation| derivation.origin.as_derivation().terminal()),
             )
             .collect::<BTreeSet<_>>();
         if terminal.len() != 1 {

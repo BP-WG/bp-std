@@ -636,7 +636,7 @@ impl XkeyOrigin {
 
     pub fn child_derivation<'a>(&'a self, child: &'a KeyOrigin) -> Option<&'a [DerivationIndex]> {
         if self.master_fp() == child.master_fp() {
-            let d = child.derivation();
+            let d = child.as_derivation();
             let shared = d.shared_prefix(self.derivation());
             if shared > 0 {
                 return Some(&d[shared..]);
@@ -685,6 +685,7 @@ pub enum OriginParseError {
 pub struct KeyOrigin {
     #[getter(as_copy)]
     master_fp: XpubFp,
+    #[getter(skip)]
     derivation: DerivationPath,
 }
 
@@ -722,6 +723,12 @@ impl KeyOrigin {
             derivation,
         }
     }
+
+    pub fn as_derivation(&self) -> &DerivationPath { &self.derivation }
+
+    pub fn to_derivation(&self) -> DerivationPath { self.derivation.clone() }
+
+    pub fn into_derivation(self) -> DerivationPath { self.derivation }
 }
 
 #[derive(Getters, Clone, Eq, PartialEq, Hash, Debug)]

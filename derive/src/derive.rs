@@ -23,6 +23,7 @@
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::fmt::Display;
+use std::hash::Hash;
 use std::iter;
 use std::num::ParseIntError;
 use std::str::FromStr;
@@ -344,6 +345,8 @@ impl FromStr for DerivedAddr {
 }
 
 pub trait Derive<D> {
+    // TODO: Make D an associated type (since each descriptor must derive only one type of keys).
+
     fn default_keychain(&self) -> Keychain;
 
     fn keychains(&self) -> BTreeSet<Keychain>;
@@ -368,7 +371,7 @@ pub trait Derive<D> {
     }
 }
 
-pub trait DeriveKey<D>: Derive<D> + Clone + Display {
+pub trait DeriveKey<D>: Derive<D> + Clone + Eq + Hash + Display {
     fn xpub_spec(&self) -> &XpubAccount;
 }
 

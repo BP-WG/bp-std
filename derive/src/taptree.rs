@@ -20,6 +20,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::fmt::{self, Display, Formatter, Write};
 use std::ops::Deref;
 use std::{slice, vec};
 
@@ -55,14 +56,20 @@ pub struct FinalizedTree;
 pub struct UnfinalizedTree(pub u7);
 
 #[derive(Clone, Eq, PartialEq, Debug, Default)]
-pub struct TapTreeBuilder {
-    leaves: Vec<LeafInfo>,
+pub struct TapTreeBuilder<L = LeafScript> {
+    leaves: Vec<LeafInfo<L>>,
     buoy: MerkleBuoy<u7>,
     finalized: bool,
 }
 
-impl TapTreeBuilder {
-    pub fn new() -> Self { Self::default() }
+impl<L> TapTreeBuilder<L> {
+    pub fn new() -> Self {
+        Self {
+            leaves: none!(),
+            buoy: default!(),
+            finalized: false,
+        }
+    }
 
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
@@ -74,7 +81,7 @@ impl TapTreeBuilder {
 
     pub fn is_finalized(&self) -> bool { self.finalized }
 
-    pub fn push_leaf(&mut self, leaf: LeafInfo) -> Result<bool, FinalizedTree> {
+    pub fn push_leaf(&mut self, leaf: LeafInfo<L>) -> Result<bool, FinalizedTree> {
         if self.finalized {
             return Err(FinalizedTree);
         }
@@ -87,7 +94,7 @@ impl TapTreeBuilder {
         Ok(self.finalized)
     }
 
-    pub fn finish(self) -> Result<TapTree, UnfinalizedTree> {
+    pub fn finish(self) -> Result<TapTree<L>, UnfinalizedTree> {
         if !self.finalized {
             return Err(UnfinalizedTree(self.buoy.level()));
         }
@@ -98,23 +105,23 @@ impl TapTreeBuilder {
 /// Non-empty taproot script tree.
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
-pub struct TapTree(Vec<LeafInfo>);
+pub struct TapTree<L = LeafScript>(Vec<LeafInfo<L>>);
 
-impl Deref for TapTree {
-    type Target = Vec<LeafInfo>;
+impl<L> Deref for TapTree<L> {
+    type Target = Vec<LeafInfo<L>>;
     fn deref(&self) -> &Self::Target { &self.0 }
 }
 
-impl IntoIterator for TapTree {
-    type Item = LeafInfo;
-    type IntoIter = vec::IntoIter<LeafInfo>;
+impl<L> IntoIterator for TapTree<L> {
+    type Item = LeafInfo<L>;
+    type IntoIter = vec::IntoIter<LeafInfo<L>>;
 
     fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
 }
 
-impl<'a> IntoIterator for &'a TapTree {
-    type Item = &'a LeafInfo;
-    type IntoIter = slice::Iter<'a, LeafInfo>;
+impl<'a, L> IntoIterator for &'a TapTree<L> {
+    type Item = &'a LeafInfo<L>;
+    type IntoIter = slice::Iter<'a, LeafInfo<L>>;
 
     fn into_iter(self) -> Self::IntoIter { self.0.iter() }
 }
@@ -127,18 +134,6 @@ impl TapTree {
         }])
     }
 
-    pub fn from_leaves(leaves: impl IntoIterator<Item = LeafInfo>) -> Result<Self, InvalidTree> {
-        let mut builder = TapTreeBuilder::new();
-        for leaf in leaves {
-            builder.push_leaf(leaf)?;
-        }
-        builder.finish().map_err(InvalidTree::from)
-    }
-
-    pub fn from_builder(builder: TapTreeBuilder) -> Result<Self, UnfinalizedTree> {
-        builder.finish()
-    }
-
     pub fn merkle_root(&self) -> TapNodeHash {
         if self.0.len() == 1 {
             TapLeafHash::with_leaf_script(&self.0[0].script).into()
@@ -146,18 +141,67 @@ impl TapTree {
             todo!("#10 implement TapTree::merkle_root for trees with more than one leaf")
         }
     }
+}
 
-    pub fn into_vec(self) -> Vec<LeafInfo> { self.0 }
+impl<L> TapTree<L> {
+    pub fn from_leaves(leaves: impl IntoIterator<Item = LeafInfo<L>>) -> Result<Self, InvalidTree> {
+        let mut builder = TapTreeBuilder::<L>::new();
+        for leaf in leaves {
+            builder.push_leaf(leaf)?;
+        }
+        builder.finish().map_err(InvalidTree::from)
+    }
+
+    pub fn from_builder(builder: TapTreeBuilder<L>) -> Result<Self, UnfinalizedTree> {
+        builder.finish()
+    }
+
+    pub fn into_vec(self) -> Vec<LeafInfo<L>> { self.0 }
+
+    pub fn map<M>(self, f: impl Fn(L) -> M) -> TapTree<M> {
+        TapTree(
+            self.into_iter()
+                .map(|leaf| LeafInfo {
+                    depth: leaf.depth,
+                    script: f(leaf.script),
+                })
+                .collect(),
+        )
+    }
+}
+
+impl<L: Display> Display for TapTree<L> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let mut buoy = MerkleBuoy::<u7>::default();
+
+        let mut depth = u7::ZERO;
+        for leaf in &self.0 {
+            for _ in depth.into_u8()..leaf.depth.into_u8() {
+                f.write_char('{')?;
+            }
+            buoy.push(leaf.depth);
+            if depth == leaf.depth {
+                f.write_char(',')?;
+            }
+            depth = leaf.depth;
+            for _ in buoy.level().into_u8()..depth.into_u8() {
+                f.write_char('}')?;
+            }
+            debug_assert_ne!(buoy.level(), u7::ZERO);
+        }
+        debug_assert_eq!(buoy.level(), u7::ZERO);
+        Ok(())
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
-pub struct LeafInfo {
+pub struct LeafInfo<L = LeafScript> {
     pub depth: u7,
-    pub script: LeafScript,
+    pub script: L,
 }
 
-impl LeafInfo {
+impl LeafInfo<LeafScript> {
     pub fn tap_script(depth: u7, script: TapScript) -> Self {
         LeafInfo {
             depth,

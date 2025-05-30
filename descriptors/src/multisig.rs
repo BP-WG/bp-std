@@ -28,9 +28,9 @@ use amplify::confinement::Confined;
 use amplify::num::u4;
 use amplify::Wrapper;
 use derive::{
-    CompressedPk, Derive, DeriveCompr, DeriveKey, DeriveLegacy, DerivedScript, KeyOrigin, Keychain,
-    LegacyPk, NormalIndex, OpCode, RedeemScript, SigScript, TapDerivation, Terminal, Witness,
-    WitnessScript, XOnlyPk, XkeyOrigin, XpubAccount, XpubDerivable,
+    CompressedPk, ControlBlock, Derive, DeriveCompr, DeriveKey, DeriveLegacy, DerivedScript,
+    KeyOrigin, Keychain, LegacyPk, NormalIndex, OpCode, RedeemScript, SigScript, TapDerivation,
+    Terminal, Witness, WitnessScript, XOnlyPk, XkeyOrigin, XpubAccount, XpubDerivable,
 };
 use indexmap::IndexMap;
 
@@ -136,10 +136,14 @@ impl<K: DeriveCompr> Descriptor<K> for ShWsh<K> {
         Some((sig_script, Some(witness)))
     }
 
-    fn taproot_witness(&self, keysigs: HashMap<&KeyOrigin, TaprootKeySig>) -> Option<Witness> {
+    fn taproot_witness(
+        &self,
+        cb: Option<&ControlBlock>,
+        keysigs: HashMap<&KeyOrigin, TaprootKeySig>,
+    ) -> Option<Witness> {
         match self {
-            Self::Multi(d) => d.taproot_witness(keysigs),
-            Self::SortedMulti(d) => d.taproot_witness(keysigs),
+            Self::Multi(d) => d.taproot_witness(cb, keysigs),
+            Self::SortedMulti(d) => d.taproot_witness(cb, keysigs),
         }
     }
 }
@@ -229,7 +233,11 @@ where Self: Derive<DerivedScript>
         sig_script(self.keys(), keysigs, redeem_script?)
     }
 
-    fn taproot_witness(&self, _keysigs: HashMap<&KeyOrigin, TaprootKeySig>) -> Option<Witness> {
+    fn taproot_witness(
+        &self,
+        _cb: Option<&ControlBlock>,
+        _keysigs: HashMap<&KeyOrigin, TaprootKeySig>,
+    ) -> Option<Witness> {
         None
     }
 }
@@ -317,7 +325,11 @@ where Self: Derive<DerivedScript>
         sig_script(self.keys(), keysigs, redeem_script?)
     }
 
-    fn taproot_witness(&self, _keysigs: HashMap<&KeyOrigin, TaprootKeySig>) -> Option<Witness> {
+    fn taproot_witness(
+        &self,
+        _cb: Option<&ControlBlock>,
+        _keysigs: HashMap<&KeyOrigin, TaprootKeySig>,
+    ) -> Option<Witness> {
         None
     }
 }
@@ -404,7 +416,11 @@ where Self: Derive<DerivedScript>
         witness(self.keys(), keysigs, witness_script?)
     }
 
-    fn taproot_witness(&self, _keysigs: HashMap<&KeyOrigin, TaprootKeySig>) -> Option<Witness> {
+    fn taproot_witness(
+        &self,
+        _cb: Option<&ControlBlock>,
+        _keysigs: HashMap<&KeyOrigin, TaprootKeySig>,
+    ) -> Option<Witness> {
         None
     }
 }
@@ -492,7 +508,11 @@ where Self: Derive<DerivedScript>
         witness(self.keys(), keysigs, witness_script?)
     }
 
-    fn taproot_witness(&self, _keysigs: HashMap<&KeyOrigin, TaprootKeySig>) -> Option<Witness> {
+    fn taproot_witness(
+        &self,
+        _cb: Option<&ControlBlock>,
+        _keysigs: HashMap<&KeyOrigin, TaprootKeySig>,
+    ) -> Option<Witness> {
         None
     }
 }
