@@ -28,14 +28,12 @@ extern crate serde;
 
 mod script;
 mod descriptor;
-mod pkh;
+mod singlesig;
 mod multisig;
-mod wpkh;
 mod tr;
 
 pub use descriptor::{Descriptor, LegacyKeySig, SpkClass, StdDescr, TaprootKeySig};
 pub use multisig::{ShMulti, ShSortedMulti, ShWsh, WshMulti, WshSortedMulti};
-pub use pkh::Pkh;
 pub use script::{Bare, ScriptDescr, ScriptItem, Sh, WitnessItem, Wsh};
+pub use singlesig::{Pkh, ShWpkh, Wpkh};
 pub use tr::{Tr, TrKey, TrScript};
-pub use wpkh::{ShWpkh, Wpkh};
