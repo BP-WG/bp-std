@@ -212,9 +212,9 @@ impl<S: Display, K: Display> Display for ScriptDescr<S, K> {
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
-pub struct Bare<K: DeriveLegacy = XpubDerivable>(ScriptDescr<OpCode, K>);
+pub struct Raw<K: DeriveLegacy = XpubDerivable>(ScriptDescr<OpCode, K>);
 
-impl<K: DeriveLegacy> Derive<DerivedScript> for Bare<K> {
+impl<K: DeriveLegacy> Derive<DerivedScript> for Raw<K> {
     #[inline]
     fn default_keychain(&self) -> Keychain { self.0.default_keychain() }
 
@@ -233,7 +233,7 @@ impl<K: DeriveLegacy> Derive<DerivedScript> for Bare<K> {
     }
 }
 
-impl<K: DeriveLegacy> Descriptor<K> for Bare<K> {
+impl<K: DeriveLegacy> Descriptor<K> for Raw<K> {
     fn class(&self) -> SpkClass { SpkClass::Bare }
 
     fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
@@ -294,8 +294,8 @@ impl<K: DeriveLegacy> Descriptor<K> for Bare<K> {
     }
 }
 
-impl<K: DeriveLegacy> Display for Bare<K> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { write!(f, "bare({})", self.0) }
+impl<K: DeriveLegacy> Display for Raw<K> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { write!(f, "raw({})", self.0) }
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

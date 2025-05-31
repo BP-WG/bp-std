@@ -33,7 +33,7 @@ use derive::{
 use indexmap::IndexMap;
 
 use crate::{
-    Bare, Pkh, Sh, ShMulti, ShSortedMulti, ShWpkh, ShWsh, TrKey, TrMulti, TrScript, TrSortedMulti,
+    Pkh, Raw, Sh, ShMulti, ShSortedMulti, ShWpkh, ShWsh, TrKey, TrMulti, TrScript, TrSortedMulti,
     Wpkh, Wsh, WshMulti, WshSortedMulti,
 };
 
@@ -134,7 +134,7 @@ pub trait Descriptor<K = XpubDerivable, V = ()>: DeriveScripts + Clone + Display
 #[non_exhaustive]
 pub enum StdDescr<S: DeriveSet = XpubDerivable> {
     #[from]
-    Bare(Bare<S::Legacy>),
+    Raw(Raw<S::Legacy>),
 
     #[from]
     Sh(Sh<S::Legacy>),
@@ -182,7 +182,7 @@ pub enum StdDescr<S: DeriveSet = XpubDerivable> {
 impl<S: DeriveSet> Derive<DerivedScript> for StdDescr<S> {
     fn default_keychain(&self) -> Keychain {
         match self {
-            StdDescr::Bare(d) => d.default_keychain(),
+            StdDescr::Raw(d) => d.default_keychain(),
             StdDescr::Pkh(d) => d.default_keychain(),
             StdDescr::Sh(d) => d.default_keychain(),
             StdDescr::ShMulti(d) => d.default_keychain(),
@@ -202,7 +202,7 @@ impl<S: DeriveSet> Derive<DerivedScript> for StdDescr<S> {
 
     fn keychains(&self) -> BTreeSet<Keychain> {
         match self {
-            StdDescr::Bare(d) => d.keychains(),
+            StdDescr::Raw(d) => d.keychains(),
             StdDescr::Pkh(d) => d.keychains(),
             StdDescr::Sh(d) => d.keychains(),
             StdDescr::ShMulti(d) => d.keychains(),
@@ -226,7 +226,7 @@ impl<S: DeriveSet> Derive<DerivedScript> for StdDescr<S> {
         index: impl Into<NormalIndex>,
     ) -> impl Iterator<Item = DerivedScript> {
         match self {
-            StdDescr::Bare(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
+            StdDescr::Raw(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
             StdDescr::Pkh(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
             StdDescr::Sh(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
             StdDescr::ShMulti(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
@@ -253,7 +253,7 @@ where Self: Derive<DerivedScript>
 {
     fn class(&self) -> SpkClass {
         match self {
-            StdDescr::Bare(d) => d.class(),
+            StdDescr::Raw(d) => d.class(),
             StdDescr::Pkh(d) => d.class(),
             StdDescr::Sh(d) => d.class(),
             StdDescr::ShMulti(d) => d.class(),
@@ -274,7 +274,7 @@ where Self: Derive<DerivedScript>
     fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
     where K: 'a {
         match self {
-            StdDescr::Bare(d) => d.keys().collect::<Vec<_>>(),
+            StdDescr::Raw(d) => d.keys().collect::<Vec<_>>(),
             StdDescr::Pkh(d) => d.keys().collect::<Vec<_>>(),
             StdDescr::Sh(d) => d.keys().collect::<Vec<_>>(),
             StdDescr::ShMulti(d) => d.keys().collect::<Vec<_>>(),
@@ -300,7 +300,7 @@ where Self: Derive<DerivedScript>
 
     fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> {
         match self {
-            StdDescr::Bare(d) => d.xpubs().collect::<Vec<_>>(),
+            StdDescr::Raw(d) => d.xpubs().collect::<Vec<_>>(),
             StdDescr::Pkh(d) => d.xpubs().collect::<Vec<_>>(),
             StdDescr::Sh(d) => d.xpubs().collect::<Vec<_>>(),
             StdDescr::ShMulti(d) => d.xpubs().collect::<Vec<_>>(),
@@ -321,7 +321,7 @@ where Self: Derive<DerivedScript>
 
     fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
         match self {
-            StdDescr::Bare(d) => d.legacy_keyset(terminal),
+            StdDescr::Raw(d) => d.legacy_keyset(terminal),
             StdDescr::Pkh(d) => d.legacy_keyset(terminal),
             StdDescr::Sh(d) => d.legacy_keyset(terminal),
             StdDescr::ShMulti(d) => d.legacy_keyset(terminal),
@@ -341,7 +341,7 @@ where Self: Derive<DerivedScript>
 
     fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation> {
         match self {
-            StdDescr::Bare(d) => d.xonly_keyset(terminal),
+            StdDescr::Raw(d) => d.xonly_keyset(terminal),
             StdDescr::Pkh(d) => d.xonly_keyset(terminal),
             StdDescr::Sh(d) => d.xonly_keyset(terminal),
             StdDescr::ShMulti(d) => d.xonly_keyset(terminal),
@@ -366,7 +366,7 @@ where Self: Derive<DerivedScript>
         witness_script: Option<WitnessScript>,
     ) -> Option<(SigScript, Option<Witness>)> {
         match self {
-            StdDescr::Bare(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
+            StdDescr::Raw(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
             StdDescr::Pkh(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
             StdDescr::Sh(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
             StdDescr::ShMulti(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
@@ -390,7 +390,7 @@ where Self: Derive<DerivedScript>
         keysigs: HashMap<&KeyOrigin, TaprootKeySig>,
     ) -> Option<Witness> {
         match self {
-            StdDescr::Bare(d) => d.taproot_witness(cb, keysigs),
+            StdDescr::Raw(d) => d.taproot_witness(cb, keysigs),
             StdDescr::Pkh(d) => d.taproot_witness(cb, keysigs),
             StdDescr::Sh(d) => d.taproot_witness(cb, keysigs),
             StdDescr::ShMulti(d) => d.taproot_witness(cb, keysigs),
@@ -417,7 +417,7 @@ where
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            StdDescr::Bare(d) => Display::fmt(d, f),
+            StdDescr::Raw(d) => Display::fmt(d, f),
             StdDescr::Pkh(d) => Display::fmt(d, f),
             StdDescr::Sh(d) => Display::fmt(d, f),
             StdDescr::ShMulti(d) => Display::fmt(d, f),
