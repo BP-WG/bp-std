@@ -24,10 +24,11 @@ use std::collections::{BTreeSet, HashMap};
 use std::fmt::{self, Display, Formatter};
 use std::iter;
 
+use amplify::confinement::ConfinedVec;
 use derive::{
     ConsensusEncode, ControlBlock, Derive, DeriveXOnly, DerivedScript, InternalPk, KeyOrigin,
-    Keychain, LegacyPk, NormalIndex, RedeemScript, SigScript, TapCode, TapDerivation, TapScript,
-    TapTree, Terminal, Witness, WitnessScript, XOnlyPk, XpubAccount, XpubDerivable,
+    Keychain, LeafScript, LegacyPk, NormalIndex, RedeemScript, SigScript, TapCode, TapDerivation,
+    TapScript, TapTree, Terminal, Witness, WitnessScript, XOnlyPk, XpubAccount, XpubDerivable,
 };
 use indexmap::IndexMap;
 
@@ -248,7 +249,171 @@ impl<K: DeriveXOnly> Display for TrKey<K> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { write!(f, "tr({})", self.0) }
 }
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct TrMulti<K: DeriveXOnly> {
+    pub internal_key: K,
+    pub threshold: u16,
+    pub script_keys: ConfinedVec<K, 1, 999>,
+}
+
+impl<K: DeriveXOnly> Derive<DerivedScript> for TrMulti<K> {
+    #[inline]
+    fn default_keychain(&self) -> Keychain { self.internal_key.default_keychain() }
+
+    #[inline]
+    fn keychains(&self) -> BTreeSet<Keychain> { self.internal_key.keychains() }
+
+    fn derive(
+        &self,
+        keychain: impl Into<Keychain>,
+        index: impl Into<NormalIndex>,
+    ) -> impl Iterator<Item = DerivedScript> {
+        let keychain = keychain.into();
+        let index = index.into();
+        let internal_key =
+            self.internal_key.derive(keychain, index).next().expect("no derivation found");
+
+        let keys = self
+            .script_keys
+            .iter()
+            .map(|xkey| xkey.derive(keychain, index).next().expect("no derivation found"));
+        let tree = to_tap_tree(self.threshold, keys);
+        iter::once(DerivedScript::TaprootScript(InternalPk::from_unchecked(internal_key), tree))
+    }
+}
+
+impl<K: DeriveXOnly> Descriptor<K> for TrMulti<K> {
+    fn class(&self) -> SpkClass { SpkClass::P2tr }
+
+    fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
+    where K: 'a {
+        iter::once(&self.internal_key).chain(&self.script_keys)
+    }
+    fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
+    where (): 'a {
+        iter::empty()
+    }
+    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> { self.keys().map(K::xpub_spec) }
+
+    fn legacy_keyset(&self, _terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
+        IndexMap::new()
+    }
+
+    fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation> {
+        xonly_keyset(self.keys(), terminal)
+    }
+
+    fn legacy_witness(
+        &self,
+        _keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
+        _redeem_script: Option<RedeemScript>,
+        _witness_script: Option<WitnessScript>,
+    ) -> Option<(SigScript, Option<Witness>)> {
+        None
+    }
+
+    fn taproot_witness(
+        &self,
+        cb: Option<&ControlBlock>,
+        keysigs: HashMap<&KeyOrigin, TaprootKeySig>,
+    ) -> Option<Witness> {
+        witness(&self.internal_key, self.threshold, cb, keysigs)
+    }
+}
+
+impl<K: DeriveXOnly> Display for TrMulti<K>
+where K: Display
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        fmt(&self.internal_key, self.threshold, &self.script_keys, false, f)
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct TrSortedMulti<K: DeriveXOnly> {
+    pub internal_key: K,
+    pub threshold: u16,
+    pub script_keys: ConfinedVec<K, 1, 999>,
+}
+
+impl<K: DeriveXOnly> Derive<DerivedScript> for TrSortedMulti<K> {
+    #[inline]
+    fn default_keychain(&self) -> Keychain { self.internal_key.default_keychain() }
+
+    #[inline]
+    fn keychains(&self) -> BTreeSet<Keychain> { self.internal_key.keychains() }
+
+    fn derive(
+        &self,
+        keychain: impl Into<Keychain>,
+        index: impl Into<NormalIndex>,
+    ) -> impl Iterator<Item = DerivedScript> {
+        let keychain = keychain.into();
+        let index = index.into();
+        let internal_key =
+            self.internal_key.derive(keychain, index).next().expect("no derivation found");
+
+        let keys = self
+            .script_keys
+            .iter()
+            .map(|xkey| xkey.derive(keychain, index).next().expect("no derivation found"))
+            // Using BTreeSet here ensures the keys are sorted
+            .collect::<BTreeSet<_>>();
+        let tree = to_tap_tree(self.threshold, keys);
+        iter::once(DerivedScript::TaprootScript(InternalPk::from_unchecked(internal_key), tree))
+    }
+}
+
+impl<K: DeriveXOnly> Descriptor<K> for TrSortedMulti<K> {
+    fn class(&self) -> SpkClass { SpkClass::P2tr }
+
+    fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
+    where K: 'a {
+        iter::once(&self.internal_key).chain(&self.script_keys)
+    }
+    fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
+    where (): 'a {
+        iter::empty()
+    }
+    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> { self.keys().map(K::xpub_spec) }
+
+    fn legacy_keyset(&self, _terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
+        IndexMap::new()
+    }
+
+    fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation> {
+        xonly_keyset(self.keys(), terminal)
+    }
+
+    fn legacy_witness(
+        &self,
+        _keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
+        _redeem_script: Option<RedeemScript>,
+        _witness_script: Option<WitnessScript>,
+    ) -> Option<(SigScript, Option<Witness>)> {
+        None
+    }
+
+    fn taproot_witness(
+        &self,
+        cb: Option<&ControlBlock>,
+        keysigs: HashMap<&KeyOrigin, TaprootKeySig>,
+    ) -> Option<Witness> {
+        witness(&self.internal_key, self.threshold, cb, keysigs)
+    }
+}
+
+impl<K: DeriveXOnly> Display for TrSortedMulti<K>
+where K: Display
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        fmt(&self.internal_key, self.threshold, &self.script_keys, true, f)
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct TrScript<K: DeriveXOnly> {
     internal_key: K,
@@ -256,6 +421,12 @@ pub struct TrScript<K: DeriveXOnly> {
 }
 
 impl<K: DeriveXOnly> TrScript<K> {
+    pub fn new(internal_key: K, tap_tree: TapTree<ScriptDescr<TapCode, K>>) -> TrScript<K> {
+        Self {
+            internal_key,
+            tap_tree,
+        }
+    }
     pub fn as_internal_key(&self) -> &K { &self.internal_key }
     pub fn into_internal_key(self) -> K { self.internal_key }
 }
@@ -392,4 +563,77 @@ where K: Display
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "tr({}, {})", self.internal_key, self.tap_tree)
     }
+}
+
+// ------------------------------------------------------------------------------------------------
+
+fn to_tap_tree(
+    threshold: u16,
+    script_keys: impl IntoIterator<Item = XOnlyPk>,
+) -> TapTree<LeafScript> {
+    let mut tap_script = TapScript::new();
+    for key in script_keys {
+        tap_script.push_slice(&key.to_byte_array());
+        tap_script.push_opcode(TapCode::CheckSigAdd);
+    }
+    tap_script.push_num(threshold as i64);
+    tap_script.push_opcode(TapCode::NumEqual);
+    TapTree::with_single_leaf(tap_script)
+}
+
+fn xonly_keyset<'k, K: DeriveXOnly + 'k>(
+    keys: impl IntoIterator<Item = &'k K>,
+    terminal: Terminal,
+) -> IndexMap<XOnlyPk, TapDerivation> {
+    keys.into_iter()
+        .map(|xkey| {
+            let key = xkey.derive(terminal.keychain, terminal.index).next().expect("no key found");
+            (key, TapDerivation::with_internal_pk(xkey.xpub_spec().origin().clone(), terminal))
+        })
+        .collect()
+}
+
+fn witness<K: DeriveXOnly>(
+    internal_key: &K,
+    threshold: u16,
+    cb: Option<&ControlBlock>,
+    keysigs: HashMap<&KeyOrigin, TaprootKeySig>,
+) -> Option<Witness> {
+    if let Some(cb) = cb {
+        let mut stack = vec![];
+        let mut tap_script = TapScript::new();
+        for sig in keysigs.values() {
+            stack.push(sig.sig.to_vec());
+            tap_script.push_slice(&sig.key.to_byte_array());
+            tap_script.push_opcode(TapCode::CheckSigAdd);
+        }
+        tap_script.push_num(threshold as i64);
+        tap_script.push_opcode(TapCode::NumEqual);
+        stack.push(tap_script.to_vec());
+        stack.push(cb.consensus_serialize());
+        Some(Witness::from_consensus_stack(stack))
+    } else {
+        let our_origin = internal_key.xpub_spec().origin();
+        let keysig =
+            keysigs.iter().find(|(origin, _)| our_origin.is_subset_of(origin)).map(|(_, ks)| ks)?;
+        Some(Witness::from_consensus_stack([keysig.sig.to_vec()]))
+    }
+}
+
+fn fmt<'k, K: Display + 'k>(
+    internal_key: &'k K,
+    threshold: u16,
+    keys: impl IntoIterator<Item = &'k K>,
+    sorted: bool,
+    f: &mut Formatter<'_>,
+) -> fmt::Result {
+    write!(f, "tr({},", internal_key)?;
+    if sorted {
+        f.write_str("sorted")?;
+    }
+    write!(f, "multi_a({}", threshold)?;
+    for key in keys {
+        write!(f, ",{key}")?;
+    }
+    f.write_str("))")
 }

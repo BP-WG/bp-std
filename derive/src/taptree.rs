@@ -81,6 +81,11 @@ impl<L> TapTreeBuilder<L> {
 
     pub fn is_finalized(&self) -> bool { self.finalized }
 
+    pub fn with_leaf(mut self, leaf: LeafInfo<L>) -> Result<Self, FinalizedTree> {
+        self.push_leaf(leaf)?;
+        Ok(self)
+    }
+
     pub fn push_leaf(&mut self, leaf: LeafInfo<L>) -> Result<bool, FinalizedTree> {
         if self.finalized {
             return Err(FinalizedTree);

@@ -568,11 +568,11 @@ where I::IntoIter: ExactSizeIterator {
     let key_count = keys.len();
 
     let mut redeem_script = RedeemScript::with_capacity(key_count * 34 + 4);
-    redeem_script.push_num(threshold.into_u8());
+    redeem_script.push_num(threshold.into_u8() as i64);
     for key in keys {
         redeem_script.push_slice(&key.serialize());
     }
-    redeem_script.push_num(key_count as u8);
+    redeem_script.push_num(key_count as i64);
     redeem_script.push_opcode(OpCode::CheckMultiSig);
 
     redeem_script
@@ -584,11 +584,11 @@ where I::IntoIter: ExactSizeIterator {
     let key_count = keys.len();
 
     let mut witness_script = WitnessScript::with_capacity(key_count * 34 + 4);
-    witness_script.push_num(threshold.into_u8());
+    witness_script.push_num(threshold.into_u8() as i64);
     for key in keys {
         witness_script.push_slice(&key.serialize());
     }
-    witness_script.push_num(key_count as u8);
+    witness_script.push_num(key_count as i64);
     witness_script.push_opcode(OpCode::CheckMultiSig);
 
     witness_script
