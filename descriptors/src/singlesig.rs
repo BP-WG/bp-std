@@ -77,7 +77,7 @@ impl<K: DeriveLegacy> Descriptor<K> for Pkh<K> {
     fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
         self.0
             .derive(terminal.keychain, terminal.index)
-            .map(|key| (key.into(), KeyOrigin::with(self.0.xpub_spec().origin().clone(), terminal)))
+            .map(|key| (key, KeyOrigin::with(self.0.xpub_spec().origin().clone(), terminal)))
             .collect()
     }
 

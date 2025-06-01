@@ -106,7 +106,7 @@ impl<K: DeriveLegacy> Derive<RedeemScript> for ScriptDescr<OpCode, K> {
                 ScriptItem::Data(fata) => script.push_slice(fata),
             }
         }
-        iter::once(script.into())
+        iter::once(script)
     }
 }
 
@@ -144,7 +144,7 @@ impl<K: DeriveCompr> Derive<WitnessScript> for ScriptDescr<OpCode, K> {
                 ScriptItem::Data(fata) => script.push_slice(fata),
             }
         }
-        iter::once(script.into())
+        iter::once(script)
     }
 }
 
@@ -197,7 +197,7 @@ impl<S: Display, K: Display> Display for ScriptDescr<S, K> {
                 ScriptItem::Key(_, key) => Display::fmt(key, f)?,
                 ScriptItem::Code(code) => {
                     for opcode in code {
-                        write!(f, "{}", opcode)?;
+                        write!(f, "{opcode}")?;
                     }
                 }
                 ScriptItem::Data(data) => {
@@ -253,7 +253,7 @@ impl<K: DeriveLegacy> Descriptor<K> for Raw<K> {
                     .derive(terminal.keychain, terminal.index)
                     .next()
                     .expect("xkey derivation is empty");
-                (key.into(), KeyOrigin::with(xkey.xpub_spec().origin().clone(), terminal))
+                (key, KeyOrigin::with(xkey.xpub_spec().origin().clone(), terminal))
             })
             .collect()
     }
@@ -338,7 +338,7 @@ impl<K: DeriveLegacy> Descriptor<K> for Sh<K> {
                     .derive(terminal.keychain, terminal.index)
                     .next()
                     .expect("xkey derivation is empty");
-                (key.into(), KeyOrigin::with(xkey.xpub_spec().origin().clone(), terminal))
+                (key, KeyOrigin::with(xkey.xpub_spec().origin().clone(), terminal))
             })
             .collect()
     }

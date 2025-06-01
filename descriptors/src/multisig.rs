@@ -654,7 +654,7 @@ fn fmt<'k, K: Display + 'k>(
     keys: impl IntoIterator<Item = &'k K>,
     f: &mut Formatter<'_>,
 ) -> fmt::Result {
-    write!(f, "multi({}", threshold)?;
+    write!(f, "multi({threshold}")?;
     for key in keys {
         write!(f, ",{key}")?;
     }

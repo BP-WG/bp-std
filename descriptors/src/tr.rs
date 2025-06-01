@@ -627,11 +627,11 @@ fn fmt<'k, K: Display + 'k>(
     sorted: bool,
     f: &mut Formatter<'_>,
 ) -> fmt::Result {
-    write!(f, "tr({},", internal_key)?;
+    write!(f, "tr({internal_key},")?;
     if sorted {
         f.write_str("sorted")?;
     }
-    write!(f, "multi_a({}", threshold)?;
+    write!(f, "multi_a({threshold}")?;
     for key in keys {
         write!(f, ",{key}")?;
     }
