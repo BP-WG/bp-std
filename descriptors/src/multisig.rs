@@ -30,7 +30,7 @@ use amplify::Wrapper;
 use derive::{
     CompressedPk, ControlBlock, Derive, DeriveCompr, DeriveKey, DeriveLegacy, DerivedScript,
     KeyOrigin, Keychain, LegacyPk, NormalIndex, OpCode, RedeemScript, SigScript, TapDerivation,
-    Terminal, Witness, WitnessScript, XOnlyPk, XkeyOrigin, XpubAccount, XpubDerivable,
+    Terminal, Witness, WitnessScript, XOnlyPk, XpubAccount, XpubDerivable,
 };
 use indexmap::IndexMap;
 
@@ -549,8 +549,8 @@ fn check_sigs<'a>(
     accounts: impl Iterator<Item = &'a XpubAccount>,
     keysigs: &HashMap<&'a KeyOrigin, LegacyKeySig>,
 ) -> bool {
-    let set = accounts.map(XpubAccount::origin).map(XkeyOrigin::master_fp).collect::<BTreeSet<_>>();
-    keysigs.keys().all(|origin| set.contains(&origin.master_fp()))
+    let set = accounts.map(XpubAccount::origin).collect::<BTreeSet<_>>();
+    keysigs.keys().all(|origin| set.contains(&origin.to_account_origin()))
 }
 
 fn derive<'k, T, K: Derive<T> + 'k, I: IntoIterator<Item = &'k K>>(

@@ -23,13 +23,14 @@
 use std::num::ParseIntError;
 use std::str::FromStr;
 
+use bp::Txid;
 use derive::{
     Address, AddressNetwork, AddressParseError, Keychain, LockTime, Network, NormalIndex, Outpoint,
     Sats, ScriptPubkey, SeqNo, Terminal, Vout,
 };
 use descriptors::Descriptor;
 
-use crate::{Prevout, Psbt, PsbtError, PsbtVer};
+use crate::{Prevout, Psbt, PsbtError, PsbtVer, UnsignedTx};
 
 #[derive(Clone, Debug, Display, Error, From)]
 #[display(doc_comments)]
@@ -207,6 +208,7 @@ pub trait PsbtConstructor {
     type Descr: Descriptor<Self::Key>;
 
     fn descriptor(&self) -> &Self::Descr;
+    fn prev_tx(&self, txid: Txid) -> Option<UnsignedTx>;
     fn utxo(&self, outpoint: Outpoint) -> Option<(Utxo, ScriptPubkey)>;
     fn network(&self) -> Network;
     fn next_derivation_index(&mut self, keychain: impl Into<Keychain>, shift: bool) -> NormalIndex;
@@ -229,11 +231,13 @@ pub trait PsbtConstructor {
 
         // 1. Add inputs
         for coin in coins {
+            let prev_tx = self.prev_tx(coin.txid).ok_or(ConstructionError::UnknownInput(coin))?;
             let (utxo, spk) = self.utxo(coin).ok_or(ConstructionError::UnknownInput(coin))?;
             if psbt.inputs().any(|inp| inp.previous_outpoint == utxo.outpoint) {
                 continue;
             }
             psbt.append_input_expect(
+                prev_tx,
                 utxo.to_prevout(),
                 self.descriptor(),
                 utxo.terminal,

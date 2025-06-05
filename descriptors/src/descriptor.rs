@@ -69,8 +69,25 @@ impl SpkClass {
             SpkClass::P2tr => true,
         }
     }
+
+    pub const fn is_segwit(self) -> bool {
+        match self {
+            SpkClass::Bare | SpkClass::P2pkh | SpkClass::P2sh => false,
+            SpkClass::P2wpkh | SpkClass::P2wsh => true,
+            SpkClass::P2tr => true,
+        }
+    }
+
+    pub const fn is_segwit_v0(self) -> bool {
+        match self {
+            SpkClass::Bare | SpkClass::P2pkh | SpkClass::P2sh => false,
+            SpkClass::P2wpkh | SpkClass::P2wsh => true,
+            SpkClass::P2tr => false,
+        }
+    }
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct LegacyKeySig {
     pub key: LegacyPk,
     pub sig: LegacySig,
@@ -80,6 +97,7 @@ impl LegacyKeySig {
     pub fn new(key: LegacyPk, sig: LegacySig) -> Self { LegacyKeySig { key, sig } }
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct TaprootKeySig {
     pub key: XOnlyPk,
     pub sig: Bip340Sig,
@@ -93,6 +111,8 @@ pub trait Descriptor<K = XpubDerivable, V = ()>: DeriveScripts + Clone + Display
     fn class(&self) -> SpkClass;
     #[inline]
     fn is_taproot(&self) -> bool { self.class().is_taproot() }
+    #[inline]
+    fn is_segwit(&self) -> bool { self.class().is_segwit() }
 
     fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
     where K: 'a;

@@ -310,6 +310,7 @@ impl Psbt {
     /// If the descriptor generates less or more than one script per the provided terminal
     pub fn append_input<K, D: Descriptor<K>>(
         &mut self,
+        prev_tx: UnsignedTx,
         prevout: Prevout,
         descriptor: &D,
         terminal: Terminal,
@@ -324,14 +325,23 @@ impl Psbt {
             .derive(terminal.keychain, terminal.index)
             .find(|script| script.to_script_pubkey() == script_pubkey)
             .expect("unable to generate input matching prevout");
+
+        let mut witness_utxo = None;
+        let mut non_witness_tx = None;
+        if descriptor.is_segwit() {
+            witness_utxo = Some(TxOut::new(script.to_script_pubkey(), prevout.value));
+        } else {
+            non_witness_tx = Some(prev_tx.into());
+        }
+
         let input = Input {
             index: self.inputs.len(),
             previous_outpoint: prevout.outpoint(),
             sequence_number: Some(sequence),
             required_time_lock: None,
             required_height_lock: None,
-            non_witness_tx: None,
-            witness_utxo: Some(TxOut::new(script.to_script_pubkey(), prevout.value)),
+            non_witness_tx,
+            witness_utxo,
             partial_sigs: none!(),
             sighash_type: None,
             redeem_script: script.to_redeem_script(),
@@ -360,13 +370,14 @@ impl Psbt {
 
     pub fn append_input_expect<K, D: Descriptor<K>>(
         &mut self,
+        prev_tx: UnsignedTx,
         prevout: Prevout,
         descriptor: &D,
         terminal: Terminal,
         script_pubkey: ScriptPubkey,
         sequence: SeqNo,
     ) -> &mut Input {
-        self.append_input(prevout, descriptor, terminal, script_pubkey, sequence)
+        self.append_input(prev_tx, prevout, descriptor, terminal, script_pubkey, sequence)
             .expect("PSBT inputs are expected to be modifiable")
     }
 
@@ -781,7 +792,7 @@ impl Input {
             // TODO #45: Figure out default SeqNo
             sig_script: self.final_script_sig.clone().expect("non-finalized input"),
             sequence: self.sequence_number.unwrap_or(SeqNo::from_consensus_u32(0)),
-            witness: self.final_witness.clone().expect("non-finalized input"),
+            witness: self.final_witness.clone().unwrap_or_default(),
         }
     }
 
@@ -796,7 +807,7 @@ impl Input {
     #[inline]
     pub fn prev_txout(&self) -> &TxOut {
         // TODO #48: Add support for nonwitness_utxo
-        match (&self.witness_utxo, None::<&Tx>) {
+        match (&self.witness_utxo, &self.non_witness_tx) {
             (Some(txout), _) => txout,
             (None, Some(tx)) => &tx.outputs[self.index],
             (None, None) => unreachable!(

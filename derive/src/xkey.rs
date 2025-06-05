@@ -729,6 +729,13 @@ impl KeyOrigin {
     pub fn to_derivation(&self) -> DerivationPath { self.derivation.clone() }
 
     pub fn into_derivation(self) -> DerivationPath { self.derivation }
+
+    pub fn to_account_origin(&self) -> XkeyOrigin {
+        XkeyOrigin {
+            master_fp: self.master_fp,
+            derivation: self.derivation.hardened_prefix(),
+        }
+    }
 }
 
 #[derive(Getters, Clone, Eq, PartialEq, Hash, Debug)]
