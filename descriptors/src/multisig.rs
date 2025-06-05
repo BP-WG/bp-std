@@ -639,7 +639,7 @@ fn witness<'k, K: DeriveCompr + 'k, I: IntoIterator<Item = &'k K>>(
         return None;
     }
 
-    let mut stack = Vec::with_capacity(keysigs.len() + 1);
+    let mut stack = Vec::with_capacity(keysigs.len() + 2);
     stack.push(vec![]); // The infamous OP_CHECKMULTISIG bug
     for sig in keysigs.values() {
         stack.push(sig.sig.to_vec());
