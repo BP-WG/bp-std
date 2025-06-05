@@ -29,7 +29,7 @@ use bc::secp256k1::{Keypair, PublicKey, SecretKey, SECP256K1};
 use bc::{secp256k1, CompressedPk, InvalidPubkey, LegacyPk, XOnlyPk};
 use commit_verify::{Digest, Ripemd160};
 use hmac::{Hmac, Mac};
-use sha2::Sha512;
+use sha2::{Sha256, Sha512};
 
 use crate::{
     base58, DerivationIndex, DerivationParseError, DerivationPath, DerivationSeg, HardenedIndex,
@@ -286,8 +286,9 @@ impl Xpub {
 
     /// Returns the HASH160 of the chaincode
     pub fn identifier(&self) -> XpubId {
-        let hash = Ripemd160::digest(self.core.public_key.serialize());
-        XpubId::from_slice_checked(hash)
+        let hash1 = Sha256::digest(self.core.public_key.serialize());
+        let hash2 = Ripemd160::digest(hash1);
+        XpubId::from_slice_checked(hash2)
     }
 
     pub fn fingerprint(&self) -> XpubFp {
