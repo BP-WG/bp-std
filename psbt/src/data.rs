@@ -806,10 +806,9 @@ impl Input {
 
     #[inline]
     pub fn prev_txout(&self) -> &TxOut {
-        // TODO #48: Add support for nonwitness_utxo
         match (&self.witness_utxo, &self.non_witness_tx) {
             (Some(txout), _) => txout,
-            (None, Some(tx)) => &tx.outputs[self.index],
+            (None, Some(tx)) => &tx.outputs[self.previous_outpoint.vout.into_usize()],
             (None, None) => unreachable!(
                 "PSBT input must contain either witness UTXO or a non-witness transaction"
             ),
