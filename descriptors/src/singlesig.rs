@@ -20,7 +20,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::BTreeSet;
 use std::fmt::{self, Display, Formatter};
 use std::hash::Hash;
 use std::iter;
@@ -87,7 +87,7 @@ impl<K: DeriveLegacy> Descriptor<K> for Pkh<K> {
 
     fn legacy_witness(
         &self,
-        keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
+        keysigs: IndexMap<&KeyOrigin, LegacyKeySig>,
         _redeem_script: Option<RedeemScript>,
         _witness_script: Option<WitnessScript>,
     ) -> Option<(SigScript, Option<Witness>)> {
@@ -104,7 +104,7 @@ impl<K: DeriveLegacy> Descriptor<K> for Pkh<K> {
     fn taproot_witness(
         &self,
         _cb: Option<&ControlBlock>,
-        _keysigs: HashMap<&KeyOrigin, TaprootKeySig>,
+        _keysigs: IndexMap<&KeyOrigin, TaprootKeySig>,
     ) -> Option<Witness> {
         None
     }
@@ -167,7 +167,7 @@ impl<K: DeriveCompr> Descriptor<K> for Wpkh<K> {
 
     fn legacy_witness(
         &self,
-        keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
+        keysigs: IndexMap<&KeyOrigin, LegacyKeySig>,
         _redeem_script: Option<RedeemScript>,
         _witness_script: Option<WitnessScript>,
     ) -> Option<(SigScript, Option<Witness>)> {
@@ -181,7 +181,7 @@ impl<K: DeriveCompr> Descriptor<K> for Wpkh<K> {
     fn taproot_witness(
         &self,
         _cb: Option<&ControlBlock>,
-        _keysigs: HashMap<&KeyOrigin, TaprootKeySig>,
+        _keysigs: IndexMap<&KeyOrigin, TaprootKeySig>,
     ) -> Option<Witness> {
         None
     }
@@ -242,7 +242,7 @@ impl<K: DeriveCompr> Descriptor<K> for ShWpkh<K> {
 
     fn legacy_witness(
         &self,
-        keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
+        keysigs: IndexMap<&KeyOrigin, LegacyKeySig>,
         _redeem_script: Option<RedeemScript>,
         _witness_script: Option<WitnessScript>,
     ) -> Option<(SigScript, Option<Witness>)> {
@@ -256,7 +256,7 @@ impl<K: DeriveCompr> Descriptor<K> for ShWpkh<K> {
     fn taproot_witness(
         &self,
         _cb: Option<&ControlBlock>,
-        _keysigs: HashMap<&KeyOrigin, TaprootKeySig>,
+        _keysigs: IndexMap<&KeyOrigin, TaprootKeySig>,
     ) -> Option<Witness> {
         None
     }

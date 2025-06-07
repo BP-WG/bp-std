@@ -20,7 +20,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::{self, Display, Formatter};
 use std::iter;
 
@@ -136,7 +136,7 @@ impl<K: DeriveXOnly> Descriptor<K> for Tr<K> {
 
     fn legacy_witness(
         &self,
-        keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
+        keysigs: IndexMap<&KeyOrigin, LegacyKeySig>,
         redeem_script: Option<RedeemScript>,
         witness_script: Option<WitnessScript>,
     ) -> Option<(SigScript, Option<Witness>)> {
@@ -149,7 +149,7 @@ impl<K: DeriveXOnly> Descriptor<K> for Tr<K> {
     fn taproot_witness(
         &self,
         cb: Option<&ControlBlock>,
-        keysigs: HashMap<&KeyOrigin, TaprootKeySig>,
+        keysigs: IndexMap<&KeyOrigin, TaprootKeySig>,
     ) -> Option<Witness> {
         match self {
             Tr::KeyOnly(d) => d.taproot_witness(cb, keysigs),
@@ -225,7 +225,7 @@ impl<K: DeriveXOnly> Descriptor<K> for TrKey<K> {
 
     fn legacy_witness(
         &self,
-        _keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
+        _keysigs: IndexMap<&KeyOrigin, LegacyKeySig>,
         _redeem_script: Option<RedeemScript>,
         _witness_script: Option<WitnessScript>,
     ) -> Option<(SigScript, Option<Witness>)> {
@@ -235,7 +235,7 @@ impl<K: DeriveXOnly> Descriptor<K> for TrKey<K> {
     fn taproot_witness(
         &self,
         cb: Option<&ControlBlock>,
-        keysigs: HashMap<&KeyOrigin, TaprootKeySig>,
+        keysigs: IndexMap<&KeyOrigin, TaprootKeySig>,
     ) -> Option<Witness> {
         cb?;
         let our_origin = self.0.xpub_spec().origin();
@@ -301,12 +301,12 @@ impl<K: DeriveXOnly> Descriptor<K> for TrMulti<K> {
     }
 
     fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation> {
-        xonly_keyset(self.keys(), terminal)
+        xonly_keyset(self.keys(), terminal).collect()
     }
 
     fn legacy_witness(
         &self,
-        _keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
+        _keysigs: IndexMap<&KeyOrigin, LegacyKeySig>,
         _redeem_script: Option<RedeemScript>,
         _witness_script: Option<WitnessScript>,
     ) -> Option<(SigScript, Option<Witness>)> {
@@ -316,7 +316,7 @@ impl<K: DeriveXOnly> Descriptor<K> for TrMulti<K> {
     fn taproot_witness(
         &self,
         cb: Option<&ControlBlock>,
-        keysigs: HashMap<&KeyOrigin, TaprootKeySig>,
+        keysigs: IndexMap<&KeyOrigin, TaprootKeySig>,
     ) -> Option<Witness> {
         witness(&self.internal_key, self.threshold, cb, keysigs)
     }
@@ -384,12 +384,13 @@ impl<K: DeriveXOnly> Descriptor<K> for TrSortedMulti<K> {
     }
 
     fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation> {
-        xonly_keyset(self.keys(), terminal)
+        // BTreeMap here provides us with the key sorting
+        xonly_keyset(self.keys(), terminal).collect::<BTreeMap<_, _>>().into_iter().collect()
     }
 
     fn legacy_witness(
         &self,
-        _keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
+        _keysigs: IndexMap<&KeyOrigin, LegacyKeySig>,
         _redeem_script: Option<RedeemScript>,
         _witness_script: Option<WitnessScript>,
     ) -> Option<(SigScript, Option<Witness>)> {
@@ -399,7 +400,7 @@ impl<K: DeriveXOnly> Descriptor<K> for TrSortedMulti<K> {
     fn taproot_witness(
         &self,
         cb: Option<&ControlBlock>,
-        keysigs: HashMap<&KeyOrigin, TaprootKeySig>,
+        keysigs: IndexMap<&KeyOrigin, TaprootKeySig>,
     ) -> Option<Witness> {
         witness(&self.internal_key, self.threshold, cb, keysigs)
     }
@@ -488,7 +489,7 @@ impl<K: DeriveXOnly> Descriptor<K> for TrScript<K> {
 
     fn legacy_witness(
         &self,
-        _keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
+        _keysigs: IndexMap<&KeyOrigin, LegacyKeySig>,
         _redeem_script: Option<RedeemScript>,
         _witness_script: Option<WitnessScript>,
     ) -> Option<(SigScript, Option<Witness>)> {
@@ -498,7 +499,7 @@ impl<K: DeriveXOnly> Descriptor<K> for TrScript<K> {
     fn taproot_witness(
         &self,
         cb: Option<&ControlBlock>,
-        keysigs: HashMap<&KeyOrigin, TaprootKeySig>,
+        keysigs: IndexMap<&KeyOrigin, TaprootKeySig>,
     ) -> Option<Witness> {
         if let Some(cb) = cb {
             for leaf in &self.tap_tree {
@@ -581,23 +582,21 @@ fn to_tap_tree(
     TapTree::with_single_leaf(tap_script)
 }
 
-fn xonly_keyset<'k, K: DeriveXOnly + 'k>(
-    keys: impl IntoIterator<Item = &'k K>,
+fn xonly_keyset<'k, K: DeriveXOnly + 'k, I: IntoIterator<Item = &'k K>>(
+    keys: I,
     terminal: Terminal,
-) -> IndexMap<XOnlyPk, TapDerivation> {
-    keys.into_iter()
-        .map(|xkey| {
-            let key = xkey.derive(terminal.keychain, terminal.index).next().expect("no key found");
-            (key, TapDerivation::with_internal_pk(xkey.xpub_spec().origin().clone(), terminal))
-        })
-        .collect()
+) -> impl Iterator<Item = (XOnlyPk, TapDerivation)> + use<'k, K, I> {
+    keys.into_iter().map(move |xkey| {
+        let key = xkey.derive(terminal.keychain, terminal.index).next().expect("no key found");
+        (key, TapDerivation::with_internal_pk(xkey.xpub_spec().origin().clone(), terminal))
+    })
 }
 
 fn witness<K: DeriveXOnly>(
     internal_key: &K,
     threshold: u16,
     cb: Option<&ControlBlock>,
-    keysigs: HashMap<&KeyOrigin, TaprootKeySig>,
+    keysigs: IndexMap<&KeyOrigin, TaprootKeySig>,
 ) -> Option<Witness> {
     if let Some(cb) = cb {
         let mut stack = vec![];

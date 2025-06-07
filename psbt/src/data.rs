@@ -881,11 +881,12 @@ impl Input {
                 .and_then(|pk| self.tap_bip32_derivation.get(&pk).map(|d| (&d.origin, pk)))
                 .zip(self.tap_key_sig)
                 .and_then(|((origin, pk), sig)| {
-                    // First, we try key path
-                    descriptor.taproot_witness(None, map! { origin => TaprootKeySig::new(pk, sig) })
+                    // First, we try a key path
+                    descriptor
+                        .taproot_witness(None, indexmap! { origin => TaprootKeySig::new(pk, sig) })
                 })
                 .or_else(|| {
-                    // If we can't satisfy key path, we try script paths until we succeed
+                    // If we can't satisfy a key path, we try script paths until we succeed
                     self.tap_leaf_script.keys().find_map(|cb| {
                         let hash = cb.merkle_branch.first()?;
                         let leafhash = TapLeafHash::from_byte_array(hash.to_byte_array());
@@ -907,10 +908,11 @@ impl Input {
                 .map(|witness| (empty!(), Some(witness)))
         } else {
             let keysigs = self
-                .partial_sigs
+                .bip32_derivation
                 .iter()
-                .map(|(pk, sig)| LegacyKeySig::new(*pk, *sig))
-                .filter_map(|ks| self.bip32_derivation.get(&ks.key).map(|origin| (origin, ks)))
+                .filter_map(|(pk, origin)| {
+                    self.partial_sigs.get(pk).map(|sig| (origin, LegacyKeySig::new(*pk, *sig)))
+                })
                 .collect();
             descriptor.legacy_witness(
                 keysigs,

@@ -20,7 +20,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::BTreeSet;
 use std::fmt::{Display, Formatter};
 use std::{fmt, iter};
 
@@ -125,7 +125,7 @@ pub trait Descriptor<K = XpubDerivable, V = ()>: DeriveScripts + Clone + Display
 
     fn legacy_witness(
         &self,
-        keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
+        keysigs: IndexMap<&KeyOrigin, LegacyKeySig>,
         redeem_script: Option<RedeemScript>,
         witness_script: Option<WitnessScript>,
     ) -> Option<(SigScript, Option<Witness>)>;
@@ -133,7 +133,7 @@ pub trait Descriptor<K = XpubDerivable, V = ()>: DeriveScripts + Clone + Display
     fn taproot_witness(
         &self,
         cb: Option<&ControlBlock>,
-        keysigs: HashMap<&KeyOrigin, TaprootKeySig>,
+        keysigs: IndexMap<&KeyOrigin, TaprootKeySig>,
     ) -> Option<Witness>;
 }
 
@@ -381,7 +381,7 @@ where Self: Derive<DerivedScript>
 
     fn legacy_witness(
         &self,
-        keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
+        keysigs: IndexMap<&KeyOrigin, LegacyKeySig>,
         redeem_script: Option<RedeemScript>,
         witness_script: Option<WitnessScript>,
     ) -> Option<(SigScript, Option<Witness>)> {
@@ -407,7 +407,7 @@ where Self: Derive<DerivedScript>
     fn taproot_witness(
         &self,
         cb: Option<&ControlBlock>,
-        keysigs: HashMap<&KeyOrigin, TaprootKeySig>,
+        keysigs: IndexMap<&KeyOrigin, TaprootKeySig>,
     ) -> Option<Witness> {
         match self {
             StdDescr::Raw(d) => d.taproot_witness(cb, keysigs),

@@ -20,7 +20,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::{Display, Formatter};
 use std::{fmt, iter, vec};
 
@@ -134,7 +134,7 @@ impl<K: DeriveCompr> Descriptor<K> for ShWsh<K> {
 
     fn legacy_witness(
         &self,
-        keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
+        keysigs: IndexMap<&KeyOrigin, LegacyKeySig>,
         redeem_script: Option<RedeemScript>,
         witness_script: Option<WitnessScript>,
     ) -> Option<(SigScript, Option<Witness>)> {
@@ -154,7 +154,7 @@ impl<K: DeriveCompr> Descriptor<K> for ShWsh<K> {
     fn taproot_witness(
         &self,
         cb: Option<&ControlBlock>,
-        keysigs: HashMap<&KeyOrigin, TaprootKeySig>,
+        keysigs: IndexMap<&KeyOrigin, TaprootKeySig>,
     ) -> Option<Witness> {
         match self {
             Self::Wsh(d) => d.taproot_witness(cb, keysigs),
@@ -231,7 +231,7 @@ where Self: Derive<DerivedScript>
     fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> { self.keys().map(|key| key.xpub_spec()) }
 
     fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
-        legacy_keyset(&self.keys, terminal)
+        legacy_keyset(&self.keys, terminal).collect()
     }
 
     fn xonly_keyset(&self, _terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation> {
@@ -240,20 +240,33 @@ where Self: Derive<DerivedScript>
 
     fn legacy_witness(
         &self,
-        keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
+        mut keysigs: IndexMap<&KeyOrigin, LegacyKeySig>,
         redeem_script: Option<RedeemScript>,
         witness_script: Option<WitnessScript>,
     ) -> Option<(SigScript, Option<Witness>)> {
         if witness_script.is_some() {
             return None;
         }
-        sig_script(self.keys(), keysigs, redeem_script?)
+        // Check that all sigs match our keys
+        if !check_sigs(self.keys().map(K::xpub_spec), &keysigs) {
+            return None;
+        }
+
+        // We need to put the sigs into the order that matches the ordering of the keys
+        let keysigs = self.keys().filter_map(|key| {
+            let xorigin = key.xpub_spec().origin();
+            let index =
+                keysigs.iter().position(|(origin, _)| &origin.to_account_origin() == xorigin)?;
+            keysigs.shift_remove_index(index).map(|(_, keysig)| keysig)
+        });
+
+        Some(sig_script(keysigs, redeem_script?))
     }
 
     fn taproot_witness(
         &self,
         _cb: Option<&ControlBlock>,
-        _keysigs: HashMap<&KeyOrigin, TaprootKeySig>,
+        _keysigs: IndexMap<&KeyOrigin, TaprootKeySig>,
     ) -> Option<Witness> {
         None
     }
@@ -323,7 +336,8 @@ where Self: Derive<DerivedScript>
     fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> { self.keys().map(|key| key.xpub_spec()) }
 
     fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
-        legacy_keyset(&self.keys, terminal)
+        // BTreeMap here provides us with the key sorting
+        legacy_keyset(&self.keys, terminal).collect::<BTreeMap<_, _>>().into_iter().collect()
     }
 
     fn xonly_keyset(&self, _terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation> {
@@ -332,20 +346,27 @@ where Self: Derive<DerivedScript>
 
     fn legacy_witness(
         &self,
-        keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
+        keysigs: IndexMap<&KeyOrigin, LegacyKeySig>,
         redeem_script: Option<RedeemScript>,
         witness_script: Option<WitnessScript>,
     ) -> Option<(SigScript, Option<Witness>)> {
         if witness_script.is_some() {
             return None;
         }
-        sig_script(self.keys(), keysigs, redeem_script?)
+        // Check that all sigs match our keys
+        if !check_sigs(self.keys().map(K::xpub_spec), &keysigs) {
+            return None;
+        }
+        // We need to put the sigs into the order that matches the ordering of the keys
+        let sorted =
+            keysigs.into_values().map(|keysig| (keysig.key, keysig)).collect::<BTreeMap<_, _>>();
+        Some(sig_script(sorted.into_values(), redeem_script?))
     }
 
     fn taproot_witness(
         &self,
         _cb: Option<&ControlBlock>,
-        _keysigs: HashMap<&KeyOrigin, TaprootKeySig>,
+        _keysigs: IndexMap<&KeyOrigin, TaprootKeySig>,
     ) -> Option<Witness> {
         None
     }
@@ -414,7 +435,7 @@ where Self: Derive<DerivedScript>
     fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> { self.keys().map(|key| key.xpub_spec()) }
 
     fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
-        legacy_keyset(self.keys(), terminal)
+        legacy_keyset(self.keys(), terminal).collect()
     }
 
     fn xonly_keyset(&self, _terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation> {
@@ -423,20 +444,31 @@ where Self: Derive<DerivedScript>
 
     fn legacy_witness(
         &self,
-        keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
+        mut keysigs: IndexMap<&KeyOrigin, LegacyKeySig>,
         redeem_script: Option<RedeemScript>,
         witness_script: Option<WitnessScript>,
     ) -> Option<(SigScript, Option<Witness>)> {
         if redeem_script.is_some() {
             return None;
         }
-        witness(self.keys(), keysigs, witness_script?)
+        // Check that all sigs match our keys
+        if !check_sigs(self.keys().map(K::xpub_spec), &keysigs) {
+            return None;
+        }
+        // We need to put the sigs into the order that matches the ordering of the keys
+        let keysigs = self.keys().filter_map(|key| {
+            let xorigin = key.xpub_spec().origin();
+            let index =
+                keysigs.iter().position(|(origin, _)| &origin.to_account_origin() == xorigin)?;
+            keysigs.shift_remove_index(index).map(|(_, keysig)| keysig)
+        });
+        Some(witness(keysigs, witness_script?))
     }
 
     fn taproot_witness(
         &self,
         _cb: Option<&ControlBlock>,
-        _keysigs: HashMap<&KeyOrigin, TaprootKeySig>,
+        _keysigs: IndexMap<&KeyOrigin, TaprootKeySig>,
     ) -> Option<Witness> {
         None
     }
@@ -506,7 +538,8 @@ where Self: Derive<DerivedScript>
     fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> { self.keys().map(|key| key.xpub_spec()) }
 
     fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
-        legacy_keyset(self.keys(), terminal)
+        // BTreeMap here provides us with the key sorting
+        legacy_keyset(&self.keys, terminal).collect::<BTreeMap<_, _>>().into_iter().collect()
     }
 
     fn xonly_keyset(&self, _terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation> {
@@ -515,20 +548,27 @@ where Self: Derive<DerivedScript>
 
     fn legacy_witness(
         &self,
-        keysigs: HashMap<&KeyOrigin, LegacyKeySig>,
+        keysigs: IndexMap<&KeyOrigin, LegacyKeySig>,
         redeem_script: Option<RedeemScript>,
         witness_script: Option<WitnessScript>,
     ) -> Option<(SigScript, Option<Witness>)> {
         if redeem_script.is_some() {
             return None;
         }
-        witness(self.keys(), keysigs, witness_script?)
+        // Check that all sigs match our keys
+        if !check_sigs(self.keys().map(K::xpub_spec), &keysigs) {
+            return None;
+        }
+        // We need to put the sigs into the order that matches the ordering of the keys
+        let sorted =
+            keysigs.into_values().map(|keysig| (keysig.key, keysig)).collect::<BTreeMap<_, _>>();
+        Some(witness(sorted.into_values(), witness_script?))
     }
 
     fn taproot_witness(
         &self,
         _cb: Option<&ControlBlock>,
-        _keysigs: HashMap<&KeyOrigin, TaprootKeySig>,
+        _keysigs: IndexMap<&KeyOrigin, TaprootKeySig>,
     ) -> Option<Witness> {
         None
     }
@@ -547,7 +587,7 @@ impl<S: DeriveCompr> Display for WshSortedMulti<S> {
 /// Check that all sigs match our keys
 fn check_sigs<'a>(
     accounts: impl Iterator<Item = &'a XpubAccount>,
-    keysigs: &HashMap<&'a KeyOrigin, LegacyKeySig>,
+    keysigs: &IndexMap<&'a KeyOrigin, LegacyKeySig>,
 ) -> bool {
     let set = accounts.map(XpubAccount::origin).collect::<BTreeSet<_>>();
     keysigs.keys().all(|origin| set.contains(&origin.to_account_origin()))
@@ -597,56 +637,42 @@ where I::IntoIter: ExactSizeIterator {
 fn legacy_keyset<'k, T: Into<LegacyPk>, K: DeriveKey<T> + 'k, I: IntoIterator<Item = &'k K>>(
     keys: I,
     terminal: Terminal,
-) -> IndexMap<LegacyPk, KeyOrigin> {
-    keys.into_iter()
-        .map(|xkey| {
-            let key = xkey
-                .derive(terminal.keychain, terminal.index)
-                .next()
-                .expect("multisig must derive one key per path");
-            (key.into(), KeyOrigin::with(xkey.xpub_spec().origin().clone(), terminal))
-        })
-        .collect()
+) -> impl Iterator<Item = (LegacyPk, KeyOrigin)> + use<'k, T, K, I> {
+    keys.into_iter().map(move |xkey| {
+        let key = xkey
+            .derive(terminal.keychain, terminal.index)
+            .next()
+            .expect("multisig must derive one key per path");
+        (key.into(), KeyOrigin::with(xkey.xpub_spec().origin().clone(), terminal))
+    })
 }
 
-fn sig_script<'k, K: DeriveLegacy + 'k, I: IntoIterator<Item = &'k K>>(
-    keys: I,
-    keysigs: HashMap<&'k KeyOrigin, LegacyKeySig>,
+fn sig_script(
+    keysigs: impl Iterator<Item = LegacyKeySig>,
     redeem_script: RedeemScript,
-) -> Option<(SigScript, Option<Witness>)> {
-    // Check that all sigs match our keys
-    if !check_sigs(keys.into_iter().map(K::xpub_spec), &keysigs) {
-        return None;
-    }
-
+) -> (SigScript, Option<Witness>) {
     let mut sig_script = SigScript::new();
     sig_script.push_num(0); // The infamous OP_CHECKMULTISIG bug
-    for sig in keysigs.values() {
-        sig_script.push_slice(&sig.sig.to_vec());
+    for keysig in keysigs {
+        sig_script.push_slice(&keysig.sig.to_vec());
     }
     sig_script.push_slice(redeem_script.as_ref());
 
-    Some((sig_script, None))
+    (sig_script, None)
 }
 
-fn witness<'k, K: DeriveCompr + 'k, I: IntoIterator<Item = &'k K>>(
-    keys: I,
-    keysigs: HashMap<&'k KeyOrigin, LegacyKeySig>,
+fn witness(
+    keysigs: impl Iterator<Item = LegacyKeySig>,
     witness_script: WitnessScript,
-) -> Option<(SigScript, Option<Witness>)> {
-    // Check that all sigs match our keys
-    if !check_sigs(keys.into_iter().map(K::xpub_spec), &keysigs) {
-        return None;
-    }
-
-    let mut stack = Vec::with_capacity(keysigs.len() + 2);
+) -> (SigScript, Option<Witness>) {
+    let mut stack = Vec::new();
     stack.push(vec![]); // The infamous OP_CHECKMULTISIG bug
-    for sig in keysigs.values() {
-        stack.push(sig.sig.to_vec());
+    for keysig in keysigs {
+        stack.push(keysig.sig.to_vec());
     }
     stack.push(witness_script.to_vec());
     let witness = Witness::from_consensus_stack(stack);
-    Some((empty!(), Some(witness)))
+    (empty!(), Some(witness))
 }
 
 fn fmt<'k, K: Display + 'k>(
