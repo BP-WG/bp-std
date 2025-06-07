@@ -675,11 +675,11 @@ pub struct Input {
     /// fingerprints and derivation paths.
     pub bip32_derivation: IndexMap<LegacyPk, KeyOrigin>,
 
-    /// The finalized, fully-constructed scriptSig with signatures and any other scripts necessary
+    /// The finalized, fully constructed scriptSig with signatures and any other scripts necessary
     /// for this input to pass validation.
     pub final_script_sig: Option<SigScript>,
 
-    /// The finalized, fully-constructed scriptWitness with signatures and any other scripts
+    /// The finalized, fully constructed scriptWitness with signatures and any other scripts
     /// necessary for this input to pass validation.
     pub final_witness: Option<Witness>,
 
@@ -696,18 +696,18 @@ pub struct Input {
     pub sha256: IndexMap<Bytes32, ByteStr>,
 
     /// The hash preimage, encoded as a byte vector, which must equal the key when run through the
-    /// SHA256 algorithm followed by the RIPEMD160 algorithm .
+    /// SHA256 algorithm followed by the RIPEMD160 algorithm.
     pub hash160: IndexMap<Bytes20, ByteStr>,
 
     /// The hash preimage, encoded as a byte vector, which must equal the key when run through the
     /// SHA256 algorithm twice.
     pub hash256: IndexMap<Bytes32, ByteStr>,
 
-    /// The 64 or 65 byte Schnorr signature for key path spending a Taproot output. Finalizers
+    /// The 64 or 65-byte Schnorr signature for a key path spending a Taproot output. Finalizers
     /// should remove this field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
     pub tap_key_sig: Option<Bip340Sig>,
 
-    /// The 64 or 65 byte Schnorr signature for this pubkey and leaf combination. Finalizers
+    /// The 64 or 65-byte Schnorr signature for this pubkey and leaf combination. Finalizers
     /// should remove this field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
     pub tap_script_sig: IndexMap<(XOnlyPk, TapLeafHash), Bip340Sig>,
 
@@ -718,10 +718,10 @@ pub struct Input {
     pub tap_leaf_script: IndexMap<ControlBlock, LeafScript>,
 
     /// A compact size unsigned integer representing the number of leaf hashes, followed by a list
-    /// of leaf hashes, followed by the 4 byte master key fingerprint concatenated with the
+    /// of leaf hashes, followed by the 4-byte master key fingerprint concatenated with the
     /// derivation path of the public key. The derivation path is represented as 32-bit little
     /// endian unsigned integer indexes concatenated with each other. Public keys are those needed
-    /// to spend this output. The leaf hashes are of the leaves which involve this public key. The
+    /// to spend this output. The leaf hashes are of the leaves that involve this public key. The
     /// internal key does not have leaf hashes, so can be indicated with a hashes len of 0.
     /// Finalizers should remove this field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
     pub tap_bip32_derivation: IndexMap<XOnlyPk, TapDerivation>,
@@ -730,7 +730,7 @@ pub struct Input {
     /// field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
     pub tap_internal_key: Option<InternalPk>,
 
-    ///  The 32 byte Merkle root hash. Finalizers should remove this field after
+    ///  The 32-byte Merkle root hash. Finalizers should remove this field after
     /// `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
     pub tap_merkle_root: Option<TapNodeHash>,
 
