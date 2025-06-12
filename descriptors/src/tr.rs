@@ -237,7 +237,10 @@ impl<K: DeriveXOnly> Descriptor<K> for TrKey<K> {
         cb: Option<&ControlBlock>,
         keysigs: IndexMap<&KeyOrigin, TaprootKeySig>,
     ) -> Option<Witness> {
-        cb?;
+        if cb.is_some() {
+            // TrKey doesn't support script path spending
+            return None;
+        }
         let our_origin = self.0.xpub_spec().origin();
         let keysig =
             keysigs.iter().find(|(origin, _)| our_origin.is_subset_of(origin)).map(|(_, ks)| ks)?;
