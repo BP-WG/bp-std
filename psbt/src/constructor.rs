@@ -204,6 +204,8 @@ impl Utxo {
 }
 
 pub trait PsbtConstructor {
+    /// NB: We need this separate parameter since otherwise we will bloat trait with generics which
+    /// may be unknown upstream.
     type Key;
     type Descr: Descriptor<Self::Key>;
 
