@@ -104,7 +104,7 @@ impl TryFrom<usize> for PsbtVer {
 }
 
 #[cfg(test)]
-mod tests {
+mod test {
     use super::*;
 
     #[test]

@@ -24,9 +24,10 @@ use std::collections::BTreeSet;
 use std::fmt::{Display, Formatter};
 use std::{fmt, iter};
 
+use commit_verify::{Digest, DigestExt, Sha256};
 use derive::{
     Bip340Sig, ControlBlock, Derive, DeriveCompr, DeriveLegacy, DeriveScripts, DeriveSet,
-    DeriveXOnly, DerivedScript, KeyOrigin, Keychain, LegacyPk, LegacySig, NormalIndex,
+    DeriveXOnly, DerivedScript, Idx, KeyOrigin, Keychain, LegacyPk, LegacySig, NormalIndex,
     RedeemScript, Sats, SigScript, TapDerivation, Terminal, Witness, WitnessScript, XOnlyPk,
     XpubAccount, XpubDerivable,
 };
@@ -107,7 +108,25 @@ impl TaprootKeySig {
     pub fn new(key: XOnlyPk, sig: Bip340Sig) -> Self { TaprootKeySig { key, sig } }
 }
 
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
+pub struct DescrId(u64);
+
+
 pub trait Descriptor<K = XpubDerivable, V = ()>: DeriveScripts + Clone + Display {
+    fn id(&self) -> DescrId {
+        let spk = self
+            .derive(Keychain::OUTER, NormalIndex::ZERO)
+            .next()
+            .expect("at least one derivation must be available")
+            .to_script_pubkey();
+        let mut engine = Sha256::new_with_prefix(*b"wallet-descriptor");
+        engine.input_with_len::<{ u64::MAX as usize }>(spk.as_slice());
+        let digest = engine.finish();
+        let mut id = [0u8; 8];
+        id.copy_from_slice(&digest[..8]);
+        DescrId::from(id)
+    }
+
     fn class(&self) -> SpkClass;
     #[inline]
     fn is_taproot(&self) -> bool { self.class().is_taproot() }

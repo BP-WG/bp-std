@@ -18,6 +18,7 @@ name = "descriptors"
 [dependencies]
 amplify = { workspace = true }
 bp-derive = { workspace = true }
+commit_verify = { workspace = true }
 indexmap = { workspace = true }
 serde = { workspace = true, optional = true }
 
