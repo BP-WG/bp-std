@@ -80,6 +80,7 @@ pub enum BeneficiaryParseError {
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Display, From)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Payment {
     #[from]
     #[display(inner)]
@@ -119,6 +120,7 @@ impl FromStr for Payment {
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Display)]
 #[display("{amount}@{address}", alt = "bitcoin:{address}?amount={amount}")]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Beneficiary {
     pub address: Address,
     pub amount: Payment,
@@ -156,6 +158,7 @@ impl FromStr for Beneficiary {
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct TxParams {
     pub fee: Sats,
     pub lock_time: Option<LockTime>,
@@ -192,6 +195,7 @@ pub struct PsbtMeta {
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Utxo {
     pub outpoint: Outpoint,
     pub value: Sats,
