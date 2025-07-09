@@ -41,28 +41,28 @@ pub enum ConstructionError {
     /// the input spending {0} is not known for the current wallet.
     UnknownInput(Outpoint),
 
-    /// impossible to construct transaction having no inputs.
+    /// impossible to construct a transaction having no inputs.
     NoInputs,
 
-    /// the total payment amount ({0} sats) exceeds number of sats in existence.
+    /// the total payment amount ({0} sats) exceeds the number of sats in existence.
     Overflow(Sats),
 
     /// attempt to spend more than present in transaction inputs. Total transaction inputs are
-    /// {input_value} sats, but output is {output_value} sats.
+    /// {input_value} sats, but the output is {output_value} sats.
     OutputExceedsInputs {
         input_value: Sats,
         output_value: Sats,
     },
 
-    /// not enough funds to pay fee of {fee} sats; the sum of inputs is {input_value} sats, and
-    /// outputs spends {output_value} sats out of them.
+    /// not enough funds to pay the fee of {fee} sats; the sum of inputs is {input_value} sats,
+    /// and outputs spend {output_value} sats out of them.
     NoFundsForFee {
         input_value: Sats,
         output_value: Sats,
         fee: Sats,
     },
 
-    /// network for address {0} mismatch the one used by the wallet.
+    /// network for address {0} mismatches the one used by the wallet.
     NetworkMismatch(Address),
 }
 
