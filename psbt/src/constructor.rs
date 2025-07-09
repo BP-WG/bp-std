@@ -23,7 +23,7 @@
 use std::num::ParseIntError;
 use std::str::FromStr;
 
-use bp::Txid;
+use bc::Txid;
 use derive::{
     Address, AddressNetwork, AddressParseError, Keychain, LockTime, Network, NormalIndex, Outpoint,
     Sats, ScriptPubkey, SeqNo, Terminal, Vout,

@@ -570,6 +570,7 @@ version = "0.12.0-rc.2"
 dependencies = [
  "amplify",
  "base64",
+ "bp-consensus",
  "bp-core",
  "bp-derive",
  "commit_verify",
