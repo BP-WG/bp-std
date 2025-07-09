@@ -22,8 +22,11 @@
 
 use std::collections::BTreeSet;
 use std::fmt::{Display, Formatter};
+use std::str::FromStr;
 use std::{fmt, iter};
 
+use amplify::hex;
+use amplify::hex::{FromHex, ToHex};
 use commit_verify::{Digest, DigestExt, Sha256};
 use derive::{
     Bip340Sig, ControlBlock, Derive, DeriveCompr, DeriveLegacy, DeriveScripts, DeriveSet,
@@ -109,8 +112,69 @@ impl TaprootKeySig {
 }
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
-pub struct DescrId(u64);
+pub struct DescrId(pub u64);
 
+impl From<[u8; 8]> for DescrId {
+    fn from(value: [u8; 8]) -> Self { Self(u64::from_le_bytes(value)) }
+}
+
+impl From<DescrId> for [u8; 8] {
+    fn from(id: DescrId) -> Self { id.0.to_le_bytes() }
+}
+
+impl Display for DescrId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let val = self.0.to_le_bytes();
+        f.write_str(&val[..4].to_hex())?;
+        f.write_str("-")?;
+        f.write_str(&val[4..].to_hex())
+    }
+}
+
+impl FromStr for DescrId {
+    type Err = hex::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.len() != 17 {
+            return Err(hex::Error::InvalidLength(17, 16));
+        }
+        if s.as_bytes()[8] != b'-' {
+            return Err(hex::Error::InvalidChar(s.as_bytes()[8]));
+        }
+        let s = s.replace("-", "");
+        let val = <[u8; 8]>::from_hex(&s)?;
+        Ok(Self::from(val))
+    }
+}
+
+#[cfg(feature = "serde")]
+mod _serde {
+    pub use super::*;
+
+    impl serde::Serialize for DescrId {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: serde::Serializer {
+            if serializer.is_human_readable() {
+                serializer.serialize_str(&self.to_string())
+            } else {
+                self.0.serialize(serializer)
+            }
+        }
+    }
+
+    impl<'de> serde::Deserialize<'de> for DescrId {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where D: serde::Deserializer<'de> {
+            use serde::de::Error;
+            if deserializer.is_human_readable() {
+                let s = String::deserialize(deserializer)?;
+                s.parse().map_err(D::Error::custom)
+            } else {
+                u64::deserialize(deserializer).map(Self)
+            }
+        }
+    }
+}
 
 pub trait Descriptor<K = XpubDerivable, V = ()>: DeriveScripts + Clone + Display {
     fn id(&self) -> DescrId {
@@ -124,7 +188,7 @@ pub trait Descriptor<K = XpubDerivable, V = ()>: DeriveScripts + Clone + Display
         let digest = engine.finish();
         let mut id = [0u8; 8];
         id.copy_from_slice(&digest[..8]);
-        DescrId::from(id)
+        DescrId(u64::from_le_bytes(id))
     }
 
     fn class(&self) -> SpkClass;
@@ -472,5 +536,18 @@ where
             StdDescr::TrSortedMulti(d) => Display::fmt(d, f),
             StdDescr::TrTree(d) => Display::fmt(d, f),
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn descr_id_baid64() {
+        let descr_id = DescrId::from([0xde, 0xad, 0xbe, 0xef, 0xbe, 0xad, 0xca, 0xfe]);
+        let s = descr_id.to_string();
+        assert_eq!(s, "deadbeef-beadcafe");
+        assert_eq!(DescrId::from_str(&s).unwrap(), descr_id);
     }
 }
