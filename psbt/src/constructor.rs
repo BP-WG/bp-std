@@ -194,7 +194,7 @@ pub struct PsbtMeta {
     pub change: Option<ChangeInfo>,
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Utxo {
     pub outpoint: Outpoint,
