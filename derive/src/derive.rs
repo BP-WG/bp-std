@@ -22,7 +22,7 @@
 
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::iter;
 use std::num::ParseIntError;
@@ -371,7 +371,7 @@ pub trait Derive<D> {
     }
 }
 
-pub trait DeriveKey<D>: Derive<D> + Clone + Eq + Hash + Display {
+pub trait DeriveKey<D>: Derive<D> + Clone + Eq + Hash + Debug + Display {
     fn xpub_spec(&self) -> &XpubAccount;
 }
 
