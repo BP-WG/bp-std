@@ -20,22 +20,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[macro_use]
-extern crate amplify;
-#[cfg(feature = "serde")]
-#[macro_use]
-extern crate serde;
+mod lexer;
+mod parser;
 
-mod script;
-mod descriptor;
-mod singlesig;
-mod multisig;
-mod tr;
-
-pub mod compiler;
-
-pub use descriptor::{DescrId, Descriptor, LegacyKeySig, SpkClass, StdDescr, TaprootKeySig};
-pub use multisig::{ShMulti, ShSortedMulti, ShWsh, WshMulti, WshSortedMulti};
-pub use script::{Raw, ScriptDescr, ScriptItem, Sh, WitnessItem, Wsh};
-pub use singlesig::{Pkh, ShWpkh, Wpkh};
-pub use tr::{Tr, TrKey, TrMulti, TrScript, TrSortedMulti};
+pub use lexer::{parse_descr_str, DescrLexerError, DescrToken};
+pub use parser::{DescrAst, DescrParseError, ScriptExpr, TreeExpr};

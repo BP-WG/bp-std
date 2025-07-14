@@ -1184,13 +1184,3 @@ dependencies = [
  "quote",
  "syn 2.0.101",
 ]
-
-[[patch.unused]]
-name = "bp-consensus"
-version = "0.12.0-rc.2"
-source = "git+https://github.com/BP-WG/bp-core#43a25d025691626c01794a49b2a177db4fa5bceb"
-
-[[patch.unused]]
-name = "bp-core"
-version = "0.12.0-rc.2"
-source = "git+https://github.com/BP-WG/bp-core#43a25d025691626c01794a49b2a177db4fa5bceb"
