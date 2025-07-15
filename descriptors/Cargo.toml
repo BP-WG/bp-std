@@ -18,10 +18,11 @@ name = "descriptors"
 [dependencies]
 amplify = { workspace = true }
 bp-derive = { workspace = true }
+commit_verify = { workspace = true }
 indexmap = { workspace = true }
 serde = { workspace = true, optional = true }
 
 [features]
 default = []
 all = ["serde"]
-serde = ["dep:serde", "bp-derive/serde"]
+serde = ["dep:serde", "bp-derive/serde", "indexmap/serde"]

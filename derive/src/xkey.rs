@@ -29,7 +29,7 @@ use bc::secp256k1::{Keypair, PublicKey, SecretKey, SECP256K1};
 use bc::{secp256k1, CompressedPk, InvalidPubkey, LegacyPk, XOnlyPk};
 use commit_verify::{Digest, Ripemd160};
 use hmac::{Hmac, Mac};
-use sha2::Sha512;
+use sha2::{Sha256, Sha512};
 
 use crate::{
     base58, DerivationIndex, DerivationParseError, DerivationPath, DerivationSeg, HardenedIndex,
@@ -286,8 +286,9 @@ impl Xpub {
 
     /// Returns the HASH160 of the chaincode
     pub fn identifier(&self) -> XpubId {
-        let hash = Ripemd160::digest(self.core.public_key.serialize());
-        XpubId::from_slice_checked(hash)
+        let hash1 = Sha256::digest(self.core.public_key.serialize());
+        let hash2 = Ripemd160::digest(hash1);
+        XpubId::from_slice_checked(hash2)
     }
 
     pub fn fingerprint(&self) -> XpubFp {
@@ -601,7 +602,7 @@ impl FromStr for Xpriv {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug, Display)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
 #[display("{master_fp}{derivation}", alt = "{master_fp}{derivation:#}")]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
 pub struct XkeyOrigin {
@@ -636,7 +637,7 @@ impl XkeyOrigin {
 
     pub fn child_derivation<'a>(&'a self, child: &'a KeyOrigin) -> Option<&'a [DerivationIndex]> {
         if self.master_fp() == child.master_fp() {
-            let d = child.derivation();
+            let d = child.as_derivation();
             let shared = d.shared_prefix(self.derivation());
             if shared > 0 {
                 return Some(&d[shared..]);
@@ -685,6 +686,7 @@ pub enum OriginParseError {
 pub struct KeyOrigin {
     #[getter(as_copy)]
     master_fp: XpubFp,
+    #[getter(skip)]
     derivation: DerivationPath,
 }
 
@@ -720,6 +722,19 @@ impl KeyOrigin {
         KeyOrigin {
             master_fp: xpub_origin.master_fp(),
             derivation,
+        }
+    }
+
+    pub fn as_derivation(&self) -> &DerivationPath { &self.derivation }
+
+    pub fn to_derivation(&self) -> DerivationPath { self.derivation.clone() }
+
+    pub fn into_derivation(self) -> DerivationPath { self.derivation }
+
+    pub fn to_account_origin(&self) -> XkeyOrigin {
+        XkeyOrigin {
+            master_fp: self.master_fp,
+            derivation: self.derivation.hardened_prefix(),
         }
     }
 }

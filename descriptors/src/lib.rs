@@ -26,11 +26,14 @@ extern crate amplify;
 #[macro_use]
 extern crate serde;
 
+mod script;
 mod descriptor;
+mod singlesig;
 mod multisig;
-mod segwit;
-mod taproot;
+mod tr;
 
-pub use descriptor::{Descriptor, LegacyKeySig, SpkClass, StdDescr, TaprootKeySig};
-pub use segwit::Wpkh;
-pub use taproot::{Tr, TrKey};
+pub use descriptor::{DescrId, Descriptor, LegacyKeySig, SpkClass, StdDescr, TaprootKeySig};
+pub use multisig::{ShMulti, ShSortedMulti, ShWsh, WshMulti, WshSortedMulti};
+pub use script::{Raw, ScriptDescr, ScriptItem, Sh, WitnessItem, Wsh};
+pub use singlesig::{Pkh, ShWpkh, Wpkh};
+pub use tr::{Tr, TrKey, TrMulti, TrScript, TrSortedMulti};

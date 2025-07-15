@@ -540,7 +540,7 @@ impl Decode for InternalPk {
 
 impl Encode for KeyOrigin {
     fn encode(&self, writer: &mut dyn Write) -> Result<usize, IoError> {
-        Ok(self.master_fp().encode(writer)? + self.derivation().encode(writer)?)
+        Ok(self.master_fp().encode(writer)? + self.as_derivation().encode(writer)?)
     }
 }
 

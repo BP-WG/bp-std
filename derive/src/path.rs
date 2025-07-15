@@ -29,7 +29,7 @@ use std::collections::BTreeSet;
 use amplify::confinement;
 use amplify::confinement::{Confined, NonEmptyOrdSet};
 
-use crate::{DerivationIndex, Idx, IdxBase, IndexParseError, NormalIndex, Terminal};
+use crate::{DerivationIndex, HardenedIndex, Idx, IdxBase, IndexParseError, NormalIndex, Terminal};
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error)]
 #[display(doc_comments)]
@@ -254,6 +254,23 @@ impl<I: Idx> DerivationPath<I> {
         }
         let keychain = u8::try_from(keychain.child_number()).ok()?;
         Some(Terminal::new(keychain, index))
+    }
+
+    pub fn starts_with<I2>(&self, master: impl AsRef<[I2]>) -> bool
+    where
+        I: Into<DerivationIndex>,
+        I2: Idx + Into<DerivationIndex>,
+    {
+        let master = master.as_ref();
+        self.shared_prefix(master) == master.len()
+    }
+
+    pub fn hardened_prefix(&self) -> DerivationPath<HardenedIndex> {
+        self.0
+            .iter()
+            .take_while(|i| i.is_hardened())
+            .map(|i| HardenedIndex::try_from_index(i.index()).expect("hardened index"))
+            .collect()
     }
 
     pub fn shared_prefix<I2>(&self, master: impl AsRef<[I2]>) -> usize

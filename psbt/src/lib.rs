@@ -22,6 +22,8 @@
 
 #[macro_use]
 extern crate amplify;
+#[macro_use]
+extern crate indexmap;
 #[cfg(feature = "strict_encoding")]
 #[macro_use]
 extern crate strict_encoding;
@@ -102,7 +104,7 @@ impl TryFrom<usize> for PsbtVer {
 }
 
 #[cfg(test)]
-mod tests {
+mod test {
     use super::*;
 
     #[test]

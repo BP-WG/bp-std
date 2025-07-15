@@ -35,8 +35,8 @@ mod sign;
 
 pub use bc::*;
 pub use derive::{
-    Derive, DeriveCompr, DeriveKey, DeriveScripts, DeriveSet, DeriveXOnly, DerivedAddr,
-    DerivedAddrParseError, DerivedScript, Keychain, Terminal, TerminalParseError,
+    Derive, DeriveCompr, DeriveKey, DeriveLegacy, DeriveScripts, DeriveSet, DeriveXOnly,
+    DerivedAddr, DerivedAddrParseError, DerivedScript, Keychain, Terminal, TerminalParseError,
 };
 pub use index::{
     DerivationIndex, HardenedIndex, Idx, IdxBase, IndexError, IndexParseError, NormalIndex,

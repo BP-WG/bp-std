@@ -23,13 +23,14 @@
 use std::num::ParseIntError;
 use std::str::FromStr;
 
+use bc::Txid;
 use derive::{
     Address, AddressNetwork, AddressParseError, Keychain, LockTime, Network, NormalIndex, Outpoint,
     Sats, ScriptPubkey, SeqNo, Terminal, Vout,
 };
 use descriptors::Descriptor;
 
-use crate::{Prevout, Psbt, PsbtError, PsbtVer};
+use crate::{Prevout, Psbt, PsbtError, PsbtVer, UnsignedTx};
 
 #[derive(Clone, Debug, Display, Error, From)]
 #[display(doc_comments)]
@@ -40,28 +41,28 @@ pub enum ConstructionError {
     /// the input spending {0} is not known for the current wallet.
     UnknownInput(Outpoint),
 
-    /// impossible to construct transaction having no inputs.
+    /// impossible to construct a transaction having no inputs.
     NoInputs,
 
-    /// the total payment amount ({0} sats) exceeds number of sats in existence.
+    /// the total payment amount ({0} sats) exceeds the number of sats in existence.
     Overflow(Sats),
 
     /// attempt to spend more than present in transaction inputs. Total transaction inputs are
-    /// {input_value} sats, but output is {output_value} sats.
+    /// {input_value} sats, but the output is {output_value} sats.
     OutputExceedsInputs {
         input_value: Sats,
         output_value: Sats,
     },
 
-    /// not enough funds to pay fee of {fee} sats; the sum of inputs is {input_value} sats, and
-    /// outputs spends {output_value} sats out of them.
+    /// not enough funds to pay the fee of {fee} sats; the sum of inputs is {input_value} sats,
+    /// and outputs spend {output_value} sats out of them.
     NoFundsForFee {
         input_value: Sats,
         output_value: Sats,
         fee: Sats,
     },
 
-    /// network for address {0} mismatch the one used by the wallet.
+    /// network for address {0} mismatches the one used by the wallet.
     NetworkMismatch(Address),
 }
 
@@ -79,6 +80,7 @@ pub enum BeneficiaryParseError {
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Display, From)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Payment {
     #[from]
     #[display(inner)]
@@ -118,6 +120,7 @@ impl FromStr for Payment {
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Display)]
 #[display("{amount}@{address}", alt = "bitcoin:{address}?amount={amount}")]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Beneficiary {
     pub address: Address,
     pub amount: Payment,
@@ -155,6 +158,7 @@ impl FromStr for Beneficiary {
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct TxParams {
     pub fee: Sats,
     pub lock_time: Option<LockTime>,
@@ -190,7 +194,8 @@ pub struct PsbtMeta {
     pub change: Option<ChangeInfo>,
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Utxo {
     pub outpoint: Outpoint,
     pub value: Sats,
@@ -203,10 +208,13 @@ impl Utxo {
 }
 
 pub trait PsbtConstructor {
+    /// NB: We need this separate parameter since otherwise we will bloat trait with generics which
+    /// may be unknown upstream.
     type Key;
     type Descr: Descriptor<Self::Key>;
 
     fn descriptor(&self) -> &Self::Descr;
+    fn prev_tx(&self, txid: Txid) -> Option<UnsignedTx>;
     fn utxo(&self, outpoint: Outpoint) -> Option<(Utxo, ScriptPubkey)>;
     fn network(&self) -> Network;
     fn next_derivation_index(&mut self, keychain: impl Into<Keychain>, shift: bool) -> NormalIndex;
@@ -229,11 +237,13 @@ pub trait PsbtConstructor {
 
         // 1. Add inputs
         for coin in coins {
+            let prev_tx = self.prev_tx(coin.txid).ok_or(ConstructionError::UnknownInput(coin))?;
             let (utxo, spk) = self.utxo(coin).ok_or(ConstructionError::UnknownInput(coin))?;
             if psbt.inputs().any(|inp| inp.previous_outpoint == utxo.outpoint) {
                 continue;
             }
             psbt.append_input_expect(
+                prev_tx,
                 utxo.to_prevout(),
                 self.descriptor(),
                 utxo.terminal,

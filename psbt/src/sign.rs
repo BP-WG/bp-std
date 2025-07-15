@@ -137,11 +137,7 @@ impl Input {
                 sighash_type,
             )?
         } else {
-            sig_hasher.legacy_sighash(
-                self.index,
-                &self.prev_txout().script_pubkey,
-                sighash_type.to_consensus_u32(),
-            )?
+            sig_hasher.legacy_sighash(self.index, &self.prev_txout().script_pubkey, sighash_type)?
         };
         for (pk, origin) in &self.bip32_derivation {
             let Some(sig) = signer.sign_ecdsa(sighash, *pk, Some(origin)) else {

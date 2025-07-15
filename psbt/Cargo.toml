@@ -16,6 +16,7 @@ license = { workspace = true }
 amplify = { workspace = true }
 commit_verify = { workspace = true, optional = true }
 strict_encoding = { workspace = true, optional = true }
+bp-consensus = { workspace = true }
 bp-core = { workspace = true, optional = true }
 bp-derive = { workspace = true }
 descriptors = { workspace = true }

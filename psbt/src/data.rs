@@ -310,6 +310,7 @@ impl Psbt {
     /// If the descriptor generates less or more than one script per the provided terminal
     pub fn append_input<K, D: Descriptor<K>>(
         &mut self,
+        prev_tx: UnsignedTx,
         prevout: Prevout,
         descriptor: &D,
         terminal: Terminal,
@@ -324,14 +325,23 @@ impl Psbt {
             .derive(terminal.keychain, terminal.index)
             .find(|script| script.to_script_pubkey() == script_pubkey)
             .expect("unable to generate input matching prevout");
+
+        let mut witness_utxo = None;
+        let mut non_witness_tx = None;
+        if descriptor.is_segwit() {
+            witness_utxo = Some(TxOut::new(script.to_script_pubkey(), prevout.value));
+        } else {
+            non_witness_tx = Some(prev_tx.into());
+        }
+
         let input = Input {
             index: self.inputs.len(),
             previous_outpoint: prevout.outpoint(),
             sequence_number: Some(sequence),
             required_time_lock: None,
             required_height_lock: None,
-            non_witness_tx: None,
-            witness_utxo: Some(TxOut::new(script.to_script_pubkey(), prevout.value)),
+            non_witness_tx,
+            witness_utxo,
             partial_sigs: none!(),
             sighash_type: None,
             redeem_script: script.to_redeem_script(),
@@ -360,13 +370,14 @@ impl Psbt {
 
     pub fn append_input_expect<K, D: Descriptor<K>>(
         &mut self,
+        prev_tx: UnsignedTx,
         prevout: Prevout,
         descriptor: &D,
         terminal: Terminal,
         script_pubkey: ScriptPubkey,
         sequence: SeqNo,
     ) -> &mut Input {
-        self.append_input(prevout, descriptor, terminal, script_pubkey, sequence)
+        self.append_input(prev_tx, prevout, descriptor, terminal, script_pubkey, sequence)
             .expect("PSBT inputs are expected to be modifiable")
     }
 
@@ -664,11 +675,11 @@ pub struct Input {
     /// fingerprints and derivation paths.
     pub bip32_derivation: IndexMap<LegacyPk, KeyOrigin>,
 
-    /// The finalized, fully-constructed scriptSig with signatures and any other scripts necessary
+    /// The finalized, fully constructed scriptSig with signatures and any other scripts necessary
     /// for this input to pass validation.
     pub final_script_sig: Option<SigScript>,
 
-    /// The finalized, fully-constructed scriptWitness with signatures and any other scripts
+    /// The finalized, fully constructed scriptWitness with signatures and any other scripts
     /// necessary for this input to pass validation.
     pub final_witness: Option<Witness>,
 
@@ -685,18 +696,18 @@ pub struct Input {
     pub sha256: IndexMap<Bytes32, ByteStr>,
 
     /// The hash preimage, encoded as a byte vector, which must equal the key when run through the
-    /// SHA256 algorithm followed by the RIPEMD160 algorithm .
+    /// SHA256 algorithm followed by the RIPEMD160 algorithm.
     pub hash160: IndexMap<Bytes20, ByteStr>,
 
     /// The hash preimage, encoded as a byte vector, which must equal the key when run through the
     /// SHA256 algorithm twice.
     pub hash256: IndexMap<Bytes32, ByteStr>,
 
-    /// The 64 or 65 byte Schnorr signature for key path spending a Taproot output. Finalizers
+    /// The 64 or 65-byte Schnorr signature for a key path spending a Taproot output. Finalizers
     /// should remove this field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
     pub tap_key_sig: Option<Bip340Sig>,
 
-    /// The 64 or 65 byte Schnorr signature for this pubkey and leaf combination. Finalizers
+    /// The 64 or 65-byte Schnorr signature for this pubkey and leaf combination. Finalizers
     /// should remove this field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
     pub tap_script_sig: IndexMap<(XOnlyPk, TapLeafHash), Bip340Sig>,
 
@@ -707,10 +718,10 @@ pub struct Input {
     pub tap_leaf_script: IndexMap<ControlBlock, LeafScript>,
 
     /// A compact size unsigned integer representing the number of leaf hashes, followed by a list
-    /// of leaf hashes, followed by the 4 byte master key fingerprint concatenated with the
+    /// of leaf hashes, followed by the 4-byte master key fingerprint concatenated with the
     /// derivation path of the public key. The derivation path is represented as 32-bit little
     /// endian unsigned integer indexes concatenated with each other. Public keys are those needed
-    /// to spend this output. The leaf hashes are of the leaves which involve this public key. The
+    /// to spend this output. The leaf hashes are of the leaves that involve this public key. The
     /// internal key does not have leaf hashes, so can be indicated with a hashes len of 0.
     /// Finalizers should remove this field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
     pub tap_bip32_derivation: IndexMap<XOnlyPk, TapDerivation>,
@@ -719,7 +730,7 @@ pub struct Input {
     /// field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
     pub tap_internal_key: Option<InternalPk>,
 
-    ///  The 32 byte Merkle root hash. Finalizers should remove this field after
+    ///  The 32-byte Merkle root hash. Finalizers should remove this field after
     /// `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
     pub tap_merkle_root: Option<TapNodeHash>,
 
@@ -781,7 +792,7 @@ impl Input {
             // TODO #45: Figure out default SeqNo
             sig_script: self.final_script_sig.clone().expect("non-finalized input"),
             sequence: self.sequence_number.unwrap_or(SeqNo::from_consensus_u32(0)),
-            witness: self.final_witness.clone().expect("non-finalized input"),
+            witness: self.final_witness.clone().unwrap_or_default(),
         }
     }
 
@@ -795,10 +806,9 @@ impl Input {
 
     #[inline]
     pub fn prev_txout(&self) -> &TxOut {
-        // TODO #48: Add support for nonwitness_utxo
-        match (&self.witness_utxo, None::<&Tx>) {
+        match (&self.witness_utxo, &self.non_witness_tx) {
             (Some(txout), _) => txout,
-            (None, Some(tx)) => &tx.outputs[self.index],
+            (None, Some(tx)) => &tx.outputs[self.previous_outpoint.vout.into_usize()],
             (None, None) => unreachable!(
                 "PSBT input must contain either witness UTXO or a non-witness transaction"
             ),
@@ -871,56 +881,59 @@ impl Input {
                 .and_then(|pk| self.tap_bip32_derivation.get(&pk).map(|d| (&d.origin, pk)))
                 .zip(self.tap_key_sig)
                 .and_then(|((origin, pk), sig)| {
-                    // First, we try key path
-                    descriptor.taproot_witness(map! { origin => TaprootKeySig::new(pk, sig) })
+                    // First, we try a key path
+                    descriptor
+                        .taproot_witness(None, indexmap! { origin => TaprootKeySig::new(pk, sig) })
                 })
                 .or_else(|| {
-                    // If we can't satisfy key path, we try script paths until we succeed
-                    self.tap_leaf_script
-                        .keys()
-                        .filter_map(|cb| cb.merkle_branch.first())
-                        .copied()
-                        .map(|hash| TapLeafHash::from_byte_array(hash.to_byte_array()))
-                        .find_map(|leafhash| {
-                            let keysigs = self
-                                .tap_script_sig
-                                .iter()
-                                .filter(|((_, lh), _)| *lh == leafhash)
-                                .map(|((pk, _), sig)| TaprootKeySig::new(*pk, *sig))
-                                .filter_map(|ks| {
-                                    self.tap_bip32_derivation
-                                        .get(&ks.key)
-                                        .filter(|d| d.leaf_hashes.contains(&leafhash))
-                                        .map(|d| (&d.origin, ks))
-                                })
-                                .collect();
-                            descriptor.taproot_witness(keysigs)
-                        })
+                    // If we can't satisfy a key path, we try script paths until we succeed
+                    self.tap_leaf_script.keys().find_map(|cb| {
+                        let hash = cb.merkle_branch.first()?;
+                        let leafhash = TapLeafHash::from_byte_array(hash.to_byte_array());
+                        let keysigs = self
+                            .tap_script_sig
+                            .iter()
+                            .filter(|((_, lh), _)| *lh == leafhash)
+                            .map(|((pk, _), sig)| TaprootKeySig::new(*pk, *sig))
+                            .filter_map(|ks| {
+                                self.tap_bip32_derivation
+                                    .get(&ks.key)
+                                    .filter(|d| d.leaf_hashes.contains(&leafhash))
+                                    .map(|d| (&d.origin, ks))
+                            })
+                            .collect();
+                        descriptor.taproot_witness(Some(cb), keysigs)
+                    })
                 })
-                .map(|witness| (empty!(), witness))
+                .map(|witness| (empty!(), Some(witness)))
         } else {
             let keysigs = self
-                .partial_sigs
+                .bip32_derivation
                 .iter()
-                .map(|(pk, sig)| LegacyKeySig::new(*pk, *sig))
-                .filter_map(|ks| self.bip32_derivation.get(&ks.key).map(|origin| (origin, ks)))
+                .filter_map(|(pk, origin)| {
+                    self.partial_sigs.get(pk).map(|sig| (origin, LegacyKeySig::new(*pk, *sig)))
+                })
                 .collect();
-            descriptor.legacy_witness(keysigs)
+            descriptor.legacy_witness(
+                keysigs,
+                self.redeem_script.clone(),
+                self.witness_script.clone(),
+            )
         };
         let Some((sig_script, witness)) = satisfaction else {
             return false;
         };
 
         self.final_script_sig = Some(sig_script);
-        self.final_witness = Some(witness);
+        self.final_witness = witness;
         // reset everything
         self.partial_sigs.clear(); // 0x02
         self.sighash_type = None; // 0x03
         self.redeem_script = None; // 0x04
         self.witness_script = None; // 0x05
         self.bip32_derivation.clear(); // 0x05
-                                       // finalized witness 0x06 and 0x07 are not clear
-                                       // 0x09 Proof of reserves not yet supported
+                                       // finalized witness 0x06 and 0x07 are not cleared
+                                       // 0x09 Proof of reserves is not yet supported
         self.ripemd160.clear(); // 0x0a
         self.sha256.clear(); // 0x0b
         self.hash160.clear(); // 0x0c
@@ -1037,11 +1050,11 @@ impl Output {
         let terminal = self
             .bip32_derivation
             .values()
-            .flat_map(|origin| origin.derivation().terminal())
+            .flat_map(|origin| origin.as_derivation().terminal())
             .chain(
                 self.tap_bip32_derivation
                     .values()
-                    .flat_map(|derivation| derivation.origin.derivation().terminal()),
+                    .flat_map(|derivation| derivation.origin.as_derivation().terminal()),
             )
             .collect::<BTreeSet<_>>();
         if terminal.len() != 1 {
@@ -1113,7 +1126,7 @@ impl ModifiableFlags {
 }
 
 #[cfg(test)]
-mod tests {
+mod test {
     use super::*;
 
     #[test]
