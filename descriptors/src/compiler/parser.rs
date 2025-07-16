@@ -20,10 +20,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use core::str::FromStr;
+use std::fmt::Display;
+
+use derive::XpubDerivable;
+
 use super::{parse_descr_str, DescrToken};
 
-impl<'s> ScriptExpr<'s> {
-    pub(super) fn from_str(s: &'s str) -> Result<Self, DescrParseError> {
+impl<'s, K: Display + FromStr> ScriptExpr<'s, K>
+where K::Err: core::error::Error
+{
+    pub(super) fn from_str(s: &'s str) -> Result<Self, DescrParseError<K::Err>> {
         let tokens = parse_descr_str(s);
         Self::parse_tokens(s, &tokens)
     }
@@ -31,7 +38,7 @@ impl<'s> ScriptExpr<'s> {
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Display, Error, From)]
 #[display(doc_comments)]
-pub enum DescrParseError {
+pub enum DescrParseError<E: core::error::Error> {
     /// empty descriptor expression.
     Empty,
 
@@ -58,44 +65,58 @@ pub enum DescrParseError {
 
     /// invalid descriptor tree expression '{0}'.
     InvalidTreeExpr(String),
+
+    /// invalid key expression: {0}.
+    Key(E),
+
+    /// invalid arguments are given for the descriptor script expression {0}.
+    InvalidArgs(&'static str),
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Display)]
 #[display(inner)]
-pub enum DescrAst<'s> {
+pub enum DescrAst<'s, K: Display + FromStr = XpubDerivable>
+where K::Err: core::error::Error
+{
     /// Key expression
     #[display("{0}")]
-    Key(&'s str, usize),
+    Key(K, usize),
 
     /// Statement, like miniscript or descriptor overall
-    Script(Box<ScriptExpr<'s>>),
+    Script(Box<ScriptExpr<'s, K>>),
 
     /// Expression, like taproot script tree
-    Tree(Box<TreeExpr<'s>>),
+    Tree(Box<TreeExpr<'s, K>>),
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Display)]
 #[display("{full}")]
-pub struct ScriptExpr<'s> {
+pub struct ScriptExpr<'s, K: Display + FromStr = XpubDerivable>
+where K::Err: core::error::Error
+{
     pub name: &'s str,
-    pub children: Vec<DescrAst<'s>>,
+    pub children: Vec<DescrAst<'s, K>>,
     pub full: &'s str,
     pub offset: usize,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Display)]
 #[display("{full}")]
-pub struct TreeExpr<'s> {
-    pub first: DescrAst<'s>,
-    pub second: DescrAst<'s>,
+pub struct TreeExpr<'s, K: Display + FromStr = XpubDerivable>
+where K::Err: core::error::Error
+{
+    pub first: DescrAst<'s, K>,
+    pub second: DescrAst<'s, K>,
     pub full: &'s str,
 }
 
-impl<'s> DescrAst<'s> {
+impl<'s, K: Display + FromStr> DescrAst<'s, K>
+where K::Err: core::error::Error
+{
     fn parse_from_token_stream(
         descr: &'s str,
         tokens: &mut &[DescrToken<'s>],
-    ) -> Result<Self, DescrParseError> {
+    ) -> Result<Self, DescrParseError<K::Err>> {
         let Some(first) = tokens.first() else {
             return Err(DescrParseError::Empty);
         };
@@ -104,19 +125,20 @@ impl<'s> DescrAst<'s> {
             DescrToken::Ident(_, _)
                 if matches!(tokens.get(1), Some(DescrToken::OpeningParenthesis(_))) =>
             {
-                let matched_bracket = matching_bracket_close(descr, &tokens[1..])?;
+                let matched_bracket = matching_bracket_close::<K>(descr, &tokens[1..])?;
                 let (subtokens, remaining) = tokens.split_at(matched_bracket + 2);
                 *tokens = remaining;
                 Self::Script(Box::new(ScriptExpr::parse_tokens(descr, subtokens)?))
             }
             DescrToken::OpeningBraces(_) => {
-                let matched_bracket = matching_bracket_close(descr, tokens)?;
+                let matched_bracket = matching_bracket_close::<K>(descr, tokens)?;
                 let (subtokens, remaining) = tokens.split_at(matched_bracket + 1);
                 *tokens = remaining;
                 Self::Tree(Box::new(TreeExpr::parse_tokens(descr, subtokens)?))
             }
             DescrToken::Ident(key, pos) | DescrToken::Expr(key, pos) => {
                 tokens.split_off_first();
+                let key = K::from_str(key).map_err(DescrParseError::Key)?;
                 Self::Key(key, *pos)
             }
             _ => {
@@ -131,7 +153,9 @@ impl<'s> DescrAst<'s> {
     }
 }
 
-impl<'s> ScriptExpr<'s> {
+impl<'s, K: Display + FromStr> ScriptExpr<'s, K>
+where K::Err: core::error::Error
+{
     /// Parses a part of the token stream as a script expression.
     ///
     /// # Arguments
@@ -141,7 +165,7 @@ impl<'s> ScriptExpr<'s> {
     fn parse_tokens(
         descr: &'s str,
         mut tokens: &[DescrToken<'s>],
-    ) -> Result<Self, DescrParseError> {
+    ) -> Result<Self, DescrParseError<K::Err>> {
         let full = descr_substr(descr, tokens);
 
         let Some(DescrToken::Ident(name, offset)) = tokens.split_off_first() else {
@@ -192,7 +216,9 @@ impl<'s> ScriptExpr<'s> {
     }
 }
 
-impl<'s> TreeExpr<'s> {
+impl<'s, K: Display + FromStr> TreeExpr<'s, K>
+where K::Err: core::error::Error
+{
     /// Parses a part of the token stream as a tree expression.
     ///
     /// # Arguments
@@ -202,7 +228,7 @@ impl<'s> TreeExpr<'s> {
     fn parse_tokens(
         descr: &'s str,
         mut tokens: &[DescrToken<'s>],
-    ) -> Result<Self, DescrParseError> {
+    ) -> Result<Self, DescrParseError<K::Err>> {
         let full = descr_substr(descr, tokens);
 
         if !matches!(tokens.split_off_first(), Some(DescrToken::OpeningBraces(_)))
@@ -239,7 +265,13 @@ fn descr_substr<'s>(descr: &'s str, tokens: &[DescrToken]) -> &'s str {
         ..=tokens.last().map(DescrToken::pos).unwrap_or(descr.len() - 1)]
 }
 
-fn matching_bracket_close(descr: &str, tokens: &[DescrToken]) -> Result<usize, DescrParseError> {
+fn matching_bracket_close<K: Display + FromStr>(
+    descr: &str,
+    tokens: &[DescrToken],
+) -> Result<usize, DescrParseError<K::Err>>
+where
+    K::Err: core::error::Error,
+{
     let mut stack: Vec<DescrToken> = vec![];
     for (pos, token) in tokens.iter().enumerate() {
         let mut check = |paren: bool| {
@@ -299,26 +331,26 @@ mod tests {
 
     #[test]
     fn simple_script_expr() {
-        let ast = ScriptExpr::from_str("a(b,c)").unwrap();
+        let ast = ScriptExpr::<String>::from_str("a(b,c)").unwrap();
         assert_eq!(ast.name, "a");
         assert_eq!(ast.children.len(), 2);
-        assert_eq!(ast.children[0], DescrAst::Key("b", 2));
-        assert_eq!(ast.children[1], DescrAst::Key("c", 4));
+        assert_eq!(ast.children[0], DescrAst::Key(s!("b"), 2));
+        assert_eq!(ast.children[1], DescrAst::Key(s!("c"), 4));
         assert_eq!(ast.full, "a(b,c)");
         assert_eq!(ast.offset, 0);
     }
 
     #[test]
     fn nested_script_expr() {
-        let ast = ScriptExpr::from_str("a(b,c(d))").unwrap();
+        let ast = ScriptExpr::<String>::from_str("a(b,c(d))").unwrap();
         assert_eq!(ast.name, "a");
         assert_eq!(ast.children.len(), 2);
-        assert_eq!(ast.children[0], DescrAst::Key("b", 2));
+        assert_eq!(ast.children[0], DescrAst::Key(s!("b"), 2));
         assert_eq!(
             ast.children[1],
             DescrAst::Script(Box::new(ScriptExpr {
                 name: "c",
-                children: vec![DescrAst::Key("d", 6)],
+                children: vec![DescrAst::Key(s!("d"), 6)],
                 full: "c(d)",
                 offset: 4,
             }))
@@ -329,14 +361,14 @@ mod tests {
 
     #[test]
     fn simple_tree_expr() {
-        let ast = ScriptExpr::from_str("tree({a, b})").unwrap();
+        let ast = ScriptExpr::<String>::from_str("tree({a, b})").unwrap();
         assert_eq!(ast.name, "tree");
         assert_eq!(ast.children.len(), 1);
         assert_eq!(
             ast.children[0],
             DescrAst::Tree(Box::new(TreeExpr {
-                first: DescrAst::Key("a", 6),
-                second: DescrAst::Key("b", 9),
+                first: DescrAst::Key(s!("a"), 6),
+                second: DescrAst::Key(s!("b"), 9),
                 full: "{a, b}",
             }))
         );
@@ -347,5 +379,5 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "Empty")]
-    fn empty_braces() { ScriptExpr::from_str("tree({})").unwrap(); }
+    fn empty_braces() { ScriptExpr::<String>::from_str("tree({})").unwrap(); }
 }

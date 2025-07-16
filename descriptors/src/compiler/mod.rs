@@ -22,6 +22,7 @@
 
 mod lexer;
 mod parser;
+mod compile;
 
 pub use lexer::{parse_descr_str, DescrLexerError, DescrToken};
 pub use parser::{DescrAst, DescrParseError, ScriptExpr, TreeExpr};
