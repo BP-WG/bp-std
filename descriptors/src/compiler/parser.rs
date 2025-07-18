@@ -81,6 +81,9 @@ pub enum DescrParseError<E: core::error::Error> {
 
     /// invalid arguments are given for the descriptor script expression {0}.
     InvalidArgs(&'static str),
+
+    /// parsing {0} is not yet supported.
+    NotSupported(&'static str),
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Display)]

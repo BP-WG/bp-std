@@ -29,7 +29,10 @@ use derive::{DeriveCompr, DeriveLegacy, DeriveSet, DeriveXOnly};
 use indexmap::{indexmap, IndexMap};
 
 use crate::compiler::{DescrAst, DescrParseError, ScriptExpr};
-use crate::{Pkh, ShMulti, ShSortedMulti, ShWpkh, StdDescr, TrKey, Wpkh, WshMulti, WshSortedMulti};
+use crate::{
+    Pkh, Sh, ShMulti, ShSortedMulti, ShWpkh, ShWsh, StdDescr, TrKey, Wpkh, Wsh, WshMulti,
+    WshSortedMulti,
+};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum DescrExpr {
@@ -76,6 +79,9 @@ where
     None
 }
 
+////////////////////////////////////////
+// Key-only pre-taproot
+
 impl<K: DeriveLegacy + FromStr> FromStr for Pkh<K>
 where K::Err: core::error::Error
 {
@@ -108,20 +114,35 @@ where K::Err: core::error::Error
     }
 }
 
+////////////////////////////////////////
+// Multisigs pre-taproot
+
 fn parse_multi_form<K: Display + FromStr>(
     s: &str,
     outer: &'static str,
+    medium: Option<&'static str>,
     inner: &'static str,
 ) -> Result<(u4, ConfinedVec<K, 1, 16>), DescrParseError<K::Err>>
 where
     K::Err: core::error::Error,
 {
     let ast = ScriptExpr::<K>::from_str(s)?;
+
     let (_, mut form) = check_forms(ast, outer, indexmap! { "" => &[DescrExpr::Script][..] })
         .ok_or(DescrParseError::InvalidArgs(outer))?;
-    let Some(DescrAst::Script(script)) = form.pop() else {
+    let Some(DescrAst::Script(mut script)) = form.pop() else {
         unreachable!();
     };
+
+    if let Some(medium) = medium {
+        let (_, mut form) =
+            check_forms(*script, medium, indexmap! { "" => &[DescrExpr::Script][..] })
+                .ok_or(DescrParseError::InvalidArgs(medium))?;
+        let Some(DescrAst::Script(script2)) = form.pop() else {
+            unreachable!();
+        };
+        script = script2;
+    }
 
     let (_, mut form) = check_forms(
         *script,
@@ -148,7 +169,7 @@ where K::Err: core::error::Error
     type Err = DescrParseError<K::Err>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let (threshold, keys) = parse_multi_form(s, "sh", "multi")?;
+        let (threshold, keys) = parse_multi_form(s, "sh", None, "multi")?;
         Ok(ShMulti { threshold, keys })
     }
 }
@@ -159,7 +180,7 @@ where K::Err: core::error::Error
     type Err = DescrParseError<K::Err>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let (threshold, keys) = parse_multi_form(s, "sh", "sortedmulti")?;
+        let (threshold, keys) = parse_multi_form(s, "sh", None, "sortedmulti")?;
         Ok(ShSortedMulti { threshold, keys })
     }
 }
@@ -170,7 +191,7 @@ where K::Err: core::error::Error
     type Err = DescrParseError<K::Err>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let (threshold, keys) = parse_multi_form(s, "wsh", "multi")?;
+        let (threshold, keys) = parse_multi_form(s, "wsh", None, "multi")?;
         Ok(WshMulti { threshold, keys })
     }
 }
@@ -181,7 +202,7 @@ where K::Err: core::error::Error
     type Err = DescrParseError<K::Err>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let (threshold, keys) = parse_multi_form(s, "wsh", "sortedmulti")?;
+        let (threshold, keys) = parse_multi_form(s, "wsh", None, "sortedmulti")?;
         Ok(WshSortedMulti { threshold, keys })
     }
 }
@@ -208,6 +229,35 @@ where K::Err: core::error::Error
     }
 }
 
+////////////////////////////////////////
+// Scripts pre-taproot
+
+// TODO: Implement with support for script templates and miniscript
+
+impl<K: DeriveLegacy + FromStr> FromStr for Sh<K>
+where K::Err: core::error::Error
+{
+    type Err = DescrParseError<K::Err>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.starts_with("sh(wsh(multi(") {}
+        Err(DescrParseError::NotSupported("scripts"))
+    }
+}
+
+impl<K: DeriveCompr + FromStr> FromStr for Wsh<K>
+where K::Err: core::error::Error
+{
+    type Err = DescrParseError<K::Err>;
+
+    fn from_str(_s: &str) -> Result<Self, Self::Err> {
+        Err(DescrParseError::NotSupported("scripts"))
+    }
+}
+
+////////////////////////////////////////
+// Taproot pre-taproot
+
 impl<K: DeriveXOnly + FromStr> FromStr for TrKey<K>
 where K::Err: core::error::Error
 {
@@ -223,6 +273,32 @@ where K::Err: core::error::Error
         Ok(TrKey::from(key))
     }
 }
+
+////////////////////////////////////////
+// Combinators
+
+impl<K: DeriveCompr + FromStr> FromStr for ShWsh<K>
+where K::Err: core::error::Error
+{
+    type Err = DescrParseError<K::Err>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.starts_with("sh(wsh(multi(") {
+            let (threshold, keys) = parse_multi_form(s, "sh", Some("wsh"), "multi")?;
+            Ok(ShWsh::Multi(WshMulti { threshold, keys }))
+        } else if s.starts_with("sh(wsh(sortedmulti(") {
+            let (threshold, keys) = parse_multi_form(s, "sh", Some("wsh"), "sortedmulti")?;
+            Ok(ShWsh::SortedMulti(WshSortedMulti { threshold, keys }))
+        } else if s.starts_with("sh(wsh(") {
+            Err(DescrParseError::NotSupported("scripts"))
+        } else {
+            Err(DescrParseError::InvalidScriptExpr(s.to_owned()))
+        }
+    }
+}
+
+////////////////////////////////////////
+// Enums
 
 impl<K: DeriveSet + Display + FromStr> FromStr for StdDescr<K>
 where
