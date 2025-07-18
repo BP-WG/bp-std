@@ -26,8 +26,8 @@ use std::{slice, vec};
 
 use amplify::num::u7;
 use bc::{
-    ControlBlock, InternalPk, LeafScript, OutputPk, Parity, TapLeafHash, TapMerklePath,
-    TapNodeHash, TapScript,
+    ControlBlock, InternalPk, LeafScript, OutputPk, Parity,
+    TapLeafHash, TapMerklePath, TapNodeHash, TapScript, TapBranchHash,
 };
 use commit_verify::merkle::MerkleBuoy;
 
@@ -58,7 +58,7 @@ pub struct UnfinalizedTree(pub u7);
 #[derive(Clone, Eq, PartialEq, Debug, Default)]
 pub struct TapTreeBuilder<L = LeafScript> {
     leaves: Vec<LeafInfo<L>>,
-    buoy: MerkleBuoy<u7>,
+    buoy:   MerkleBuoy<u7>,
     finalized: bool,
 }
 
@@ -66,7 +66,7 @@ impl<L> TapTreeBuilder<L> {
     pub fn new() -> Self {
         Self {
             leaves: none!(),
-            buoy: default!(),
+            buoy:   default!(),
             finalized: false,
         }
     }
@@ -74,7 +74,7 @@ impl<L> TapTreeBuilder<L> {
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             leaves: Vec::with_capacity(capacity),
-            buoy: zero!(),
+            buoy:   zero!(),
             finalized: false,
         }
     }
@@ -134,17 +134,83 @@ impl<'a, L> IntoIterator for &'a TapTree<L> {
 impl TapTree {
     pub fn with_single_leaf(leaf: impl Into<LeafScript>) -> TapTree {
         Self(vec![LeafInfo {
-            depth: u7::ZERO,
+            depth:  u7::ZERO,
             script: leaf.into(),
         }])
     }
 
     pub fn merkle_root(&self) -> TapNodeHash {
-        if self.0.len() == 1 {
-            TapLeafHash::with_leaf_script(&self.0[0].script).into()
-        } else {
-            todo!("#10 implement TapTree::merkle_root for trees with more than one leaf")
+        let mut stack: Vec<(u7, TapNodeHash)> = Vec::new();
+
+        for leaf in &self.0 {
+            let leaf_hash: TapNodeHash =
+                TapLeafHash::with_leaf_script(&leaf.script).into();
+            let depth = leaf.depth;
+            stack.push((depth, leaf_hash));
+
+            while stack.len() >= 2 {
+                let len = stack.len();
+                let (d1, _) = stack[len - 1];
+                let (d2, _) = stack[len - 2];
+                if d1 != d2 { break; }
+
+                let (_, right) = stack.pop().unwrap();
+                let (_, left ) = stack.pop().unwrap();
+                let parent_depth = d1 - u7::ONE;
+                let parent_hash: TapNodeHash =
+                    TapBranchHash::with_nodes(left, right).into();
+                stack.push((parent_depth, parent_hash));
+            }
         }
+
+        debug_assert!(
+            stack.len() == 1 && stack[0].0 == u7::ZERO,
+            "invalid tap tree: unbalanced leaves"
+        );
+        stack[0].1
+    }
+
+    /// 返回第 `index` 号叶子的脚本路径（只含 sibling branch hashes）
+    pub fn merkle_path(&self, index: usize) -> TapMerklePath {
+        let mut stack: Vec<(u7, TapNodeHash, Vec<TapBranchHash>, bool)> = Vec::new();
+
+        for (i, leaf) in self.0.iter().enumerate() {
+            let leaf_hash: TapNodeHash = TapLeafHash::with_leaf_script(&leaf.script).into();
+            let is_target = i == index;
+            stack.push((leaf.depth, leaf_hash, Vec::new(), is_target));
+
+            while stack.len() >= 2 {
+                let len = stack.len();
+                let (d1, h1, _, _) = stack[len - 1].clone();
+                let (d2, h2, _, _) = stack[len - 2].clone();
+                if d1 != d2 { break; }
+
+                let (_dr, _hr, mut path_r, target_r) = stack.pop().unwrap();
+                let (_dl, _hl, mut path_l, target_l) = stack.pop().unwrap();
+
+                let branch_hash = TapBranchHash::with_nodes(h2, h1);
+                let parent_hash: TapNodeHash = branch_hash.clone().into();
+                let parent_depth = d1 - u7::ONE;
+
+                if target_l {
+                    path_l.push(branch_hash.clone());
+                }
+                if target_r {
+                    path_r.push(branch_hash.clone());
+                }
+
+                let parent_target = target_l || target_r;
+                let parent_path = if target_l { path_l } else { path_r };
+
+                stack.push((parent_depth, parent_hash, parent_path, parent_target));
+            }
+        }
+
+        debug_assert!(stack.len() == 1, "unbalanced tap tree");
+        let (_d, _h, path, _t) = stack.pop().unwrap();
+
+        TapMerklePath::try_from(path)
+            .expect("tap merkle path length must be within [0..128]")
     }
 }
 
@@ -167,7 +233,7 @@ impl<L> TapTree<L> {
         TapTree(
             self.into_iter()
                 .map(|leaf| LeafInfo {
-                    depth: leaf.depth,
+                    depth:  leaf.depth,
                     script: f(leaf.script),
                 })
                 .collect(),
@@ -178,8 +244,8 @@ impl<L> TapTree<L> {
 impl<L: Display> Display for TapTree<L> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let mut buoy = MerkleBuoy::<u7>::default();
-
         let mut depth = u7::ZERO;
+
         for leaf in &self.0 {
             for _ in depth.into_u8()..leaf.depth.into_u8() {
                 f.write_char('{')?;
@@ -194,10 +260,93 @@ impl<L: Display> Display for TapTree<L> {
             }
             debug_assert_ne!(buoy.level(), u7::ZERO);
         }
+
         debug_assert_eq!(buoy.level(), u7::ZERO);
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod taptree_tests {
+    use super::*; // TapTree, merkle_root, merkle_path
+    use amplify::num::u7;
+    use std::convert::TryFrom;
+    use bc::{TapBranchHash, TapLeafHash, TapNodeHash, TapMerklePath, TapScript, TapCode};
+
+    /// 构造一个 LeafInfo<LeafScript>：用 TapScript + TapCode
+    fn make_leaf(depth: u7, ops: &[TapCode]) -> LeafInfo<LeafScript> {
+        let mut ts = TapScript::new();
+        for &op in ops {
+            ts.push_opcode(op);
+        }
+        LeafInfo::tap_script(depth, ts)
+    }
+
+    #[test]
+    fn single_leaf_merkle() {
+                // 用 PushNum1 来测试
+                let leaf = make_leaf(u7::ZERO, &[TapCode::PushNum1]);
+        let tree = TapTree(vec![leaf.clone()]);
+
+        let expected = TapNodeHash::from(TapLeafHash::with_leaf_script(&leaf.script));
+        assert_eq!(tree.merkle_root(), expected);
+
+        let empty = TapMerklePath::try_from(vec![]).unwrap();
+        assert_eq!(tree.merkle_path(0), empty);
+    }
+
+    #[test]
+    fn two_leaves_merkle_and_path() {
+        let depth = u7::ONE;
+                // 第一个叶子用 PushNum1，第二个叶子用 PushNum2
+                let l0 = make_leaf(depth, &[TapCode::PushNum1]);
+                let l1 = make_leaf(depth, &[TapCode::PushNum2]);
+        let tree = TapTree(vec![l0.clone(), l1.clone()]);
+
+        let h0: TapNodeHash = TapLeafHash::with_leaf_script(&l0.script).into();
+        let h1: TapNodeHash = TapLeafHash::with_leaf_script(&l1.script).into();
+        let branch = TapBranchHash::with_nodes(h0, h1);
+        let expected_root: TapNodeHash = branch.clone().into();
+        assert_eq!(tree.merkle_root(), expected_root);
+
+                let p0 = TapMerklePath::try_from(vec![branch.clone()]).unwrap();
+                let p1 = TapMerklePath::try_from(vec![branch]).unwrap();
+        assert_eq!(tree.merkle_path(0), p0);
+        assert_eq!(tree.merkle_path(1), p1);
+    }
+
+    #[test]
+    fn unbalanced_tree_merkle_and_path() {
+        // 三叶不平衡：depth=[2,2,1]
+        let d2 = u7::try_from(2u8).unwrap();
+        let d1 = u7::ONE;
+                // 前两叶都用 PushNum1，第三叶用 PushNum2
+                let l0 = make_leaf(d2, &[TapCode::PushNum1]);
+                let l1 = make_leaf(d2, &[TapCode::PushNum1]);
+                let l2 = make_leaf(d1, &[TapCode::PushNum2]);
+        let tree = TapTree(vec![l0.clone(), l1.clone(), l2.clone()]);
+
+        let h0: TapNodeHash = TapLeafHash::with_leaf_script(&l0.script).into();
+        let h1: TapNodeHash = TapLeafHash::with_leaf_script(&l1.script).into();
+        let h2: TapNodeHash = TapLeafHash::with_leaf_script(&l2.script).into();
+        let branch1 = TapBranchHash::with_nodes(h0, h1);
+        let node1: TapNodeHash = branch1.clone().into();
+        let branch2 = TapBranchHash::with_nodes(node1, h2);
+
+        let expected_root: TapNodeHash = branch2.clone().into();
+        assert_eq!(tree.merkle_root(), expected_root);
+
+                let p01 = TapMerklePath::try_from(vec![branch1.clone(), branch2.clone()]).unwrap();
+                let p2  = TapMerklePath::try_from(vec![branch2]).unwrap();
+
+        assert_eq!(tree.merkle_path(0), p01);
+        assert_eq!(tree.merkle_path(1), p01);
+        assert_eq!(tree.merkle_path(2), p2);
+    }
+}
+
+
+
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
@@ -224,41 +373,47 @@ pub struct ControlBlockFactory {
     merkle_root: TapNodeHash,
 
     #[getter(skip)]
-    merkle_path: TapMerklePath,
+    merkle_paths:  Vec<TapMerklePath>,
     #[getter(skip)]
-    remaining_leaves: Vec<LeafInfo>,
+    remaining:     Vec<LeafInfo<LeafScript>>,
 }
 
 impl ControlBlockFactory {
     #[inline]
-    pub fn with(internal_pk: InternalPk, tap_tree: TapTree) -> Self {
+    pub fn with(internal_pk: InternalPk, tap_tree: TapTree<LeafScript>) -> Self {
         let merkle_root = tap_tree.merkle_root();
         let (output_pk, parity) = internal_pk.to_output_pk(Some(merkle_root));
+        let remaining_leaves = tap_tree.clone().into_vec();
+        let merkle_paths = (0 .. remaining_leaves.len())
+            .map(|i| tap_tree.merkle_path(i))
+            .collect();
         ControlBlockFactory {
             internal_pk,
             output_pk,
             parity,
             merkle_root,
-            merkle_path: empty!(),
-            remaining_leaves: tap_tree.into_vec(),
+            merkle_paths,
+            remaining: remaining_leaves,
         }
     }
 
     #[inline]
-    pub fn into_remaining_leaves(self) -> Vec<LeafInfo> { self.remaining_leaves }
+    pub fn into_remaining_leaves(self) -> Vec<LeafInfo> { self.remaining }
 }
 
 impl Iterator for ControlBlockFactory {
     type Item = (ControlBlock, LeafScript);
-
     fn next(&mut self) -> Option<Self::Item> {
-        let leaf = self.remaining_leaves.pop()?;
+        // Pop leaf and its path together
+        let leaf = self.remaining.pop()?;
+        let path = self.merkle_paths.pop()?;
         let leaf_script = leaf.script;
+        // Build control block with the correct path
         let control_block = ControlBlock::with(
             leaf_script.version,
             self.internal_pk,
             self.parity,
-            self.merkle_path.clone(),
+            path,
         );
         Some((control_block, leaf_script))
     }
@@ -284,6 +439,64 @@ impl TapDerivation {
         TapDerivation {
             leaf_hashes: empty!(),
             origin,
+        }
+    }
+}
+
+
+
+#[cfg(test)]
+mod control_block_factory_tests {
+    use super::*; // ControlBlockFactory
+    use amplify::num::u7;
+    use std::convert::TryFrom;
+    use crate::taptree::TapTree;
+    use bc::{InternalPk, LeafVer, ScriptBytes, TapBranchHash, TapLeafHash, TapNodeHash};
+
+    /// 固定 X-only pubkey（32×0x02）
+    fn dummy_internal_pk() -> InternalPk {
+        InternalPk::from_byte_array([0x02u8; 32]).unwrap()
+    }
+
+    #[test]
+    fn factory_preserves_paths_and_versions() {
+        let depth = u7::ONE;
+        let leaves: Vec<LeafInfo<LeafScript>> = vec![
+            LeafInfo {
+                script: LeafScript::new(
+                    LeafVer::from_consensus_u8(0xc0).unwrap(),
+                    ScriptBytes::try_from(vec![10]).unwrap(),
+                ),
+                depth,
+            },
+            LeafInfo {
+                script: LeafScript::new(
+                    LeafVer::from_consensus_u8(0xc0).unwrap(),
+                    ScriptBytes::try_from(vec![20]).unwrap(),
+                ),
+                depth,
+            },
+        ];
+        let clone_leaves = leaves.clone();
+
+        // 构造工厂并收集
+        let items: Vec<_> =
+            ControlBlockFactory::with(dummy_internal_pk(), TapTree(leaves)).collect();
+        assert_eq!(items.len(), clone_leaves.len());
+
+        // 手算根哈希
+        let h0 = TapLeafHash::with_leaf_script(&clone_leaves[0].script).into();
+        let h1 = TapLeafHash::with_leaf_script(&clone_leaves[1].script).into();
+        let branch = TapBranchHash::with_nodes(h0, h1);
+        let expected_root: TapNodeHash = branch.clone().into();
+        let tree = TapTree(clone_leaves.clone());
+        assert_eq!(tree.merkle_root(), expected_root);
+
+        // 对比每个 ControlBlock 的脚本 & 路径
+        for (idx, (cb, ls)) in items.into_iter().enumerate() {
+            assert_eq!(ls.version, tree.0[idx].script.version);
+            let expected_path = tree.merkle_path(idx);
+            assert_eq!(cb.merkle_branch, expected_path);
         }
     }
 }

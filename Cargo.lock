@@ -122,10 +122,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d86b93f97252c47b41663388e6d155714a9d0c398b99f1005cbc5f978b29f445"
 
 [[package]]
+name = "bitcoin"
+version = "0.29.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0694ea59225b0c5f3cb405ff3f670e4828358ed26aec49dc352f730f0cb1a8a3"
+dependencies = [
+ "bech32",
+ "bitcoin_hashes 0.11.0",
+ "secp256k1 0.24.3",
+]
+
+[[package]]
 name = "bitcoin-io"
 version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b47c4ab7a93edb0c7198c5535ed9b52b63095f4e9b45279c6736cec4b856baf"
+
+[[package]]
+name = "bitcoin_hashes"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "90064b8dee6815a6470d60bad07bbbaee885c0e12d04177138fa3291a01b7bc4"
 
 [[package]]
 name = "bitcoin_hashes"
@@ -155,15 +172,14 @@ dependencies = [
 [[package]]
 name = "bp-consensus"
 version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22bbb56809c40565d6085b4211ee2d25a7b5e84848960678ff748e0a8707552f"
+source = "git+https://github.com/BP-WG/bp-core#34f958bedaa3ff245932492f936cfcb0bcbe14a6"
 dependencies = [
  "amplify",
  "chrono",
  "commit_verify",
  "getrandom 0.2.16",
  "getrandom 0.3.3",
- "secp256k1",
+ "secp256k1 0.30.0",
  "serde",
  "strict_encoding",
  "wasm-bindgen",
@@ -172,8 +188,7 @@ dependencies = [
 [[package]]
 name = "bp-core"
 version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a28cb4d675dd49dddd705a29d868d3e3b8f217639fd6f9cbfcbf435236eef77"
+source = "git+https://github.com/BP-WG/bp-core#34f958bedaa3ff245932492f936cfcb0bcbe14a6"
 dependencies = [
  "bp-consensus",
  "bp-dbc",
@@ -189,8 +204,7 @@ dependencies = [
 [[package]]
 name = "bp-dbc"
 version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8aa1f2d9e00a4f2b107d2df25e0d804cfb87a175a37ee503b982b5784e892a6d"
+source = "git+https://github.com/BP-WG/bp-core#34f958bedaa3ff245932492f936cfcb0bcbe14a6"
 dependencies = [
  "amplify",
  "base85",
@@ -198,7 +212,7 @@ dependencies = [
  "commit_verify",
  "getrandom 0.2.16",
  "getrandom 0.3.3",
- "secp256k1",
+ "secp256k1 0.30.0",
  "serde",
  "strict_encoding",
  "wasm-bindgen",
@@ -209,11 +223,13 @@ name = "bp-derive"
 version = "0.12.0-rc.3"
 dependencies = [
  "amplify",
+ "bitcoin",
  "bp-consensus",
  "bp-invoice",
  "commit_verify",
  "hmac",
  "indexmap",
+ "secp256k1 0.30.0",
  "serde",
  "sha2",
 ]
@@ -233,8 +249,7 @@ dependencies = [
 [[package]]
 name = "bp-seals"
 version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "565ffa069d6425b01630c68dbf1088a88786bd4b794ebf1f37a1d6edbbc29817"
+source = "git+https://github.com/BP-WG/bp-core#34f958bedaa3ff245932492f936cfcb0bcbe14a6"
 dependencies = [
  "amplify",
  "bp-consensus",
@@ -262,7 +277,7 @@ dependencies = [
  "getrandom 0.3.3",
  "psbt",
  "rand 0.9.1",
- "secp256k1",
+ "secp256k1 0.30.0",
  "serde",
  "wasm-bindgen",
  "wasm-bindgen-test",
@@ -684,14 +699,33 @@ dependencies = [
 
 [[package]]
 name = "secp256k1"
+version = "0.24.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6b1629c9c557ef9b293568b338dddfc8208c98a18c59d722a9d53f859d9c9b62"
+dependencies = [
+ "bitcoin_hashes 0.11.0",
+ "secp256k1-sys 0.6.1",
+]
+
+[[package]]
+name = "secp256k1"
 version = "0.30.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b50c5943d326858130af85e049f2661ba3c78b26589b8ab98e65e80ae44a1252"
 dependencies = [
- "bitcoin_hashes",
+ "bitcoin_hashes 0.14.0",
  "rand 0.8.5",
- "secp256k1-sys",
+ "secp256k1-sys 0.10.1",
  "serde",
+]
+
+[[package]]
+name = "secp256k1-sys"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "83080e2c2fc1006e625be82e5d1eb6a43b7fd9578b617fcc55814daf286bba4b"
+dependencies = [
+ "cc",
 ]
 
 [[package]]
@@ -1184,13 +1218,3 @@ dependencies = [
  "quote",
  "syn 2.0.101",
 ]
-
-[[patch.unused]]
-name = "bp-consensus"
-version = "0.12.0-rc.2"
-source = "git+https://github.com/BP-WG/bp-core#43a25d025691626c01794a49b2a177db4fa5bceb"
-
-[[patch.unused]]
-name = "bp-core"
-version = "0.12.0-rc.2"
-source = "git+https://github.com/BP-WG/bp-core#43a25d025691626c01794a49b2a177db4fa5bceb"
