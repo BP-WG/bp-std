@@ -33,7 +33,7 @@ pub enum DescrToken<'s> {
     Ident(&'s str, usize),
 
     #[display(inner)]
-    Expr(&'s str, usize),
+    Lit(&'s str, usize),
 
     #[display("(")]
     OpeningParenthesis(usize),
@@ -55,7 +55,7 @@ impl<'s> DescrToken<'s> {
     pub fn pos(&self) -> usize {
         match self {
             DescrToken::Ident(_, pos) => *pos,
-            DescrToken::Expr(_, pos) => *pos,
+            DescrToken::Lit(_, pos) => *pos,
             DescrToken::OpeningParenthesis(pos) => *pos,
             DescrToken::ClosingParenthesis(pos) => *pos,
             DescrToken::OpeningBraces(pos) => *pos,
@@ -97,7 +97,7 @@ pub fn parse_descr_str(s: &str) -> Vec<DescrToken<'_>> {
         let prev_token = match state {
             None => None,
             Some(TokenTy::Ident) => Some(DescrToken::Ident(&s[start..idx], start)),
-            Some(TokenTy::Expr) => Some(DescrToken::Expr(&s[start..idx], start)),
+            Some(TokenTy::Expr) => Some(DescrToken::Lit(&s[start..idx], start)),
         };
         start = idx + 1;
         state = None;
@@ -153,13 +153,13 @@ mod tests {
             OpeningParenthesis(3),
             Ident("sortedmulti", 4),
             OpeningParenthesis(15),
-            Expr("1", 16),
+            Lit("1", 16),
             Comma(17),
-            Expr("[34cf0925/87h/1h/1h]xpub661MyMwAqRbcGczjuMoRm6dXaLDEhW1u34gKenbeYqAix21mdUKJyuyu5F1rzYGVxyL6tmgBUAEPrEz92mBXjByMRiJdba9wpnN37RLLAXa/<0;1>/*", 18),
+            Lit("[34cf0925/87h/1h/1h]xpub661MyMwAqRbcGczjuMoRm6dXaLDEhW1u34gKenbeYqAix21mdUKJyuyu5F1rzYGVxyL6tmgBUAEPrEz92mBXjByMRiJdba9wpnN37RLLAXa/<0;1>/*", 18),
             Comma(157),
-            Expr("[deadcafe/87h/1h/1h]xpub69AUMk3qDBi3uW1sXgjCmVjJ2G6WQoYSnNHyzkmdCHEhSZ4tBok37xfFEqHd2AddP56Tqp4o56AePAgCjYdvpW2PU2jbUPFKsav5ut6Ch1m/<0;1>/*", 158),
+            Lit("[deadcafe/87h/1h/1h]xpub69AUMk3qDBi3uW1sXgjCmVjJ2G6WQoYSnNHyzkmdCHEhSZ4tBok37xfFEqHd2AddP56Tqp4o56AePAgCjYdvpW2PU2jbUPFKsav5ut6Ch1m/<0;1>/*", 158),
             Comma(297),
-            Expr("[beeffeed/87h/1h/1h]xpub6BJA1jSqiukeaesWfxe6sNK9CCGaujFFSJLomWHprUL9DePQ4JDkM5d88n49sMGJxrhpjazuXYWdMf17C9T5XnxkopaeS7jGk1GyyVziaMt/<0;1>/*", 298),
+            Lit("[beeffeed/87h/1h/1h]xpub6BJA1jSqiukeaesWfxe6sNK9CCGaujFFSJLomWHprUL9DePQ4JDkM5d88n49sMGJxrhpjazuXYWdMf17C9T5XnxkopaeS7jGk1GyyVziaMt/<0;1>/*", 298),
             ClosingParenthesis(437),
             ClosingParenthesis(438),
         ];

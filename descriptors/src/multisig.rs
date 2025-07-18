@@ -24,7 +24,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::{Display, Formatter};
 use std::{fmt, iter, vec};
 
-use amplify::confinement::Confined;
+use amplify::confinement::{Confined, ConfinedVec};
 use amplify::num::u4;
 use amplify::Wrapper;
 use derive::{
@@ -493,7 +493,7 @@ impl<S: DeriveCompr> Display for WshMulti<S> {
 pub struct WshSortedMulti<K: DeriveCompr = XpubDerivable> {
     pub threshold: u4,
     // TODO: Switch to an IndexSet when supported by amplify
-    pub keys: Confined<Vec<K>, 1, 16>,
+    pub keys: ConfinedVec<K, 1, 16>,
 }
 
 impl<K: DeriveCompr> WshSortedMulti<K> {

@@ -23,27 +23,32 @@
 use core::fmt::Display;
 use core::str::FromStr;
 
+use amplify::confinement::ConfinedVec;
+use amplify::num::u4;
 use derive::{DeriveCompr, DeriveLegacy, DeriveSet, DeriveXOnly};
 use indexmap::{indexmap, IndexMap};
 
 use crate::compiler::{DescrAst, DescrParseError, ScriptExpr};
-use crate::{Pkh, ShWpkh, StdDescr, Tr, TrKey, Wpkh};
+use crate::{Pkh, ShMulti, ShSortedMulti, ShWpkh, StdDescr, TrKey, Wpkh, WshMulti, WshSortedMulti};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum DescrExpr {
     Script,
+    Lit,
     Key,
     Tree,
+    VariadicKey,
 }
 
-impl<K: Display + FromStr> DescrAst<'_, K>
-where K::Err: core::error::Error
-{
-    pub fn expr(&self) -> DescrExpr {
-        match self {
-            DescrAst::Key(_, _) => DescrExpr::Key,
-            DescrAst::Script(_) => DescrExpr::Script,
-            DescrAst::Tree(_) => DescrExpr::Tree,
+impl DescrExpr {
+    pub fn check_expr<K: Display + FromStr>(&self, expr: &DescrAst<K>) -> bool
+    where K::Err: core::error::Error {
+        match (self, expr) {
+            (DescrExpr::Lit, DescrAst::Lit(_, _)) => true,
+            (DescrExpr::Key | DescrExpr::VariadicKey, DescrAst::Key(_, _)) => true,
+            (DescrExpr::Script, DescrAst::Script(_)) => true,
+            (DescrExpr::Tree, DescrAst::Tree(_)) => true,
+            _ => false,
         }
     }
 }
@@ -63,7 +68,7 @@ where
         if ast.children.len() != form.len() {
             continue;
         }
-        if ast.children.iter().zip(form).any(|(a, b)| &a.expr() != b) {
+        if ast.children.iter().zip(form).any(|(a, b)| b.check_expr(a)) {
             continue;
         }
         return Some((name, ast.children));
@@ -100,6 +105,84 @@ where K::Err: core::error::Error
             unreachable!();
         };
         Ok(Wpkh::from(key))
+    }
+}
+
+fn parse_multi_form<K: Display + FromStr>(
+    s: &str,
+    outer: &'static str,
+    inner: &'static str,
+) -> Result<(u4, ConfinedVec<K, 1, 16>), DescrParseError<K::Err>>
+where
+    K::Err: core::error::Error,
+{
+    let ast = ScriptExpr::<K>::from_str(s)?;
+    let (_, mut form) = check_forms(ast, outer, indexmap! { "" => &[DescrExpr::Script][..] })
+        .ok_or(DescrParseError::InvalidArgs(outer))?;
+    let Some(DescrAst::Script(script)) = form.pop() else {
+        unreachable!();
+    };
+
+    let (_, mut form) = check_forms(
+        *script,
+        inner,
+        indexmap! { "" => &[DescrExpr::Lit, DescrExpr::VariadicKey][..] },
+    )
+    .ok_or(DescrParseError::InvalidArgs(inner))?;
+    let DescrAst::Lit(thresh, _) = form.remove(0) else {
+        unreachable!();
+    };
+    let threshold = u4::from_str(thresh)?;
+    let keys = ConfinedVec::try_from_iter(form.into_iter().map(|el| {
+        let DescrAst::Key(key, _) = el else {
+            unreachable!()
+        };
+        key
+    }))?;
+    Ok((threshold, keys))
+}
+
+impl<K: DeriveLegacy + FromStr> FromStr for ShMulti<K>
+where K::Err: core::error::Error
+{
+    type Err = DescrParseError<K::Err>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (threshold, keys) = parse_multi_form(s, "sh", "multi")?;
+        Ok(ShMulti { threshold, keys })
+    }
+}
+
+impl<K: DeriveLegacy + FromStr> FromStr for ShSortedMulti<K>
+where K::Err: core::error::Error
+{
+    type Err = DescrParseError<K::Err>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (threshold, keys) = parse_multi_form(s, "sh", "sortedmulti")?;
+        Ok(ShSortedMulti { threshold, keys })
+    }
+}
+
+impl<K: DeriveCompr + FromStr> FromStr for WshMulti<K>
+where K::Err: core::error::Error
+{
+    type Err = DescrParseError<K::Err>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (threshold, keys) = parse_multi_form(s, "wsh", "multi")?;
+        Ok(WshMulti { threshold, keys })
+    }
+}
+
+impl<K: DeriveCompr + FromStr> FromStr for WshSortedMulti<K>
+where K::Err: core::error::Error
+{
+    type Err = DescrParseError<K::Err>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (threshold, keys) = parse_multi_form(s, "wsh", "sortedmulti")?;
+        Ok(WshSortedMulti { threshold, keys })
     }
 }
 

@@ -22,7 +22,9 @@
 
 use core::str::FromStr;
 use std::fmt::Display;
+use std::num::ParseIntError;
 
+use amplify::confinement;
 use derive::XpubDerivable;
 
 use super::{parse_descr_str, DescrToken};
@@ -36,7 +38,7 @@ where K::Err: core::error::Error
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug, Display, Error, From)]
+#[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum DescrParseError<E: core::error::Error> {
     /// empty descriptor expression.
@@ -69,6 +71,14 @@ pub enum DescrParseError<E: core::error::Error> {
     /// invalid key expression: {0}.
     Key(E),
 
+    /// invalid number literal: {0}.
+    #[from]
+    Lit(ParseIntError),
+
+    /// too many keys.
+    #[from]
+    Confinement(confinement::Error),
+
     /// invalid arguments are given for the descriptor script expression {0}.
     InvalidArgs(&'static str),
 }
@@ -81,6 +91,9 @@ where K::Err: core::error::Error
     /// Key expression
     #[display("{0}")]
     Key(K, usize),
+
+    /// Literal expression (like number or a keyword `unspendable`)
+    Lit(&'s str, usize),
 
     /// Statement, like miniscript or descriptor overall
     Script(Box<ScriptExpr<'s, K>>),
@@ -136,10 +149,13 @@ where K::Err: core::error::Error
                 *tokens = remaining;
                 Self::Tree(Box::new(TreeExpr::parse_tokens(descr, subtokens)?))
             }
-            DescrToken::Ident(key, pos) | DescrToken::Expr(key, pos) => {
+            DescrToken::Ident(s, pos) | DescrToken::Lit(s, pos) => {
                 tokens.split_off_first();
-                let key = K::from_str(key).map_err(DescrParseError::Key)?;
-                Self::Key(key, *pos)
+                if let Ok(key) = K::from_str(s) {
+                    Self::Key(key, *pos)
+                } else {
+                    Self::Lit(s, *pos)
+                }
             }
             _ => {
                 return Err(DescrParseError::UnexpectedToken {
