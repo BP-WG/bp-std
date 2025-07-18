@@ -37,8 +37,8 @@ use derive::{
 use indexmap::IndexMap;
 
 use crate::{
-    Pkh, Raw, Sh, ShMulti, ShSortedMulti, ShWpkh, ShWsh, TrKey, TrMulti, TrScript, TrSortedMulti,
-    Wpkh, Wsh, WshMulti, WshSortedMulti,
+    Pkh, Raw, ShMulti, ShScript, ShSortedMulti, ShWpkh, ShWsh, TrKey, TrMulti, TrScript,
+    TrSortedMulti, Wpkh, WshMulti, WshScript, WshSortedMulti,
 };
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
@@ -240,7 +240,7 @@ pub enum StdDescr<S: DeriveSet = XpubDerivable> {
     Raw(Raw<S::Legacy>),
 
     #[from]
-    Sh(Sh<S::Legacy>),
+    Sh(ShScript<S::Legacy>),
 
     #[from]
     Pkh(Pkh<S::Legacy>),
@@ -255,7 +255,7 @@ pub enum StdDescr<S: DeriveSet = XpubDerivable> {
     Wpkh(Wpkh<S::Compr>),
 
     #[from]
-    Wsh(Wsh<S::Compr>),
+    Wsh(WshScript<S::Compr>),
 
     #[from]
     WshMulti(WshMulti<S::Compr>),

@@ -300,9 +300,9 @@ impl<K: DeriveLegacy> Display for Raw<K> {
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
-pub struct Sh<K: DeriveLegacy = XpubDerivable>(ScriptDescr<OpCode, K>);
+pub struct ShScript<K: DeriveLegacy = XpubDerivable>(ScriptDescr<OpCode, K>);
 
-impl<K: DeriveLegacy> Derive<DerivedScript> for Sh<K> {
+impl<K: DeriveLegacy> Derive<DerivedScript> for ShScript<K> {
     #[inline]
     fn default_keychain(&self) -> Keychain { self.0.default_keychain() }
 
@@ -318,7 +318,7 @@ impl<K: DeriveLegacy> Derive<DerivedScript> for Sh<K> {
     }
 }
 
-impl<K: DeriveLegacy> Descriptor<K> for Sh<K> {
+impl<K: DeriveLegacy> Descriptor<K> for ShScript<K> {
     fn class(&self) -> SpkClass { SpkClass::P2sh }
 
     fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
@@ -379,15 +379,15 @@ impl<K: DeriveLegacy> Descriptor<K> for Sh<K> {
     }
 }
 
-impl<K: DeriveLegacy> Display for Sh<K> {
+impl<K: DeriveLegacy> Display for ShScript<K> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { write!(f, "sh({})", self.0) }
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
-pub struct Wsh<K: DeriveCompr = XpubDerivable>(ScriptDescr<OpCode, K>);
+pub struct WshScript<K: DeriveCompr = XpubDerivable>(ScriptDescr<OpCode, K>);
 
-impl<K: DeriveCompr> Derive<DerivedScript> for Wsh<K> {
+impl<K: DeriveCompr> Derive<DerivedScript> for WshScript<K> {
     #[inline]
     fn default_keychain(&self) -> Keychain { self.0.default_keychain() }
 
@@ -403,7 +403,7 @@ impl<K: DeriveCompr> Derive<DerivedScript> for Wsh<K> {
     }
 }
 
-impl<K: DeriveCompr> Descriptor<K> for Wsh<K> {
+impl<K: DeriveCompr> Descriptor<K> for WshScript<K> {
     fn class(&self) -> SpkClass { SpkClass::P2wsh }
 
     fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
@@ -464,6 +464,6 @@ impl<K: DeriveCompr> Descriptor<K> for Wsh<K> {
     }
 }
 
-impl<K: DeriveCompr> Display for Wsh<K> {
+impl<K: DeriveCompr> Display for WshScript<K> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { write!(f, "wsh({})", self.0) }
 }
