@@ -84,7 +84,7 @@ pub fn parse_descr_str(s: &str) -> Vec<DescrToken<'_>> {
             '}' => Some(DescrToken::ClosingBraces(idx)),
             ',' => Some(DescrToken::Comma(idx)),
             ' ' | '\t' | '\n' | '\r' => None,
-            'A'..='Z' | 'a'..='z' => {
+            'A'..='Z' | 'a'..='z' | '_' => {
                 state = state.or(Some(TokenTy::Ident));
                 continue;
             }

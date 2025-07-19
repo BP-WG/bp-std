@@ -291,6 +291,13 @@ pub struct TrMulti<K: DeriveXOnly> {
 }
 
 impl<K: DeriveXOnly> TrMulti<K> {
+    pub fn new_checked(internal_key: K, threshold: u16, keys: impl IntoIterator<Item = K>) -> Self {
+        Self {
+            internal_key,
+            threshold,
+            script_keys: ConfinedVec::from_iter_checked(keys),
+        }
+    }
     pub fn as_internal_key(&self) -> &K { &self.internal_key }
     pub fn into_internal_key(self) -> K { self.internal_key }
 }
@@ -377,6 +384,13 @@ pub struct TrSortedMulti<K: DeriveXOnly> {
 }
 
 impl<K: DeriveXOnly> TrSortedMulti<K> {
+    pub fn new_checked(internal_key: K, threshold: u16, keys: impl IntoIterator<Item = K>) -> Self {
+        Self {
+            internal_key,
+            threshold,
+            script_keys: ConfinedVec::from_iter_checked(keys),
+        }
+    }
     pub fn as_internal_key(&self) -> &K { &self.internal_key }
     pub fn into_internal_key(self) -> K { self.internal_key }
 }

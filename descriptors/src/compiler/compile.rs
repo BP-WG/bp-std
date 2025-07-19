@@ -22,6 +22,7 @@
 
 use core::fmt::Display;
 use core::str::FromStr;
+use std::fmt::Debug;
 
 use amplify::confinement::ConfinedVec;
 use amplify::num::u4;
@@ -69,10 +70,19 @@ where
         if ast.name != ident {
             continue;
         }
-        if ast.children.len() != form.len() {
+        let mut iter1 = form.iter();
+        let mut iter2 = ast.children.iter();
+        if iter1.by_ref().zip(iter2.by_ref()).any(|(a, b)| !a.check_expr(b)) {
             continue;
         }
-        if ast.children.iter().zip(form).any(|(a, b)| b.check_expr(a)) {
+        if iter1.count() > 0 {
+            continue;
+        }
+        if form.last() == Some(&DescrExpr::VariadicKey) {
+            if iter2.any(|d| !DescrExpr::Key.check_expr(d)) {
+                continue;
+            }
+        } else if iter2.count() > 0 {
             continue;
         }
         return Some((name, ast.children));
@@ -318,10 +328,10 @@ where
     let (_, mut form) =
         check_forms(ast, "tr", indexmap! { "" => &[DescrExpr::Key, DescrExpr::Script][..] })
             .ok_or(DescrParseError::InvalidArgs("tr"))?;
-    let Some(DescrAst::Key(internal_key, _)) = form.pop() else {
+    let Some(DescrAst::Script(script)) = form.pop() else {
         unreachable!();
     };
-    let Some(DescrAst::Script(script)) = form.pop() else {
+    let Some(DescrAst::Key(internal_key, _)) = form.pop() else {
         unreachable!();
     };
 
@@ -494,5 +504,131 @@ where
 
             _ => return Err(DescrParseError::InvalidScriptExpr(s.to_owned())),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeSet;
+    use std::error::Error;
+    use std::iter;
+
+    use derive::{Derive, DeriveKey, Keychain, NormalIndex, XkeyDecodeError, XpubAccount};
+
+    use super::*;
+    use crate::Descriptor;
+
+    #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display)]
+    #[display("KEY")]
+    struct DumbKey;
+    impl DeriveSet for DumbKey {
+        type Legacy = Self;
+        type Compr = Self;
+        type XOnly = Self;
+    }
+    impl<K> Derive<K> for DumbKey {
+        fn default_keychain(&self) -> Keychain {
+            unreachable!();
+        }
+        fn keychains(&self) -> BTreeSet<Keychain> {
+            unreachable!();
+        }
+        fn derive(
+            &self,
+            _keychain: impl Into<Keychain>,
+            _index: impl Into<NormalIndex>,
+        ) -> impl Iterator<Item = K> {
+            iter::empty()
+        }
+    }
+    impl<K> DeriveKey<K> for DumbKey {
+        fn xpub_spec(&self) -> &XpubAccount {
+            unreachable!();
+        }
+    }
+    impl FromStr for DumbKey {
+        type Err = XkeyDecodeError;
+        fn from_str(s: &str) -> Result<Self, Self::Err> {
+            if s != "KEY" {
+                Err(XkeyDecodeError::InvalidSecretKey)
+            } else {
+                Ok(DumbKey)
+            }
+        }
+    }
+
+    fn roundtrip<D: Descriptor<DumbKey> + FromStr + Into<StdDescr<DumbKey>>>(s: &str, expect: D)
+    where D::Err: Error {
+        let expect = expect.into();
+        let d1 = StdDescr::from_str(s).unwrap();
+        let d2 = D::from_str(s).unwrap();
+        assert_eq!(s, d1.to_string());
+        assert_eq!(s, d2.to_string());
+        assert_eq!(d1, expect);
+        assert_eq!(d2.into(), expect);
+    }
+
+    #[test]
+    fn pkh() { roundtrip("pkh(KEY)", Pkh::from(DumbKey)); }
+    #[test]
+    fn wpkh() { roundtrip("wpkh(KEY)", Wpkh::from(DumbKey)); }
+
+    #[test]
+    fn sh_multi() {
+        roundtrip("sh(multi(2,KEY,KEY,KEY))", ShMulti::new_checked(2, [DumbKey, DumbKey, DumbKey]));
+    }
+    #[test]
+    fn wsh_multi() {
+        roundtrip(
+            "wsh(multi(2,KEY,KEY,KEY))",
+            WshMulti::new_checked(2, [DumbKey, DumbKey, DumbKey]),
+        );
+    }
+    #[test]
+    fn sh_wsh_multi() {
+        roundtrip(
+            "sh(wsh(multi(2,KEY,KEY,KEY)))",
+            ShWshMulti::new_checked(2, [DumbKey, DumbKey, DumbKey]),
+        );
+    }
+
+    #[test]
+    fn sh_sortedmulti() {
+        roundtrip(
+            "sh(sortedmulti(2,KEY,KEY,KEY))",
+            ShSortedMulti::new_checked(2, [DumbKey, DumbKey, DumbKey]),
+        );
+    }
+    #[test]
+    fn wsh_sortedmulti() {
+        roundtrip(
+            "wsh(sortedmulti(2,KEY,KEY,KEY))",
+            WshSortedMulti::new_checked(2, [DumbKey, DumbKey, DumbKey]),
+        );
+    }
+    #[test]
+    fn sh_wsh_sortedmulti() {
+        roundtrip(
+            "sh(wsh(sortedmulti(2,KEY,KEY,KEY)))",
+            ShWshSortedMulti::new_checked(2, [DumbKey, DumbKey, DumbKey]),
+        );
+    }
+
+    #[test]
+    fn tr_key_only() { roundtrip("tr(KEY)", TrKey::from(DumbKey)); }
+
+    #[test]
+    fn tr_multi_a() {
+        roundtrip(
+            "tr(KEY,multi_a(2,KEY,KEY,KEY))",
+            TrMulti::new_checked(DumbKey, 2, [DumbKey, DumbKey, DumbKey]),
+        );
+    }
+    #[test]
+    fn tr_sortedmulti_a() {
+        roundtrip(
+            "tr(KEY,sortedmulti_a(2,KEY,KEY,KEY))",
+            TrSortedMulti::new_checked(DumbKey, 2, [DumbKey, DumbKey, DumbKey]),
+        );
     }
 }

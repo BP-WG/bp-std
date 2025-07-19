@@ -379,6 +379,29 @@ mod tests {
     }
 
     #[test]
+    fn nested_script_expr2() {
+        let ast = ScriptExpr::<String>::from_str("a(b,c_(d,e,f))").unwrap();
+        assert_eq!(ast.name, "a");
+        assert_eq!(ast.children.len(), 2);
+        assert_eq!(ast.children[0], DescrAst::Key(s!("b"), 2));
+        assert_eq!(
+            ast.children[1],
+            DescrAst::Script(Box::new(ScriptExpr {
+                name: "c_",
+                children: vec![
+                    DescrAst::Key(s!("d"), 7),
+                    DescrAst::Key(s!("e"), 9),
+                    DescrAst::Key(s!("f"), 11)
+                ],
+                full: "c_(d,e,f)",
+                offset: 4,
+            }))
+        );
+        assert_eq!(ast.full, "a(b,c_(d,e,f))");
+        assert_eq!(ast.offset, 0);
+    }
+
+    #[test]
     fn simple_tree_expr() {
         let ast = ScriptExpr::<String>::from_str("tree({a, b})").unwrap();
         assert_eq!(ast.name, "tree");

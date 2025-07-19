@@ -24,7 +24,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::{Display, Formatter};
 use std::{fmt, iter, vec};
 
-use amplify::confinement::{Confined, ConfinedVec};
+use amplify::confinement::ConfinedVec;
 use amplify::num::u4;
 use amplify::Wrapper;
 use derive::{
@@ -47,10 +47,16 @@ use crate::{Descriptor, LegacyKeySig, SpkClass, TaprootKeySig};
 pub struct ShMulti<K: DeriveLegacy = XpubDerivable> {
     pub threshold: u4,
     // TODO: Switch to an IndexSet when supported by amplify
-    pub keys: Confined<Vec<K>, 1, 16>,
+    pub keys: ConfinedVec<K, 1, 16>,
 }
 
 impl<K: DeriveLegacy> ShMulti<K> {
+    pub fn new_checked(threshold: u8, keys: impl IntoIterator<Item = K>) -> Self {
+        Self {
+            threshold: u4::with(threshold),
+            keys: ConfinedVec::from_iter_checked(keys),
+        }
+    }
     pub fn key_count(&self) -> u8 { self.keys.len() as u8 }
     pub fn threshold(&self) -> u8 { self.threshold.into_u8() }
 }
@@ -151,10 +157,16 @@ impl<S: DeriveLegacy> Display for ShMulti<S> {
 pub struct ShSortedMulti<K: DeriveLegacy = XpubDerivable> {
     pub threshold: u4,
     // TODO: Switch to an IndexSet when supported by amplify
-    pub keys: Confined<Vec<K>, 1, 16>,
+    pub keys: ConfinedVec<K, 1, 16>,
 }
 
 impl<K: DeriveLegacy> ShSortedMulti<K> {
+    pub fn new_checked(threshold: u8, keys: impl IntoIterator<Item = K>) -> Self {
+        Self {
+            threshold: u4::with(threshold),
+            keys: ConfinedVec::from_iter_checked(keys),
+        }
+    }
     pub fn key_count(&self) -> u8 { self.keys.len() as u8 }
     pub fn threshold(&self) -> u8 { self.threshold.into_u8() }
 }
@@ -251,10 +263,16 @@ impl<S: DeriveLegacy> Display for ShSortedMulti<S> {
 pub struct WshMulti<K: DeriveCompr = XpubDerivable> {
     pub threshold: u4,
     // TODO: Switch to an IndexSet when supported by amplify
-    pub keys: Confined<Vec<K>, 1, 16>,
+    pub keys: ConfinedVec<K, 1, 16>,
 }
 
 impl<K: DeriveCompr> WshMulti<K> {
+    pub fn new_checked(threshold: u8, keys: impl IntoIterator<Item = K>) -> Self {
+        Self {
+            threshold: u4::with(threshold),
+            keys: ConfinedVec::from_iter_checked(keys),
+        }
+    }
     pub fn key_count(&self) -> u8 { self.keys.len() as u8 }
     pub fn threshold(&self) -> u8 { self.threshold.into_u8() }
 }
@@ -334,7 +352,7 @@ where Self: Derive<DerivedScript>
 
 impl<S: DeriveCompr> Display for WshMulti<S> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.write_str("wsh(sorted")?;
+        f.write_str("wsh(")?;
         fmt(self.threshold, self.keys(), f)?;
         f.write_str(")")
     }
@@ -355,6 +373,12 @@ pub struct WshSortedMulti<K: DeriveCompr = XpubDerivable> {
 }
 
 impl<K: DeriveCompr> WshSortedMulti<K> {
+    pub fn new_checked(threshold: u8, keys: impl IntoIterator<Item = K>) -> Self {
+        Self {
+            threshold: u4::with(threshold),
+            keys: ConfinedVec::from_iter_checked(keys),
+        }
+    }
     pub fn key_count(&self) -> u8 { self.keys.len() as u8 }
     pub fn threshold(&self) -> u8 { self.threshold.into_u8() }
 }
@@ -447,7 +471,7 @@ impl<S: DeriveCompr> Display for WshSortedMulti<S> {
 pub struct ShWshMulti<K: DeriveCompr = XpubDerivable> {
     pub threshold: u4,
     // TODO: Switch to an IndexSet when supported by amplify
-    pub keys: Confined<Vec<K>, 1, 16>,
+    pub keys: ConfinedVec<K, 1, 16>,
 }
 
 impl<K: DeriveCompr> From<WshMulti<K>> for ShWshMulti<K> {
@@ -460,6 +484,12 @@ impl<K: DeriveCompr> From<WshMulti<K>> for ShWshMulti<K> {
 }
 
 impl<K: DeriveCompr> ShWshMulti<K> {
+    pub fn new_checked(threshold: u8, keys: impl IntoIterator<Item = K>) -> Self {
+        Self {
+            threshold: u4::with(threshold),
+            keys: ConfinedVec::from_iter_checked(keys),
+        }
+    }
     pub fn key_count(&self) -> u8 { self.keys.len() as u8 }
     pub fn threshold(&self) -> u8 { self.threshold.into_u8() }
     pub fn into_wsh(self) -> WshMulti<K> {
@@ -548,7 +578,7 @@ where Self: Derive<DerivedScript>
 
 impl<S: DeriveCompr> Display for ShWshMulti<S> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.write_str("sh(wsh(sorted")?;
+        f.write_str("sh(wsh(")?;
         fmt(self.threshold, self.keys(), f)?;
         f.write_str("))")
     }
@@ -569,6 +599,12 @@ pub struct ShWshSortedMulti<K: DeriveCompr = XpubDerivable> {
 }
 
 impl<K: DeriveCompr> ShWshSortedMulti<K> {
+    pub fn new_checked(threshold: u8, keys: impl IntoIterator<Item = K>) -> Self {
+        Self {
+            threshold: u4::with(threshold),
+            keys: ConfinedVec::from_iter_checked(keys),
+        }
+    }
     pub fn key_count(&self) -> u8 { self.keys.len() as u8 }
     pub fn threshold(&self) -> u8 { self.threshold.into_u8() }
 }
