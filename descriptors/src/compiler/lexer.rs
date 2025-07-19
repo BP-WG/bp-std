@@ -65,7 +65,7 @@ impl<'s> DescrToken<'s> {
     }
 }
 
-pub fn parse_descr_str(s: &str) -> Vec<DescrToken<'_>> {
+pub fn parse_descr_str(s: &str) -> Result<Vec<DescrToken<'_>>, DescrLexerError> {
     let mut tokens = vec![];
 
     #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -88,10 +88,42 @@ pub fn parse_descr_str(s: &str) -> Vec<DescrToken<'_>> {
                 state = state.or(Some(TokenTy::Ident));
                 continue;
             }
-            // TODO: Error on invalid chars
-            _ => {
+            // Allowed chars
+            // 0123456789()[],'/*abcdefgh@:$%{}
+            // IJKLMNOPQRSTUVWXYZ&+-.;<=>?!^_|~
+            // ijklmnopqrstuvwxyzABCDEFGH`#"\<space>
+            '0'..='9'
+            | '['
+            | ']'
+            | '\''
+            | '/'
+            | '*'
+            | '@'
+            | ':'
+            | '$'
+            | '%'
+            | '&'
+            | '+'
+            | '-'
+            | '.'
+            | ';'
+            | '<'
+            | '='
+            | '>'
+            | '?'
+            | '!'
+            | '^'
+            | '|'
+            | '~'
+            | '`'
+            | '#'
+            | '"'
+            | '\\' => {
                 state = state.map(|prev| prev.max(TokenTy::Expr)).or(Some(TokenTy::Expr));
                 continue;
+            }
+            _ => {
+                return Err(DescrLexerError::InvalidDescrChar(s.to_string(), ch, idx));
             }
         };
         let prev_token = match state {
@@ -109,7 +141,7 @@ pub fn parse_descr_str(s: &str) -> Vec<DescrToken<'_>> {
         }
     }
 
-    tokens
+    Ok(tokens)
 }
 
 #[cfg(test)]
@@ -119,7 +151,7 @@ mod tests {
     use super::*;
 
     fn test(sample: &str, expect: Vec<DescrToken<'_>>) {
-        let parsed = parse_descr_str(sample);
+        let parsed = parse_descr_str(sample).unwrap();
         assert_eq!(parsed, expect);
         let s = parsed.iter().map(DescrToken::to_string).collect::<String>();
         assert_eq!(sample.replace(' ', ""), s);

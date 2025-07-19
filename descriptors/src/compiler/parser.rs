@@ -27,13 +27,13 @@ use std::num::ParseIntError;
 use amplify::confinement;
 use derive::XpubDerivable;
 
-use super::{parse_descr_str, DescrToken};
+use super::{parse_descr_str, DescrLexerError, DescrToken};
 
 impl<'s, K: Display + FromStr> ScriptExpr<'s, K>
 where K::Err: core::error::Error
 {
     pub(super) fn from_str(s: &'s str) -> Result<Self, DescrParseError<K::Err>> {
-        let tokens = parse_descr_str(s);
+        let tokens = parse_descr_str(s)?;
         Self::parse_tokens(s, &tokens)
     }
 }
@@ -43,6 +43,10 @@ where K::Err: core::error::Error
 pub enum DescrParseError<E: core::error::Error> {
     /// empty descriptor expression.
     Empty,
+
+    #[from]
+    #[display(inner)]
+    Lexer(DescrLexerError),
 
     /// script expression '{0}' must have a name.
     NoName(String),
