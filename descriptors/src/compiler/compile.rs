@@ -452,7 +452,6 @@ where
             s if s.starts_with("wpkh") => Self::Wpkh(Wpkh::from_str(s)?),
 
             s if s.starts_with("sh(wsh") => ShWsh::from_str(s)?.into(),
-            s if s.starts_with("sh(wsh") => ShWsh::from_str(s)?.into(),
 
             _ => return Err(DescrParseError::InvalidScriptExpr(s.to_owned())),
         })
