@@ -34,7 +34,6 @@ use derive::{
     Derive, DeriveCompr, DeriveKey, DeriveLegacy, DeriveSet, DeriveXOnly, Keychain, NormalIndex,
     XkeyDecodeError, XpubAccount,
 };
-use indexmap::{indexmap, IndexMap};
 
 use crate::compiler::{DescrAst, DescrParseError, ScriptExpr};
 use crate::{
@@ -104,37 +103,34 @@ impl FromStr for NoKey {
 pub fn check_forms<'s, K: Display + FromStr>(
     ast: ScriptExpr<'s, K>,
     ident: &str,
-    forms: IndexMap<&'static str, &[DescrExpr]>,
-) -> Option<(&'static str, Vec<DescrAst<'s, K>>)>
+    form: &[DescrExpr],
+) -> Option<Vec<DescrAst<'s, K>>>
 where
     K::Err: core::error::Error,
 {
-    for (name, form) in forms {
-        if ast.name != ident {
-            continue;
-        }
-        let mut iter1 = form.iter();
-        let mut iter2 = ast.children.iter();
-        if iter1.by_ref().zip(iter2.by_ref()).any(|(a, b)| !a.check_expr(b)) {
-            continue;
-        }
-        if iter1.count() > 0 {
-            continue;
-        }
-        if form.last() == Some(&DescrExpr::VariadicKey) {
-            if iter2.any(|d| !DescrExpr::Key.check_expr(d)) {
-                continue;
-            }
-        } else if form.last() == Some(&DescrExpr::VariadicLit) {
-            if iter2.any(|d| !DescrExpr::Lit.check_expr(d)) {
-                continue;
-            }
-        } else if iter2.count() > 0 {
-            continue;
-        }
-        return Some((name, ast.children));
+    if ast.name != ident {
+        return None;
     }
-    None
+    let mut iter1 = form.iter();
+    let mut iter2 = ast.children.iter();
+    if iter1.by_ref().zip(iter2.by_ref()).any(|(a, b)| !a.check_expr(b)) {
+        return None;
+    }
+    if iter1.count() > 0 {
+        return None;
+    }
+    if form.last() == Some(&DescrExpr::VariadicKey) {
+        if iter2.any(|d| !DescrExpr::Key.check_expr(d)) {
+            return None;
+        }
+    } else if form.last() == Some(&DescrExpr::VariadicLit) {
+        if iter2.any(|d| !DescrExpr::Lit.check_expr(d)) {
+            return None;
+        }
+    } else if iter2.count() > 0 {
+        return None;
+    }
+    Some(ast.children)
 }
 
 ////////////////////////////////////////
@@ -147,7 +143,7 @@ where K::Err: core::error::Error
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let ast = ScriptExpr::<K>::from_str(s)?;
-        let (_, mut form) = check_forms(ast, "pkh", indexmap! { "" => &[DescrExpr::Key][..] })
+        let mut form = check_forms(ast, "pkh", &[DescrExpr::Key][..])
             .ok_or(DescrParseError::InvalidArgs("pkh"))?;
         let Some(DescrAst::Key(key, _)) = form.pop() else {
             unreachable!();
@@ -163,7 +159,7 @@ where K::Err: core::error::Error
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let ast = ScriptExpr::<K>::from_str(s)?;
-        let (_, mut form) = check_forms(ast, "wpkh", indexmap! { "" => &[DescrExpr::Key][..] })
+        let mut form = check_forms(ast, "wpkh", &[DescrExpr::Key][..])
             .ok_or(DescrParseError::InvalidArgs("wpkh"))?;
         let Some(DescrAst::Key(key, _)) = form.pop() else {
             unreachable!();
@@ -179,13 +175,13 @@ where K::Err: core::error::Error
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let ast = ScriptExpr::<K>::from_str(s)?;
-        let (_, mut form) = check_forms(ast, "sh", indexmap! { "" => &[DescrExpr::Script][..] })
+        let mut form = check_forms(ast, "sh", &[DescrExpr::Script][..])
             .ok_or(DescrParseError::InvalidArgs("sh"))?;
         let Some(DescrAst::Script(inner)) = form.pop() else {
             unreachable!();
         };
 
-        let (_, mut form) = check_forms(*inner, "wpkh", indexmap! { "" => &[DescrExpr::Key][..] })
+        let mut form = check_forms(*inner, "wpkh", &[DescrExpr::Key][..])
             .ok_or(DescrParseError::InvalidArgs("wpkh"))?;
         let Some(DescrAst::Key(key, _)) = form.pop() else {
             unreachable!();
@@ -208,28 +204,23 @@ where
 {
     let ast = ScriptExpr::<K>::from_str(s)?;
 
-    let (_, mut form) = check_forms(ast, outer, indexmap! { "" => &[DescrExpr::Script][..] })
+    let mut form = check_forms(ast, outer, &[DescrExpr::Script][..])
         .ok_or(DescrParseError::InvalidArgs(outer))?;
     let Some(DescrAst::Script(mut script)) = form.pop() else {
         unreachable!();
     };
 
     if let Some(medium) = medium {
-        let (_, mut form) =
-            check_forms(*script, medium, indexmap! { "" => &[DescrExpr::Script][..] })
-                .ok_or(DescrParseError::InvalidArgs(medium))?;
+        let mut form = check_forms(*script, medium, &[DescrExpr::Script][..])
+            .ok_or(DescrParseError::InvalidArgs(medium))?;
         let Some(DescrAst::Script(script2)) = form.pop() else {
             unreachable!();
         };
         script = script2;
     }
 
-    let (_, mut form) = check_forms(
-        *script,
-        inner,
-        indexmap! { "" => &[DescrExpr::Lit, DescrExpr::VariadicKey][..] },
-    )
-    .ok_or(DescrParseError::InvalidArgs(inner))?;
+    let mut form = check_forms(*script, inner, &[DescrExpr::Lit, DescrExpr::VariadicKey][..])
+        .ok_or(DescrParseError::InvalidArgs(inner))?;
     let DescrAst::Lit(thresh, _) = form.remove(0) else {
         unreachable!();
     };
@@ -354,7 +345,7 @@ where K::Err: core::error::Error
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let ast = ScriptExpr::<K>::from_str(s)?;
-        let (_, mut form) = check_forms(ast, "tr", indexmap! { "" => &[DescrExpr::Key][..] })
+        let mut form = check_forms(ast, "tr", &[DescrExpr::Key][..])
             .ok_or(DescrParseError::InvalidArgs("tr"))?;
         let Some(DescrAst::Key(key, _)) = form.pop() else {
             unreachable!();
@@ -372,9 +363,8 @@ where
 {
     let ast = ScriptExpr::<K>::from_str(s)?;
 
-    let (_, mut form) =
-        check_forms(ast, "tr", indexmap! { "" => &[DescrExpr::Key, DescrExpr::Script][..] })
-            .ok_or(DescrParseError::InvalidArgs("tr"))?;
+    let mut form = check_forms(ast, "tr", &[DescrExpr::Key, DescrExpr::Script][..])
+        .ok_or(DescrParseError::InvalidArgs("tr"))?;
     let Some(DescrAst::Script(script)) = form.pop() else {
         unreachable!();
     };
@@ -382,12 +372,8 @@ where
         unreachable!();
     };
 
-    let (_, mut form) = check_forms(
-        *script,
-        inner,
-        indexmap! { "" => &[DescrExpr::Lit, DescrExpr::VariadicKey][..] },
-    )
-    .ok_or(DescrParseError::InvalidArgs(inner))?;
+    let mut form = check_forms(*script, inner, &[DescrExpr::Lit, DescrExpr::VariadicKey][..])
+        .ok_or(DescrParseError::InvalidArgs(inner))?;
     let DescrAst::Lit(thresh, _) = form.remove(0) else {
         unreachable!();
     };
@@ -439,9 +425,8 @@ where K::Err: core::error::Error
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let ast = ScriptExpr::<K>::from_str(s)?;
 
-        let (_, mut form) =
-            check_forms(ast, "tr", indexmap! { "" => &[DescrExpr::Key, DescrExpr::Tree][..] })
-                .ok_or(DescrParseError::InvalidArgs("tr"))?;
+        let mut form = check_forms(ast, "tr", &[DescrExpr::Key, DescrExpr::Tree][..])
+            .ok_or(DescrParseError::InvalidArgs("tr"))?;
         let Some(DescrAst::Key(_internal_key, _)) = form.pop() else {
             unreachable!();
         };
