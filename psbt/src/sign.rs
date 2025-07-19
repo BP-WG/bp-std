@@ -67,17 +67,23 @@ impl From<SighashError> for SignError {
 
 /// Trait which should be implemented by all signers.
 ///
-/// Signers must ensure that transaction is checked by the user when they get [`Signer::approve`]
-/// callback. If the transaction passes the check, they must provide the caller with [`Satisfier`]
-/// instance, responsible for selecting specific script paths and keys for the signing.
+/// Signers must ensure that the transaction is checked by the user when they get
+/// [`Signer::approve`] callback.
+// TODO: Add when implemented
+// If the transaction passes the check, they must provide the caller
+// with [`Satisfier`] instance, responsible for selecting specific script paths and keys for the
+// signing.
 pub trait Signer {
     /// Type which does the actual signatures. See [`Sign`] trait for the details.
     type Sign<'s>: Sign
     where Self: 's;
 
     /// In the implementation of this method signers must ensure that transaction is checked by the
-    /// user. If the transaction passes the check, they must provide the caller with [`Satisfier`]
-    /// instance, responsible for selecting specific script paths and keys for the signing.
+    /// user.
+    // TODO: Add when implemented
+    // If the transaction passes the check, they must provide the caller
+    // with [`Satisfier`] instance, responsible for selecting specific script paths and keys for the
+    // signing.
     fn approve(&self, psbt: &Psbt) -> Result<Self::Sign<'_>, Rejected>;
 }
 
