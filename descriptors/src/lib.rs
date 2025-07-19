@@ -35,7 +35,9 @@ mod tr;
 pub mod compiler;
 
 pub use descriptor::{DescrId, Descriptor, LegacyKeySig, SpkClass, StdDescr, TaprootKeySig};
-pub use multisig::{ShMulti, ShSortedMulti, ShWsh, WshMulti, WshSortedMulti};
-pub use script::{Raw, ScriptDescr, ScriptItem, Sh, ShScript, WitnessItem, WshScript};
+pub use multisig::{
+    ShMulti, ShSortedMulti, ShWsh, ShWshMulti, ShWshSortedMulti, WshMulti, WshSortedMulti,
+};
+pub use script::{Raw, ScriptDescr, ScriptItem, Sh, ShScript, ShWshScript, WitnessItem, WshScript};
 pub use singlesig::{Pkh, ShWpkh, Wpkh};
 pub use tr::{Tr, TrKey, TrMulti, TrScript, TrSortedMulti};

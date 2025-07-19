@@ -30,8 +30,9 @@ use indexmap::{indexmap, IndexMap};
 
 use crate::compiler::{DescrAst, DescrParseError, ScriptExpr};
 use crate::{
-    Pkh, ShMulti, ShScript, ShSortedMulti, ShWpkh, ShWsh, StdDescr, Tr, TrKey, TrMulti, TrScript,
-    TrSortedMulti, Wpkh, WshMulti, WshScript, WshSortedMulti,
+    Pkh, ShMulti, ShScript, ShSortedMulti, ShWpkh, ShWsh, ShWshMulti, ShWshScript,
+    ShWshSortedMulti, StdDescr, Tr, TrKey, TrMulti, TrScript, TrSortedMulti, Wpkh, WshMulti,
+    WshScript, WshSortedMulti,
 };
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -111,6 +112,28 @@ where K::Err: core::error::Error
             unreachable!();
         };
         Ok(Wpkh::from(key))
+    }
+}
+
+impl<K: DeriveCompr + FromStr> FromStr for ShWpkh<K>
+where K::Err: core::error::Error
+{
+    type Err = DescrParseError<K::Err>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let ast = ScriptExpr::<K>::from_str(s)?;
+        let (_, mut form) = check_forms(ast, "sh", indexmap! { "" => &[DescrExpr::Script][..] })
+            .ok_or(DescrParseError::InvalidArgs("sh"))?;
+        let Some(DescrAst::Script(inner)) = form.pop() else {
+            unreachable!();
+        };
+
+        let (_, mut form) = check_forms(*inner, "wpkh", indexmap! { "" => &[DescrExpr::Key][..] })
+            .ok_or(DescrParseError::InvalidArgs("wpkh"))?;
+        let Some(DescrAst::Key(key, _)) = form.pop() else {
+            unreachable!();
+        };
+        Ok(ShWpkh::from(key))
     }
 }
 
@@ -207,25 +230,25 @@ where K::Err: core::error::Error
     }
 }
 
-impl<K: DeriveCompr + FromStr> FromStr for ShWpkh<K>
+impl<K: DeriveCompr + FromStr> FromStr for ShWshMulti<K>
 where K::Err: core::error::Error
 {
     type Err = DescrParseError<K::Err>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let ast = ScriptExpr::<K>::from_str(s)?;
-        let (_, mut form) = check_forms(ast, "sh", indexmap! { "" => &[DescrExpr::Script][..] })
-            .ok_or(DescrParseError::InvalidArgs("sh"))?;
-        let Some(DescrAst::Script(inner)) = form.pop() else {
-            unreachable!();
-        };
+        let (threshold, keys) = parse_multi_form(s, "sh", Some("wsh"), "multi")?;
+        Ok(ShWshMulti { threshold, keys })
+    }
+}
 
-        let (_, mut form) = check_forms(*inner, "wpkh", indexmap! { "" => &[DescrExpr::Key][..] })
-            .ok_or(DescrParseError::InvalidArgs("wpkh"))?;
-        let Some(DescrAst::Key(key, _)) = form.pop() else {
-            unreachable!();
-        };
-        Ok(ShWpkh::from(key))
+impl<K: DeriveCompr + FromStr> FromStr for ShWshSortedMulti<K>
+where K::Err: core::error::Error
+{
+    type Err = DescrParseError<K::Err>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (threshold, keys) = parse_multi_form(s, "sh", Some("wsh"), "sortedmulti")?;
+        Ok(ShWshSortedMulti { threshold, keys })
     }
 }
 
@@ -245,6 +268,16 @@ where K::Err: core::error::Error
 }
 
 impl<K: DeriveCompr + FromStr> FromStr for WshScript<K>
+where K::Err: core::error::Error
+{
+    type Err = DescrParseError<K::Err>;
+
+    fn from_str(_s: &str) -> Result<Self, Self::Err> {
+        Err(DescrParseError::NotSupported("scripts"))
+    }
+}
+
+impl<K: DeriveCompr + FromStr> FromStr for ShWshScript<K>
 where K::Err: core::error::Error
 {
     type Err = DescrParseError<K::Err>;
@@ -375,13 +408,11 @@ where K::Err: core::error::Error
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.starts_with("sh(wsh(multi(") {
-            let (threshold, keys) = parse_multi_form(s, "sh", Some("wsh"), "multi")?;
-            Ok(ShWsh::Multi(WshMulti { threshold, keys }))
+            ShWshMulti::from_str(s).map(ShWsh::Multi)
         } else if s.starts_with("sh(wsh(sortedmulti(") {
-            let (threshold, keys) = parse_multi_form(s, "sh", Some("wsh"), "sortedmulti")?;
-            Ok(ShWsh::SortedMulti(WshSortedMulti { threshold, keys }))
+            ShWshSortedMulti::from_str(s).map(ShWsh::SortedMulti)
         } else if s.starts_with("sh(wsh(") {
-            Err(DescrParseError::NotSupported("scripts"))
+            ShWshScript::from_str(s).map(ShWsh::Script)
         } else {
             Err(DescrParseError::InvalidScriptExpr(s.to_owned()))
         }

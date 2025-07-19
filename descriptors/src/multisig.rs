@@ -34,19 +34,19 @@ use derive::{
 };
 use indexmap::IndexMap;
 
-use crate::{Descriptor, LegacyKeySig, SpkClass, TaprootKeySig, WshScript};
+use crate::{Descriptor, LegacyKeySig, ShWshScript, SpkClass, TaprootKeySig};
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(untagged))]
 pub enum ShWsh<K: DeriveCompr = XpubDerivable> {
     #[from]
-    Script(WshScript<K>),
+    Script(ShWshScript<K>),
 
     #[from]
-    Multi(WshMulti<K>),
+    Multi(ShWshMulti<K>),
 
     #[from]
-    SortedMulti(WshSortedMulti<K>),
+    SortedMulti(ShWshSortedMulti<K>),
 }
 
 impl<K: DeriveCompr> Derive<DerivedScript> for ShWsh<K> {
@@ -138,17 +138,13 @@ impl<K: DeriveCompr> Descriptor<K> for ShWsh<K> {
         redeem_script: Option<RedeemScript>,
         witness_script: Option<WitnessScript>,
     ) -> Option<(SigScript, Option<Witness>)> {
-        let (_sig_script, witness) = match self {
+        match self {
             Self::Script(d) => d.legacy_witness(keysigs, redeem_script.clone(), witness_script),
             Self::Multi(d) => d.legacy_witness(keysigs, redeem_script.clone(), witness_script),
             Self::SortedMulti(d) => {
                 d.legacy_witness(keysigs, redeem_script.clone(), witness_script)
             }
-        }?;
-        let witness = witness?;
-
-        let sig_script = SigScript::from_checked(redeem_script?.into_inner().into_vec());
-        Some((sig_script, Some(witness)))
+        }
     }
 
     fn taproot_witness(
@@ -166,13 +162,11 @@ impl<K: DeriveCompr> Descriptor<K> for ShWsh<K> {
 
 impl<K: DeriveCompr> Display for ShWsh<K> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.write_str("sh(")?;
         match self {
-            Self::Script(d) => Display::fmt(d, f)?,
-            Self::Multi(d) => Display::fmt(d, f)?,
-            Self::SortedMulti(d) => Display::fmt(d, f)?,
+            Self::Script(d) => Display::fmt(d, f),
+            Self::Multi(d) => Display::fmt(d, f),
+            Self::SortedMulti(d) => Display::fmt(d, f),
         }
-        f.write_str(")")
     }
 }
 
@@ -411,10 +405,8 @@ impl<K: DeriveCompr> Derive<DerivedScript> for WshMulti<K> {
         keychain: impl Into<Keychain>,
         index: impl Into<NormalIndex>,
     ) -> impl Iterator<Item = DerivedScript> {
-        let keychain = keychain.into();
-        let index = index.into();
-        let derived_set = derive(&self.keys, keychain, index).collect::<Vec<_>>();
-        let witness_script = witness_script(self.threshold, derived_set);
+        let witness_script =
+            wsh_derive::<_, _, Vec<_>>(self.threshold, &self.keys, keychain, index);
         iter::once(DerivedScript::Segwit(witness_script))
     }
 }
@@ -513,11 +505,8 @@ impl<K: DeriveCompr> Derive<DerivedScript> for WshSortedMulti<K> {
         keychain: impl Into<Keychain>,
         index: impl Into<NormalIndex>,
     ) -> impl Iterator<Item = DerivedScript> {
-        let keychain = keychain.into();
-        let index = index.into();
-        // Use of BTreeSet performs key sorting
-        let derived_set = derive(&self.keys, keychain, index).collect::<BTreeSet<_>>();
-        let witness_script = witness_script(self.threshold, derived_set);
+        let witness_script =
+            wsh_derive::<_, _, BTreeSet<_>>(self.threshold, &self.keys, keychain, index);
         iter::once(DerivedScript::Segwit(witness_script))
     }
 }
@@ -581,6 +570,224 @@ impl<S: DeriveCompr> Display for WshSortedMulti<S> {
         f.write_str(")")
     }
 }
+/// Representation of BIP-383 `multi` as it is used inside `wsh` nested in `sh`.
+///
+/// # Nota bene
+///
+/// The structure does not support 16-of-16 multisig (only 15-of-16 is possible).
+/// The cost of the support will increase code multifold, so we just ignore this rare case.
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct ShWshMulti<K: DeriveCompr = XpubDerivable> {
+    pub threshold: u4,
+    // TODO: Switch to an IndexSet when supported by amplify
+    pub keys: Confined<Vec<K>, 1, 16>,
+}
+
+impl<K: DeriveCompr> From<WshMulti<K>> for ShWshMulti<K> {
+    fn from(d: WshMulti<K>) -> Self {
+        Self {
+            threshold: d.threshold,
+            keys: d.keys,
+        }
+    }
+}
+
+impl<K: DeriveCompr> ShWshMulti<K> {
+    pub fn key_count(&self) -> u8 { self.keys.len() as u8 }
+    pub fn threshold(&self) -> u8 { self.threshold.into_u8() }
+    pub fn into_wsh(self) -> WshMulti<K> {
+        WshMulti {
+            threshold: self.threshold,
+            keys: self.keys,
+        }
+    }
+}
+
+impl<K: DeriveCompr> Derive<DerivedScript> for ShWshMulti<K> {
+    #[inline]
+    fn default_keychain(&self) -> Keychain { self.keys[0].default_keychain() }
+
+    #[inline]
+    fn keychains(&self) -> BTreeSet<Keychain> { self.keys[0].keychains() }
+
+    fn derive(
+        &self,
+        keychain: impl Into<Keychain>,
+        index: impl Into<NormalIndex>,
+    ) -> impl Iterator<Item = DerivedScript> {
+        let witness_script =
+            wsh_derive::<_, _, Vec<_>>(self.threshold, &self.keys, keychain, index);
+        iter::once(DerivedScript::NestedScript(witness_script))
+    }
+}
+
+impl<K: DeriveCompr> Descriptor<K> for ShWshMulti<K>
+where Self: Derive<DerivedScript>
+{
+    fn class(&self) -> SpkClass { SpkClass::P2sh }
+
+    fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
+    where K: 'a {
+        self.keys.iter()
+    }
+    fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
+    where (): 'a {
+        iter::empty()
+    }
+    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> { self.keys().map(|key| key.xpub_spec()) }
+
+    fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
+        legacy_keyset(self.keys(), terminal).collect()
+    }
+
+    fn xonly_keyset(&self, _terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation> {
+        IndexMap::new()
+    }
+
+    fn legacy_witness(
+        &self,
+        mut keysigs: IndexMap<&KeyOrigin, LegacyKeySig>,
+        redeem_script: Option<RedeemScript>,
+        witness_script: Option<WitnessScript>,
+    ) -> Option<(SigScript, Option<Witness>)> {
+        if redeem_script.is_none() {
+            return None;
+        }
+        // Check that all sigs match our keys
+        if !check_sigs(self.keys().map(K::xpub_spec), &keysigs) {
+            return None;
+        }
+        // We need to put the sigs into the order that matches the ordering of the keys
+        let keysigs = self.keys().filter_map(|key| {
+            let xorigin = key.xpub_spec().origin();
+            let index =
+                keysigs.iter().position(|(origin, _)| &origin.to_account_origin() == xorigin)?;
+            keysigs.shift_remove_index(index).map(|(_, keysig)| keysig)
+        });
+
+        let (_, witness) = witness(keysigs, witness_script?);
+        let sig_script = SigScript::from_checked(redeem_script?.into_inner().into_vec());
+        Some((sig_script, Some(witness?)))
+    }
+
+    fn taproot_witness(
+        &self,
+        _cb: Option<&ControlBlock>,
+        _keysigs: IndexMap<&KeyOrigin, TaprootKeySig>,
+    ) -> Option<Witness> {
+        None
+    }
+}
+
+impl<S: DeriveCompr> Display for ShWshMulti<S> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str("sh(wsh(sorted")?;
+        fmt(self.threshold, self.keys(), f)?;
+        f.write_str("))")
+    }
+}
+
+/// Representation of BIP-383 `sortedmulti` as it is used inside `wsh`.
+///
+/// # Nota bene
+///
+/// The structure does not support 16-of-16 multisig (only 15-of-16 is possible).
+/// The cost of the support will increase code multifold, so we just ignore this rare case.
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct ShWshSortedMulti<K: DeriveCompr = XpubDerivable> {
+    pub threshold: u4,
+    // TODO: Switch to an IndexSet when supported by amplify
+    pub keys: ConfinedVec<K, 1, 16>,
+}
+
+impl<K: DeriveCompr> ShWshSortedMulti<K> {
+    pub fn key_count(&self) -> u8 { self.keys.len() as u8 }
+    pub fn threshold(&self) -> u8 { self.threshold.into_u8() }
+}
+
+impl<K: DeriveCompr> Derive<DerivedScript> for ShWshSortedMulti<K> {
+    #[inline]
+    fn default_keychain(&self) -> Keychain { self.keys[0].default_keychain() }
+
+    #[inline]
+    fn keychains(&self) -> BTreeSet<Keychain> { self.keys[0].keychains() }
+
+    fn derive(
+        &self,
+        keychain: impl Into<Keychain>,
+        index: impl Into<NormalIndex>,
+    ) -> impl Iterator<Item = DerivedScript> {
+        let witness_script =
+            wsh_derive::<_, _, BTreeSet<_>>(self.threshold, &self.keys, keychain, index);
+        iter::once(DerivedScript::NestedScript(witness_script))
+    }
+}
+
+impl<K: DeriveCompr> Descriptor<K> for ShWshSortedMulti<K>
+where Self: Derive<DerivedScript>
+{
+    fn class(&self) -> SpkClass { SpkClass::P2sh }
+
+    fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
+    where K: 'a {
+        self.keys.iter()
+    }
+    fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
+    where (): 'a {
+        iter::empty()
+    }
+    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> { self.keys().map(|key| key.xpub_spec()) }
+
+    fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
+        // BTreeMap here provides us with the key sorting
+        legacy_keyset(&self.keys, terminal).collect::<BTreeMap<_, _>>().into_iter().collect()
+    }
+
+    fn xonly_keyset(&self, _terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation> {
+        IndexMap::new()
+    }
+
+    fn legacy_witness(
+        &self,
+        keysigs: IndexMap<&KeyOrigin, LegacyKeySig>,
+        redeem_script: Option<RedeemScript>,
+        witness_script: Option<WitnessScript>,
+    ) -> Option<(SigScript, Option<Witness>)> {
+        if redeem_script.is_none() {
+            return None;
+        }
+        // Check that all sigs match our keys
+        if !check_sigs(self.keys().map(K::xpub_spec), &keysigs) {
+            return None;
+        }
+        // We need to put the sigs into the order that matches the ordering of the keys
+        let sorted =
+            keysigs.into_values().map(|keysig| (keysig.key, keysig)).collect::<BTreeMap<_, _>>();
+
+        let (_, witness) = witness(sorted.into_values(), witness_script?);
+        let sig_script = SigScript::from_checked(redeem_script?.into_inner().into_vec());
+
+        Some((sig_script, Some(witness?)))
+    }
+
+    fn taproot_witness(
+        &self,
+        _cb: Option<&ControlBlock>,
+        _keysigs: IndexMap<&KeyOrigin, TaprootKeySig>,
+    ) -> Option<Witness> {
+        None
+    }
+}
+
+impl<S: DeriveCompr> Display for ShWshSortedMulti<S> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str("sh(wsh(sorted")?;
+        fmt(self.threshold, self.keys(), f)?;
+        f.write_str("))")
+    }
+}
 
 // ------------------------------------------------------------------------------------------------
 
@@ -600,6 +807,24 @@ fn derive<'k, T, K: Derive<T> + 'k, I: IntoIterator<Item = &'k K>>(
 ) -> impl Iterator<Item = T> + use<'k, T, K, I> {
     keys.into_iter()
         .map(move |xkey| xkey.derive(keychain, index).next().expect("no derivation found"))
+}
+
+fn wsh_derive<'k, K, I, B>(
+    threshold: u4,
+    keys: I,
+    keychain: impl Into<Keychain>,
+    index: impl Into<NormalIndex>,
+) -> WitnessScript
+where
+    K: DeriveCompr + 'k,
+    I: IntoIterator<Item = &'k K>,
+    B: FromIterator<CompressedPk> + IntoIterator<Item = CompressedPk>,
+    <B::IntoIter as IntoIterator>::IntoIter: ExactSizeIterator,
+{
+    let keychain = keychain.into();
+    let index = index.into();
+    let derived_set = derive(keys, keychain, index).collect::<B>();
+    witness_script(threshold, derived_set)
 }
 
 fn redeem_script<I: IntoIterator<Item = LegacyPk>>(threshold: u4, keys: I) -> RedeemScript
