@@ -22,9 +22,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use core::str::FromStr;
+use std::error::Error;
 use std::fmt::Display;
 use std::num::ParseIntError;
+use std::str::FromStr;
 
 use amplify::confinement;
 use derive::XpubDerivable;
@@ -32,7 +33,7 @@ use derive::XpubDerivable;
 use super::{parse_descr_str, DescrLexerError, DescrToken};
 
 impl<'s, K: Display + FromStr> ScriptExpr<'s, K>
-where K::Err: core::error::Error
+where K::Err: Error
 {
     pub fn from_str(s: &'s str) -> Result<Self, DescrParseError<K::Err>> {
         let tokens = parse_descr_str(s)?;
@@ -42,7 +43,7 @@ where K::Err: core::error::Error
 
 #[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
-pub enum DescrParseError<E: core::error::Error> {
+pub enum DescrParseError<E: Error> {
     /// empty descriptor expression.
     Empty,
 
@@ -92,10 +93,48 @@ pub enum DescrParseError<E: core::error::Error> {
     NotSupported(&'static str),
 }
 
+impl<E1: Error> DescrParseError<E1> {
+    pub fn from<E2: Error>(err: DescrParseError<E2>) -> Self
+    where E1: From<E2> {
+        match err {
+            DescrParseError::Empty => Self::Empty,
+            DescrParseError::Lexer(err) => Self::Lexer(err),
+            DescrParseError::NoName(s) => Self::NoName(s),
+            DescrParseError::UnexpectedToken {
+                descr,
+                pos,
+                token,
+                expected,
+            } => Self::UnexpectedToken {
+                descr,
+                pos,
+                token,
+                expected,
+            },
+            DescrParseError::MismatchedBrackets {
+                descr,
+                pos,
+                bracket,
+            } => Self::MismatchedBrackets {
+                descr,
+                pos,
+                bracket,
+            },
+            DescrParseError::InvalidScriptExpr(s) => Self::InvalidScriptExpr(s),
+            DescrParseError::InvalidTreeExpr(s) => Self::InvalidTreeExpr(s),
+            DescrParseError::Key(err) => Self::Key(err.into()),
+            DescrParseError::Lit(err) => Self::Lit(err),
+            DescrParseError::Confinement(err) => Self::Confinement(err),
+            DescrParseError::InvalidArgs(s) => Self::InvalidArgs(s),
+            DescrParseError::NotSupported(s) => Self::NotSupported(s),
+        }
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, Debug, Display)]
 #[display(inner)]
 pub enum DescrAst<'s, K: Display + FromStr = XpubDerivable>
-where K::Err: core::error::Error
+where K::Err: Error
 {
     /// Key expression
     #[display("{0}")]
@@ -114,7 +153,7 @@ where K::Err: core::error::Error
 #[derive(Clone, PartialEq, Eq, Debug, Display)]
 #[display("{full}")]
 pub struct ScriptExpr<'s, K: Display + FromStr = XpubDerivable>
-where K::Err: core::error::Error
+where K::Err: Error
 {
     pub name: &'s str,
     pub children: Vec<DescrAst<'s, K>>,
@@ -125,7 +164,7 @@ where K::Err: core::error::Error
 #[derive(Clone, PartialEq, Eq, Debug, Display)]
 #[display("{full}")]
 pub struct TreeExpr<'s, K: Display + FromStr = XpubDerivable>
-where K::Err: core::error::Error
+where K::Err: Error
 {
     pub first: DescrAst<'s, K>,
     pub second: DescrAst<'s, K>,
@@ -133,7 +172,7 @@ where K::Err: core::error::Error
 }
 
 impl<'s, K: Display + FromStr> DescrAst<'s, K>
-where K::Err: core::error::Error
+where K::Err: Error
 {
     fn parse_from_token_stream(
         descr: &'s str,
@@ -179,7 +218,7 @@ where K::Err: core::error::Error
 }
 
 impl<'s, K: Display + FromStr> ScriptExpr<'s, K>
-where K::Err: core::error::Error
+where K::Err: Error
 {
     /// Parses a part of the token stream as a script expression.
     ///
@@ -242,7 +281,7 @@ where K::Err: core::error::Error
 }
 
 impl<'s, K: Display + FromStr> TreeExpr<'s, K>
-where K::Err: core::error::Error
+where K::Err: Error
 {
     /// Parses a part of the token stream as a tree expression.
     ///
@@ -295,7 +334,7 @@ fn matching_bracket_close<K: Display + FromStr>(
     tokens: &[DescrToken],
 ) -> Result<usize, DescrParseError<K::Err>>
 where
-    K::Err: core::error::Error,
+    K::Err: Error,
 {
     let mut stack: Vec<DescrToken> = vec![];
     for (pos, token) in tokens.iter().enumerate() {
