@@ -37,8 +37,8 @@ use derive::{
 use indexmap::IndexMap;
 
 use crate::{
-    Pkh, Raw, ShMulti, ShScript, ShSortedMulti, ShWpkh, ShWsh, ShWshMulti, ShWshScript,
-    ShWshSortedMulti, TrKey, TrMulti, TrScript, TrSortedMulti, Wpkh, WshMulti, WshScript,
+    Pkh, Raw, Sh, ShMulti, ShScript, ShSortedMulti, ShWpkh, ShWsh, ShWshMulti, ShWshScript,
+    ShWshSortedMulti, Tr, TrKey, TrMulti, TrScript, TrSortedMulti, Wpkh, WshMulti, WshScript,
     WshSortedMulti,
 };
 
@@ -289,12 +289,37 @@ pub enum StdDescr<S: DeriveSet = XpubDerivable> {
     TrTree(TrScript<S::XOnly>),
 }
 
+impl<S: DeriveSet> From<Sh<S>> for StdDescr<S> {
+    fn from(d: Sh<S>) -> Self {
+        match d {
+            Sh::Wpkh(d) => Self::ShWpkh(d),
+            Sh::ShScript(d) => Self::ShScript(d),
+            Sh::ShMulti(d) => Self::ShMulti(d),
+            Sh::ShSortedMulti(d) => Self::ShSortedMulti(d),
+            Sh::WshScript(d) => Self::ShWshScript(d),
+            Sh::WshMulti(d) => Self::ShWshMulti(d),
+            Sh::WshSortedMulti(d) => Self::ShWshSortedMulti(d),
+        }
+    }
+}
+
 impl<S: DeriveSet> From<ShWsh<S::Compr>> for StdDescr<S> {
     fn from(d: ShWsh<S::Compr>) -> Self {
         match d {
             ShWsh::Script(d) => Self::ShWshScript(d),
             ShWsh::Multi(d) => Self::ShWshMulti(d),
             ShWsh::SortedMulti(d) => Self::ShWshSortedMulti(d),
+        }
+    }
+}
+
+impl<S: DeriveSet> From<Tr<S::XOnly>> for StdDescr<S> {
+    fn from(d: Tr<S::XOnly>) -> Self {
+        match d {
+            Tr::KeyOnly(d) => Self::TrKey(d),
+            Tr::Script(d) => Self::TrTree(d),
+            Tr::Multi(d) => Self::TrMulti(d),
+            Tr::SortedMulti(d) => Self::TrSortedMulti(d),
         }
     }
 }

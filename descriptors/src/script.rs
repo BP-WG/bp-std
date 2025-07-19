@@ -37,8 +37,8 @@ use derive::{
 use indexmap::IndexMap;
 
 use crate::{
-    Descriptor, LegacyKeySig, ShMulti, ShSortedMulti, ShWpkh, ShWsh, SpkClass, TaprootKeySig,
-    WshMulti, WshSortedMulti,
+    Descriptor, LegacyKeySig, ShMulti, ShSortedMulti, ShWpkh, ShWsh, ShWshMulti, ShWshSortedMulti,
+    SpkClass, TaprootKeySig,
 };
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
@@ -325,19 +325,26 @@ pub enum Sh<S: DeriveSet = XpubDerivable> {
     ShSortedMulti(ShSortedMulti<S::Legacy>),
 
     #[from]
-    WshScript(WshScript<S::Compr>),
+    WshScript(ShWshScript<S::Compr>),
 
     #[from]
-    WshMulti(WshMulti<S::Compr>),
+    WshMulti(ShWshMulti<S::Compr>),
 
     #[from]
-    WshSortedMulti(WshSortedMulti<S::Compr>),
+    WshSortedMulti(ShWshSortedMulti<S::Compr>),
 
     #[from]
-    ShWpkh(ShWpkh<S::Compr>),
+    Wpkh(ShWpkh<S::Compr>),
+}
 
-    #[from]
-    ShWsh(ShWsh<S::Compr>),
+impl<S: DeriveSet> From<ShWsh<S::Compr>> for Sh<S> {
+    fn from(d: ShWsh<S::Compr>) -> Self {
+        match d {
+            ShWsh::Script(d) => Self::WshScript(d),
+            ShWsh::Multi(d) => Self::WshMulti(d),
+            ShWsh::SortedMulti(d) => Self::WshSortedMulti(d),
+        }
+    }
 }
 
 impl<S: DeriveSet> Derive<DerivedScript> for Sh<S> {
@@ -346,8 +353,7 @@ impl<S: DeriveSet> Derive<DerivedScript> for Sh<S> {
             Sh::ShScript(d) => d.default_keychain(),
             Sh::ShMulti(d) => d.default_keychain(),
             Sh::ShSortedMulti(d) => d.default_keychain(),
-            Sh::ShWpkh(d) => d.default_keychain(),
-            Sh::ShWsh(d) => d.default_keychain(),
+            Sh::Wpkh(d) => d.default_keychain(),
             Sh::WshScript(d) => d.default_keychain(),
             Sh::WshMulti(d) => d.default_keychain(),
             Sh::WshSortedMulti(d) => d.default_keychain(),
@@ -359,8 +365,7 @@ impl<S: DeriveSet> Derive<DerivedScript> for Sh<S> {
             Sh::ShScript(d) => d.keychains(),
             Sh::ShMulti(d) => d.keychains(),
             Sh::ShSortedMulti(d) => d.keychains(),
-            Sh::ShWpkh(d) => d.keychains(),
-            Sh::ShWsh(d) => d.keychains(),
+            Sh::Wpkh(d) => d.keychains(),
             Sh::WshScript(d) => d.keychains(),
             Sh::WshMulti(d) => d.keychains(),
             Sh::WshSortedMulti(d) => d.keychains(),
@@ -376,8 +381,7 @@ impl<S: DeriveSet> Derive<DerivedScript> for Sh<S> {
             Sh::ShScript(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
             Sh::ShMulti(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
             Sh::ShSortedMulti(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
-            Sh::ShWpkh(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
-            Sh::ShWsh(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
+            Sh::Wpkh(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
             Sh::WshScript(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
             Sh::WshMulti(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
             Sh::WshSortedMulti(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
@@ -393,8 +397,7 @@ where Self: Derive<DerivedScript>
             Sh::ShScript(d) => d.class(),
             Sh::ShMulti(d) => d.class(),
             Sh::ShSortedMulti(d) => d.class(),
-            Sh::ShWpkh(d) => d.class(),
-            Sh::ShWsh(d) => d.class(),
+            Sh::Wpkh(d) => d.class(),
             Sh::WshScript(d) => d.class(),
             Sh::WshMulti(d) => d.class(),
             Sh::WshSortedMulti(d) => d.class(),
@@ -407,8 +410,7 @@ where Self: Derive<DerivedScript>
             Sh::ShScript(d) => d.keys().collect::<Vec<_>>(),
             Sh::ShMulti(d) => d.keys().collect::<Vec<_>>(),
             Sh::ShSortedMulti(d) => d.keys().collect::<Vec<_>>(),
-            Sh::ShWpkh(d) => d.keys().collect::<Vec<_>>(),
-            Sh::ShWsh(d) => d.keys().collect::<Vec<_>>(),
+            Sh::Wpkh(d) => d.keys().collect::<Vec<_>>(),
             Sh::WshScript(d) => d.keys().collect::<Vec<_>>(),
             Sh::WshMulti(d) => d.keys().collect::<Vec<_>>(),
             Sh::WshSortedMulti(d) => d.keys().collect::<Vec<_>>(),
@@ -426,8 +428,7 @@ where Self: Derive<DerivedScript>
             Sh::ShScript(d) => d.xpubs().collect::<Vec<_>>(),
             Sh::ShMulti(d) => d.xpubs().collect::<Vec<_>>(),
             Sh::ShSortedMulti(d) => d.xpubs().collect::<Vec<_>>(),
-            Sh::ShWpkh(d) => d.xpubs().collect::<Vec<_>>(),
-            Sh::ShWsh(d) => d.xpubs().collect::<Vec<_>>(),
+            Sh::Wpkh(d) => d.xpubs().collect::<Vec<_>>(),
             Sh::WshScript(d) => d.xpubs().collect::<Vec<_>>(),
             Sh::WshMulti(d) => d.xpubs().collect::<Vec<_>>(),
             Sh::WshSortedMulti(d) => d.xpubs().collect::<Vec<_>>(),
@@ -440,8 +441,7 @@ where Self: Derive<DerivedScript>
             Sh::ShScript(d) => d.legacy_keyset(terminal),
             Sh::ShMulti(d) => d.legacy_keyset(terminal),
             Sh::ShSortedMulti(d) => d.legacy_keyset(terminal),
-            Sh::ShWpkh(d) => d.legacy_keyset(terminal),
-            Sh::ShWsh(d) => d.legacy_keyset(terminal),
+            Sh::Wpkh(d) => d.legacy_keyset(terminal),
             Sh::WshScript(d) => d.legacy_keyset(terminal),
             Sh::WshMulti(d) => d.legacy_keyset(terminal),
             Sh::WshSortedMulti(d) => d.legacy_keyset(terminal),
@@ -453,8 +453,7 @@ where Self: Derive<DerivedScript>
             Sh::ShScript(d) => d.xonly_keyset(terminal),
             Sh::ShMulti(d) => d.xonly_keyset(terminal),
             Sh::ShSortedMulti(d) => d.xonly_keyset(terminal),
-            Sh::ShWpkh(d) => d.xonly_keyset(terminal),
-            Sh::ShWsh(d) => d.xonly_keyset(terminal),
+            Sh::Wpkh(d) => d.xonly_keyset(terminal),
             Sh::WshScript(d) => d.xonly_keyset(terminal),
             Sh::WshMulti(d) => d.xonly_keyset(terminal),
             Sh::WshSortedMulti(d) => d.xonly_keyset(terminal),
@@ -471,8 +470,7 @@ where Self: Derive<DerivedScript>
             Sh::ShScript(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
             Sh::ShMulti(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
             Sh::ShSortedMulti(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
-            Sh::ShWpkh(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
-            Sh::ShWsh(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
+            Sh::Wpkh(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
             Sh::WshScript(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
             Sh::WshMulti(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
             Sh::WshSortedMulti(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
@@ -488,8 +486,7 @@ where Self: Derive<DerivedScript>
             Sh::ShScript(d) => d.taproot_witness(cb, keysigs),
             Sh::ShMulti(d) => d.taproot_witness(cb, keysigs),
             Sh::ShSortedMulti(d) => d.taproot_witness(cb, keysigs),
-            Sh::ShWpkh(d) => d.taproot_witness(cb, keysigs),
-            Sh::ShWsh(d) => d.taproot_witness(cb, keysigs),
+            Sh::Wpkh(d) => d.taproot_witness(cb, keysigs),
             Sh::WshScript(d) => d.taproot_witness(cb, keysigs),
             Sh::WshMulti(d) => d.taproot_witness(cb, keysigs),
             Sh::WshSortedMulti(d) => d.taproot_witness(cb, keysigs),
@@ -507,8 +504,7 @@ where
             Sh::ShScript(d) => Display::fmt(d, f),
             Sh::ShMulti(d) => Display::fmt(d, f),
             Sh::ShSortedMulti(d) => Display::fmt(d, f),
-            Sh::ShWpkh(d) => Display::fmt(d, f),
-            Sh::ShWsh(d) => Display::fmt(d, f),
+            Sh::Wpkh(d) => Display::fmt(d, f),
             Sh::WshScript(d) => Display::fmt(d, f),
             Sh::WshMulti(d) => Display::fmt(d, f),
             Sh::WshSortedMulti(d) => Display::fmt(d, f),

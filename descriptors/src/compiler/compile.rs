@@ -30,7 +30,7 @@ use indexmap::{indexmap, IndexMap};
 
 use crate::compiler::{DescrAst, DescrParseError, ScriptExpr};
 use crate::{
-    Pkh, ShMulti, ShScript, ShSortedMulti, ShWpkh, ShWsh, ShWshMulti, ShWshScript,
+    Pkh, Sh, ShMulti, ShScript, ShSortedMulti, ShWpkh, ShWsh, ShWshMulti, ShWshScript,
     ShWshSortedMulti, StdDescr, Tr, TrKey, TrMulti, TrScript, TrSortedMulti, Wpkh, WshMulti,
     WshScript, WshSortedMulti,
 };
@@ -401,6 +401,27 @@ where K::Err: core::error::Error
 ////////////////////////////////////////
 // Combinators
 
+impl<K: DeriveSet + Display + FromStr> FromStr for Sh<K>
+where
+    K::Err: core::error::Error,
+    K::Legacy: Display + FromStr<Err = K::Err>,
+    K::Compr: Display + FromStr<Err = K::Err>,
+{
+    type Err = DescrParseError<K::Err>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.starts_with("sh(wsh(") {
+            Ok(ShWsh::from_str(s)?.into())
+        } else if s.starts_with("sh(sortedmulti(") {
+            ShSortedMulti::from_str(s).map(Sh::ShSortedMulti)
+        } else if s.starts_with("sh(multi(") {
+            ShMulti::from_str(s).map(Sh::ShMulti)
+        } else {
+            ShScript::from_str(s).map(Sh::ShScript)
+        }
+    }
+}
+
 impl<K: DeriveCompr + FromStr> FromStr for ShWsh<K>
 where K::Err: core::error::Error
 {
@@ -451,7 +472,9 @@ where
             s if s.starts_with("pkh") => Self::Pkh(Pkh::from_str(s)?),
             s if s.starts_with("wpkh") => Self::Wpkh(Wpkh::from_str(s)?),
 
-            s if s.starts_with("sh(wsh") => ShWsh::from_str(s)?.into(),
+            s if s.starts_with("sh") => Sh::from_str(s)?.into(),
+            // TODO: Add wsh
+            s if s.starts_with("tr") => Tr::from_str(s)?.into(),
 
             _ => return Err(DescrParseError::InvalidScriptExpr(s.to_owned())),
         })
