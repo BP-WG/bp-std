@@ -38,7 +38,7 @@ use indexmap::IndexMap;
 
 use crate::{
     Pkh, Raw, Sh, ShMulti, ShScript, ShSortedMulti, ShWpkh, ShWsh, ShWshMulti, ShWshScript,
-    ShWshSortedMulti, Tr, TrKey, TrMulti, TrScript, TrSortedMulti, Wpkh, WshMulti, WshScript,
+    ShWshSortedMulti, Tr, TrKey, TrMulti, TrScript, TrSortedMulti, Wpkh, Wsh, WshMulti, WshScript,
     WshSortedMulti,
 };
 
@@ -299,6 +299,16 @@ impl<S: DeriveSet> From<Sh<S>> for StdDescr<S> {
             Sh::WshScript(d) => Self::ShWshScript(d),
             Sh::WshMulti(d) => Self::ShWshMulti(d),
             Sh::WshSortedMulti(d) => Self::ShWshSortedMulti(d),
+        }
+    }
+}
+
+impl<S: DeriveSet> From<Wsh<S::Compr>> for StdDescr<S> {
+    fn from(d: Wsh<S::Compr>) -> Self {
+        match d {
+            Wsh::Script(d) => Self::WshScript(d),
+            Wsh::Multi(d) => Self::WshMulti(d),
+            Wsh::SortedMulti(d) => Self::WshSortedMulti(d),
         }
     }
 }

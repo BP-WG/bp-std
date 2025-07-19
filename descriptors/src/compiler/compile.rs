@@ -31,7 +31,7 @@ use indexmap::{indexmap, IndexMap};
 use crate::compiler::{DescrAst, DescrParseError, ScriptExpr};
 use crate::{
     Pkh, Sh, ShMulti, ShScript, ShSortedMulti, ShWpkh, ShWsh, ShWshMulti, ShWshScript,
-    ShWshSortedMulti, StdDescr, Tr, TrKey, TrMulti, TrScript, TrSortedMulti, Wpkh, WshMulti,
+    ShWshSortedMulti, StdDescr, Tr, TrKey, TrMulti, TrScript, TrSortedMulti, Wpkh, Wsh, WshMulti,
     WshScript, WshSortedMulti,
 };
 
@@ -422,6 +422,22 @@ where
     }
 }
 
+impl<K: DeriveCompr + FromStr> FromStr for Wsh<K>
+where K::Err: core::error::Error
+{
+    type Err = DescrParseError<K::Err>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.starts_with("wsh(multi(") {
+            WshMulti::from_str(s).map(Wsh::Multi)
+        } else if s.starts_with("wsh(sortedmulti(") {
+            WshSortedMulti::from_str(s).map(Wsh::SortedMulti)
+        } else {
+            WshScript::from_str(s).map(Wsh::Script)
+        }
+    }
+}
+
 impl<K: DeriveCompr + FromStr> FromStr for ShWsh<K>
 where K::Err: core::error::Error
 {
@@ -473,7 +489,7 @@ where
             s if s.starts_with("wpkh") => Self::Wpkh(Wpkh::from_str(s)?),
 
             s if s.starts_with("sh") => Sh::from_str(s)?.into(),
-            // TODO: Add wsh
+            s if s.starts_with("wsh") => Wsh::from_str(s)?.into(),
             s if s.starts_with("tr") => Tr::from_str(s)?.into(),
 
             _ => return Err(DescrParseError::InvalidScriptExpr(s.to_owned())),

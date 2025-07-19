@@ -39,7 +39,7 @@ pub use multisig::{
     ShMulti, ShSortedMulti, ShWshMulti, ShWshSortedMulti, WshMulti, WshSortedMulti,
 };
 pub use script::{
-    Raw, ScriptDescr, ScriptItem, Sh, ShScript, ShWsh, ShWshScript, WitnessItem, WshScript,
+    Raw, ScriptDescr, ScriptItem, Sh, ShScript, ShWsh, ShWshScript, WitnessItem, Wsh, WshScript,
 };
 pub use singlesig::{Pkh, ShWpkh, Wpkh};
 pub use tr::{Tr, TrKey, TrMulti, TrScript, TrSortedMulti};
