@@ -9,7 +9,7 @@ categories = ["cryptography::cryptocurrencies"]
 authors = ["Dr Maxim Orlovsky <orlovsky@lnp-bp.org>"]
 homepage = "https://lnp-bp.org"
 repository = "https://github.com/BP-WG/bp-wallet"
-rust-version = "1.82.0"
+rust-version = "1.87.0"
 edition = "2021"
 license = "Apache-2.0"
 

@@ -48,20 +48,20 @@ pub enum DescrExpr {
 impl DescrExpr {
     pub fn check_expr<K: Display + FromStr>(&self, expr: &DescrAst<K>) -> bool
     where K::Err: core::error::Error {
-        match (self, expr) {
-            (DescrExpr::Lit, DescrAst::Lit(_, _)) => true,
-            (DescrExpr::Key | DescrExpr::VariadicKey, DescrAst::Key(_, _)) => true,
-            (DescrExpr::Script, DescrAst::Script(_)) => true,
-            (DescrExpr::Tree, DescrAst::Tree(_)) => true,
-            _ => false,
-        }
+        matches!(
+            (self, expr),
+            (DescrExpr::Lit, DescrAst::Lit(_, _))
+                | (DescrExpr::Key | DescrExpr::VariadicKey, DescrAst::Key(_, _))
+                | (DescrExpr::Script, DescrAst::Script(_))
+                | (DescrExpr::Tree, DescrAst::Tree(_))
+        )
     }
 }
 
-pub fn check_forms<'s, 'f, K: Display + FromStr>(
+pub fn check_forms<'s, K: Display + FromStr>(
     ast: ScriptExpr<'s, K>,
     ident: &str,
-    forms: IndexMap<&'static str, &'f [DescrExpr]>,
+    forms: IndexMap<&'static str, &[DescrExpr]>,
 ) -> Option<(&'static str, Vec<DescrAst<'s, K>>)>
 where
     K::Err: core::error::Error,

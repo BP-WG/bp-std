@@ -1008,9 +1008,7 @@ impl<K: DeriveCompr> Descriptor<K> for ShWshScript<K> {
         redeem_script: Option<RedeemScript>,
         witness_script: Option<WitnessScript>,
     ) -> Option<(SigScript, Option<Witness>)> {
-        if redeem_script.is_none() {
-            return None;
-        }
+        redeem_script.as_ref()?;
 
         let mut stack = vec![];
         for item in &self.0.satisfaction {

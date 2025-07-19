@@ -547,9 +547,7 @@ where Self: Derive<DerivedScript>
         redeem_script: Option<RedeemScript>,
         witness_script: Option<WitnessScript>,
     ) -> Option<(SigScript, Option<Witness>)> {
-        if redeem_script.is_none() {
-            return None;
-        }
+        redeem_script.as_ref()?;
         // Check that all sigs match our keys
         if !check_sigs(self.keys().map(K::xpub_spec), &keysigs) {
             return None;
@@ -657,9 +655,7 @@ where Self: Derive<DerivedScript>
         redeem_script: Option<RedeemScript>,
         witness_script: Option<WitnessScript>,
     ) -> Option<(SigScript, Option<Witness>)> {
-        if redeem_script.is_none() {
-            return None;
-        }
+        redeem_script.as_ref()?;
         // Check that all sigs match our keys
         if !check_sigs(self.keys().map(K::xpub_spec), &keysigs) {
             return None;
