@@ -45,6 +45,7 @@ pub enum DescrExpr {
     Key,
     Tree,
     VariadicKey,
+    VariadicLit,
 }
 
 impl DescrExpr {
@@ -52,7 +53,7 @@ impl DescrExpr {
     where K::Err: core::error::Error {
         matches!(
             (self, expr),
-            (DescrExpr::Lit, DescrAst::Lit(_, _))
+            (DescrExpr::Lit | DescrExpr::VariadicLit, DescrAst::Lit(_, _))
                 | (DescrExpr::Key | DescrExpr::VariadicKey, DescrAst::Key(_, _))
                 | (DescrExpr::Script, DescrAst::Script(_))
                 | (DescrExpr::Tree, DescrAst::Tree(_))
@@ -82,6 +83,10 @@ where
         }
         if form.last() == Some(&DescrExpr::VariadicKey) {
             if iter2.any(|d| !DescrExpr::Key.check_expr(d)) {
+                continue;
+            }
+        } else if form.last() == Some(&DescrExpr::VariadicLit) {
+            if iter2.any(|d| !DescrExpr::Lit.check_expr(d)) {
                 continue;
             }
         } else if iter2.count() > 0 {
