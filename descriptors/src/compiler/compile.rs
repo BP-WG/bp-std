@@ -24,11 +24,16 @@
 
 use core::fmt::Display;
 use core::str::FromStr;
+use std::collections::BTreeSet;
 use std::fmt::Debug;
+use std::iter;
 
 use amplify::confinement::ConfinedVec;
 use amplify::num::u4;
-use derive::{DeriveCompr, DeriveLegacy, DeriveSet, DeriveXOnly};
+use derive::{
+    Derive, DeriveCompr, DeriveKey, DeriveLegacy, DeriveSet, DeriveXOnly, Keychain, NormalIndex,
+    XkeyDecodeError, XpubAccount,
+};
 use indexmap::{indexmap, IndexMap};
 
 use crate::compiler::{DescrAst, DescrParseError, ScriptExpr};
@@ -58,6 +63,41 @@ impl DescrExpr {
                 | (DescrExpr::Script, DescrAst::Script(_))
                 | (DescrExpr::Tree, DescrAst::Tree(_))
         )
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display)]
+#[display("")]
+pub struct NoKey;
+impl DeriveSet for NoKey {
+    type Legacy = Self;
+    type Compr = Self;
+    type XOnly = Self;
+}
+impl<K> Derive<K> for NoKey {
+    fn default_keychain(&self) -> Keychain {
+        unreachable!();
+    }
+    fn keychains(&self) -> BTreeSet<Keychain> {
+        unreachable!();
+    }
+    fn derive(
+        &self,
+        _keychain: impl Into<Keychain>,
+        _index: impl Into<NormalIndex>,
+    ) -> impl Iterator<Item = K> {
+        iter::empty()
+    }
+}
+impl<K> DeriveKey<K> for NoKey {
+    fn xpub_spec(&self) -> &XpubAccount {
+        unreachable!();
+    }
+}
+impl FromStr for NoKey {
+    type Err = XkeyDecodeError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Err(XkeyDecodeError::WrongExtendedKeyLength(s.len()))
     }
 }
 

@@ -26,5 +26,6 @@ mod lexer;
 mod parser;
 mod compile;
 
+pub use compile::{check_forms, NoKey};
 pub use lexer::{parse_descr_str, DescrLexerError, DescrToken};
 pub use parser::{DescrAst, DescrParseError, ScriptExpr, TreeExpr};
