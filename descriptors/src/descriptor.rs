@@ -37,8 +37,9 @@ use derive::{
 use indexmap::IndexMap;
 
 use crate::{
-    Pkh, Raw, Sh, ShMulti, ShSortedMulti, ShWpkh, ShWsh, TrKey, TrMulti, TrScript, TrSortedMulti,
-    Wpkh, Wsh, WshMulti, WshSortedMulti,
+    Pkh, Raw, Sh, ShMulti, ShScript, ShSortedMulti, ShWpkh, ShWsh, ShWshMulti, ShWshScript,
+    ShWshSortedMulti, Tr, TrKey, TrMulti, TrScript, TrSortedMulti, Wpkh, Wsh, WshMulti, WshScript,
+    WshSortedMulti,
 };
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
@@ -240,10 +241,10 @@ pub enum StdDescr<S: DeriveSet = XpubDerivable> {
     Raw(Raw<S::Legacy>),
 
     #[from]
-    Sh(Sh<S::Legacy>),
+    Pkh(Pkh<S::Legacy>),
 
     #[from]
-    Pkh(Pkh<S::Legacy>),
+    ShScript(ShScript<S::Legacy>),
 
     #[from]
     ShMulti(ShMulti<S::Legacy>),
@@ -255,7 +256,7 @@ pub enum StdDescr<S: DeriveSet = XpubDerivable> {
     Wpkh(Wpkh<S::Compr>),
 
     #[from]
-    Wsh(Wsh<S::Compr>),
+    WshScript(WshScript<S::Compr>),
 
     #[from]
     WshMulti(WshMulti<S::Compr>),
@@ -267,7 +268,13 @@ pub enum StdDescr<S: DeriveSet = XpubDerivable> {
     ShWpkh(ShWpkh<S::Compr>),
 
     #[from]
-    ShWsh(ShWsh<S::Compr>),
+    ShWshScript(ShWshScript<S::Compr>),
+
+    #[from]
+    ShWshMulti(ShWshMulti<S::Compr>),
+
+    #[from]
+    ShWshSortedMulti(ShWshSortedMulti<S::Compr>),
 
     #[from]
     TrKey(TrKey<S::XOnly>),
@@ -282,20 +289,67 @@ pub enum StdDescr<S: DeriveSet = XpubDerivable> {
     TrTree(TrScript<S::XOnly>),
 }
 
+impl<S: DeriveSet> From<Sh<S>> for StdDescr<S> {
+    fn from(d: Sh<S>) -> Self {
+        match d {
+            Sh::Wpkh(d) => Self::ShWpkh(d),
+            Sh::ShScript(d) => Self::ShScript(d),
+            Sh::ShMulti(d) => Self::ShMulti(d),
+            Sh::ShSortedMulti(d) => Self::ShSortedMulti(d),
+            Sh::WshScript(d) => Self::ShWshScript(d),
+            Sh::WshMulti(d) => Self::ShWshMulti(d),
+            Sh::WshSortedMulti(d) => Self::ShWshSortedMulti(d),
+        }
+    }
+}
+
+impl<S: DeriveSet> From<Wsh<S::Compr>> for StdDescr<S> {
+    fn from(d: Wsh<S::Compr>) -> Self {
+        match d {
+            Wsh::Script(d) => Self::WshScript(d),
+            Wsh::Multi(d) => Self::WshMulti(d),
+            Wsh::SortedMulti(d) => Self::WshSortedMulti(d),
+        }
+    }
+}
+
+impl<S: DeriveSet> From<ShWsh<S::Compr>> for StdDescr<S> {
+    fn from(d: ShWsh<S::Compr>) -> Self {
+        match d {
+            ShWsh::Script(d) => Self::ShWshScript(d),
+            ShWsh::Multi(d) => Self::ShWshMulti(d),
+            ShWsh::SortedMulti(d) => Self::ShWshSortedMulti(d),
+        }
+    }
+}
+
+impl<S: DeriveSet> From<Tr<S::XOnly>> for StdDescr<S> {
+    fn from(d: Tr<S::XOnly>) -> Self {
+        match d {
+            Tr::KeyOnly(d) => Self::TrKey(d),
+            Tr::Script(d) => Self::TrTree(d),
+            Tr::Multi(d) => Self::TrMulti(d),
+            Tr::SortedMulti(d) => Self::TrSortedMulti(d),
+        }
+    }
+}
+
 impl<S: DeriveSet> Derive<DerivedScript> for StdDescr<S> {
     fn default_keychain(&self) -> Keychain {
         match self {
             StdDescr::Raw(d) => d.default_keychain(),
             StdDescr::Pkh(d) => d.default_keychain(),
-            StdDescr::Sh(d) => d.default_keychain(),
+            StdDescr::ShScript(d) => d.default_keychain(),
             StdDescr::ShMulti(d) => d.default_keychain(),
             StdDescr::ShSortedMulti(d) => d.default_keychain(),
             StdDescr::ShWpkh(d) => d.default_keychain(),
-            StdDescr::ShWsh(d) => d.default_keychain(),
             StdDescr::Wpkh(d) => d.default_keychain(),
-            StdDescr::Wsh(d) => d.default_keychain(),
+            StdDescr::WshScript(d) => d.default_keychain(),
             StdDescr::WshMulti(d) => d.default_keychain(),
             StdDescr::WshSortedMulti(d) => d.default_keychain(),
+            StdDescr::ShWshScript(d) => d.default_keychain(),
+            StdDescr::ShWshMulti(d) => d.default_keychain(),
+            StdDescr::ShWshSortedMulti(d) => d.default_keychain(),
             StdDescr::TrKey(d) => d.default_keychain(),
             StdDescr::TrMulti(d) => d.default_keychain(),
             StdDescr::TrSortedMulti(d) => d.default_keychain(),
@@ -307,15 +361,17 @@ impl<S: DeriveSet> Derive<DerivedScript> for StdDescr<S> {
         match self {
             StdDescr::Raw(d) => d.keychains(),
             StdDescr::Pkh(d) => d.keychains(),
-            StdDescr::Sh(d) => d.keychains(),
+            StdDescr::ShScript(d) => d.keychains(),
             StdDescr::ShMulti(d) => d.keychains(),
             StdDescr::ShSortedMulti(d) => d.keychains(),
             StdDescr::ShWpkh(d) => d.keychains(),
-            StdDescr::ShWsh(d) => d.keychains(),
             StdDescr::Wpkh(d) => d.keychains(),
-            StdDescr::Wsh(d) => d.keychains(),
+            StdDescr::WshScript(d) => d.keychains(),
             StdDescr::WshMulti(d) => d.keychains(),
             StdDescr::WshSortedMulti(d) => d.keychains(),
+            StdDescr::ShWshScript(d) => d.keychains(),
+            StdDescr::ShWshMulti(d) => d.keychains(),
+            StdDescr::ShWshSortedMulti(d) => d.keychains(),
             StdDescr::TrKey(d) => d.keychains(),
             StdDescr::TrMulti(d) => d.keychains(),
             StdDescr::TrSortedMulti(d) => d.keychains(),
@@ -331,15 +387,19 @@ impl<S: DeriveSet> Derive<DerivedScript> for StdDescr<S> {
         match self {
             StdDescr::Raw(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
             StdDescr::Pkh(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
-            StdDescr::Sh(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
+            StdDescr::ShScript(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
             StdDescr::ShMulti(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
             StdDescr::ShSortedMulti(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
             StdDescr::ShWpkh(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
-            StdDescr::ShWsh(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
             StdDescr::Wpkh(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
-            StdDescr::Wsh(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
+            StdDescr::WshScript(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
             StdDescr::WshMulti(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
             StdDescr::WshSortedMulti(d) => {
+                d.derive(keychain, index).collect::<Vec<_>>().into_iter()
+            }
+            StdDescr::ShWshScript(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
+            StdDescr::ShWshMulti(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
+            StdDescr::ShWshSortedMulti(d) => {
                 d.derive(keychain, index).collect::<Vec<_>>().into_iter()
             }
             StdDescr::TrKey(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
@@ -358,15 +418,17 @@ where Self: Derive<DerivedScript>
         match self {
             StdDescr::Raw(d) => d.class(),
             StdDescr::Pkh(d) => d.class(),
-            StdDescr::Sh(d) => d.class(),
+            StdDescr::ShScript(d) => d.class(),
             StdDescr::ShMulti(d) => d.class(),
             StdDescr::ShSortedMulti(d) => d.class(),
             StdDescr::ShWpkh(d) => d.class(),
-            StdDescr::ShWsh(d) => d.class(),
             StdDescr::Wpkh(d) => d.class(),
-            StdDescr::Wsh(d) => d.class(),
+            StdDescr::WshScript(d) => d.class(),
             StdDescr::WshMulti(d) => d.class(),
             StdDescr::WshSortedMulti(d) => d.class(),
+            StdDescr::ShWshScript(d) => d.class(),
+            StdDescr::ShWshMulti(d) => d.class(),
+            StdDescr::ShWshSortedMulti(d) => d.class(),
             StdDescr::TrKey(d) => d.class(),
             StdDescr::TrMulti(d) => d.class(),
             StdDescr::TrSortedMulti(d) => d.class(),
@@ -379,15 +441,17 @@ where Self: Derive<DerivedScript>
         match self {
             StdDescr::Raw(d) => d.keys().collect::<Vec<_>>(),
             StdDescr::Pkh(d) => d.keys().collect::<Vec<_>>(),
-            StdDescr::Sh(d) => d.keys().collect::<Vec<_>>(),
+            StdDescr::ShScript(d) => d.keys().collect::<Vec<_>>(),
             StdDescr::ShMulti(d) => d.keys().collect::<Vec<_>>(),
             StdDescr::ShSortedMulti(d) => d.keys().collect::<Vec<_>>(),
             StdDescr::ShWpkh(d) => d.keys().collect::<Vec<_>>(),
-            StdDescr::ShWsh(d) => d.keys().collect::<Vec<_>>(),
             StdDescr::Wpkh(d) => d.keys().collect::<Vec<_>>(),
-            StdDescr::Wsh(d) => d.keys().collect::<Vec<_>>(),
+            StdDescr::WshScript(d) => d.keys().collect::<Vec<_>>(),
             StdDescr::WshMulti(d) => d.keys().collect::<Vec<_>>(),
             StdDescr::WshSortedMulti(d) => d.keys().collect::<Vec<_>>(),
+            StdDescr::ShWshScript(d) => d.keys().collect::<Vec<_>>(),
+            StdDescr::ShWshMulti(d) => d.keys().collect::<Vec<_>>(),
+            StdDescr::ShWshSortedMulti(d) => d.keys().collect::<Vec<_>>(),
             StdDescr::TrKey(d) => d.keys().collect::<Vec<_>>(),
             StdDescr::TrMulti(d) => d.keys().collect::<Vec<_>>(),
             StdDescr::TrSortedMulti(d) => d.keys().collect::<Vec<_>>(),
@@ -405,15 +469,17 @@ where Self: Derive<DerivedScript>
         match self {
             StdDescr::Raw(d) => d.xpubs().collect::<Vec<_>>(),
             StdDescr::Pkh(d) => d.xpubs().collect::<Vec<_>>(),
-            StdDescr::Sh(d) => d.xpubs().collect::<Vec<_>>(),
+            StdDescr::ShScript(d) => d.xpubs().collect::<Vec<_>>(),
             StdDescr::ShMulti(d) => d.xpubs().collect::<Vec<_>>(),
             StdDescr::ShSortedMulti(d) => d.xpubs().collect::<Vec<_>>(),
             StdDescr::ShWpkh(d) => d.xpubs().collect::<Vec<_>>(),
-            StdDescr::ShWsh(d) => d.xpubs().collect::<Vec<_>>(),
             StdDescr::Wpkh(d) => d.xpubs().collect::<Vec<_>>(),
-            StdDescr::Wsh(d) => d.xpubs().collect::<Vec<_>>(),
+            StdDescr::WshScript(d) => d.xpubs().collect::<Vec<_>>(),
             StdDescr::WshMulti(d) => d.xpubs().collect::<Vec<_>>(),
             StdDescr::WshSortedMulti(d) => d.xpubs().collect::<Vec<_>>(),
+            StdDescr::ShWshScript(d) => d.xpubs().collect::<Vec<_>>(),
+            StdDescr::ShWshMulti(d) => d.xpubs().collect::<Vec<_>>(),
+            StdDescr::ShWshSortedMulti(d) => d.xpubs().collect::<Vec<_>>(),
             StdDescr::TrKey(d) => d.xpubs().collect::<Vec<_>>(),
             StdDescr::TrMulti(d) => d.xpubs().collect::<Vec<_>>(),
             StdDescr::TrSortedMulti(d) => d.xpubs().collect::<Vec<_>>(),
@@ -426,15 +492,17 @@ where Self: Derive<DerivedScript>
         match self {
             StdDescr::Raw(d) => d.legacy_keyset(terminal),
             StdDescr::Pkh(d) => d.legacy_keyset(terminal),
-            StdDescr::Sh(d) => d.legacy_keyset(terminal),
+            StdDescr::ShScript(d) => d.legacy_keyset(terminal),
             StdDescr::ShMulti(d) => d.legacy_keyset(terminal),
             StdDescr::ShSortedMulti(d) => d.legacy_keyset(terminal),
             StdDescr::ShWpkh(d) => d.legacy_keyset(terminal),
-            StdDescr::ShWsh(d) => d.legacy_keyset(terminal),
             StdDescr::Wpkh(d) => d.legacy_keyset(terminal),
-            StdDescr::Wsh(d) => d.legacy_keyset(terminal),
+            StdDescr::WshScript(d) => d.legacy_keyset(terminal),
             StdDescr::WshMulti(d) => d.legacy_keyset(terminal),
             StdDescr::WshSortedMulti(d) => d.legacy_keyset(terminal),
+            StdDescr::ShWshScript(d) => d.legacy_keyset(terminal),
+            StdDescr::ShWshMulti(d) => d.legacy_keyset(terminal),
+            StdDescr::ShWshSortedMulti(d) => d.legacy_keyset(terminal),
             StdDescr::TrKey(d) => d.legacy_keyset(terminal),
             StdDescr::TrMulti(d) => d.legacy_keyset(terminal),
             StdDescr::TrSortedMulti(d) => d.legacy_keyset(terminal),
@@ -446,15 +514,17 @@ where Self: Derive<DerivedScript>
         match self {
             StdDescr::Raw(d) => d.xonly_keyset(terminal),
             StdDescr::Pkh(d) => d.xonly_keyset(terminal),
-            StdDescr::Sh(d) => d.xonly_keyset(terminal),
+            StdDescr::ShScript(d) => d.xonly_keyset(terminal),
             StdDescr::ShMulti(d) => d.xonly_keyset(terminal),
             StdDescr::ShSortedMulti(d) => d.xonly_keyset(terminal),
             StdDescr::ShWpkh(d) => d.xonly_keyset(terminal),
-            StdDescr::ShWsh(d) => d.xonly_keyset(terminal),
             StdDescr::Wpkh(d) => d.xonly_keyset(terminal),
-            StdDescr::Wsh(d) => d.xonly_keyset(terminal),
+            StdDescr::WshScript(d) => d.xonly_keyset(terminal),
             StdDescr::WshMulti(d) => d.xonly_keyset(terminal),
             StdDescr::WshSortedMulti(d) => d.xonly_keyset(terminal),
+            StdDescr::ShWshScript(d) => d.xonly_keyset(terminal),
+            StdDescr::ShWshMulti(d) => d.xonly_keyset(terminal),
+            StdDescr::ShWshSortedMulti(d) => d.xonly_keyset(terminal),
             StdDescr::TrKey(d) => d.xonly_keyset(terminal),
             StdDescr::TrMulti(d) => d.xonly_keyset(terminal),
             StdDescr::TrSortedMulti(d) => d.xonly_keyset(terminal),
@@ -471,15 +541,19 @@ where Self: Derive<DerivedScript>
         match self {
             StdDescr::Raw(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
             StdDescr::Pkh(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
-            StdDescr::Sh(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
+            StdDescr::ShScript(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
             StdDescr::ShMulti(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
             StdDescr::ShSortedMulti(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
             StdDescr::ShWpkh(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
-            StdDescr::ShWsh(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
             StdDescr::Wpkh(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
-            StdDescr::Wsh(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
+            StdDescr::WshScript(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
             StdDescr::WshMulti(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
             StdDescr::WshSortedMulti(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
+            StdDescr::ShWshScript(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
+            StdDescr::ShWshMulti(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
+            StdDescr::ShWshSortedMulti(d) => {
+                d.legacy_witness(keysigs, redeem_script, witness_script)
+            }
             StdDescr::TrKey(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
             StdDescr::TrMulti(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
             StdDescr::TrSortedMulti(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
@@ -495,15 +569,17 @@ where Self: Derive<DerivedScript>
         match self {
             StdDescr::Raw(d) => d.taproot_witness(cb, keysigs),
             StdDescr::Pkh(d) => d.taproot_witness(cb, keysigs),
-            StdDescr::Sh(d) => d.taproot_witness(cb, keysigs),
+            StdDescr::ShScript(d) => d.taproot_witness(cb, keysigs),
             StdDescr::ShMulti(d) => d.taproot_witness(cb, keysigs),
             StdDescr::ShSortedMulti(d) => d.taproot_witness(cb, keysigs),
             StdDescr::ShWpkh(d) => d.taproot_witness(cb, keysigs),
-            StdDescr::ShWsh(d) => d.taproot_witness(cb, keysigs),
             StdDescr::Wpkh(d) => d.taproot_witness(cb, keysigs),
-            StdDescr::Wsh(d) => d.taproot_witness(cb, keysigs),
+            StdDescr::WshScript(d) => d.taproot_witness(cb, keysigs),
             StdDescr::WshMulti(d) => d.taproot_witness(cb, keysigs),
             StdDescr::WshSortedMulti(d) => d.taproot_witness(cb, keysigs),
+            StdDescr::ShWshScript(d) => d.taproot_witness(cb, keysigs),
+            StdDescr::ShWshMulti(d) => d.taproot_witness(cb, keysigs),
+            StdDescr::ShWshSortedMulti(d) => d.taproot_witness(cb, keysigs),
             StdDescr::TrKey(d) => d.taproot_witness(cb, keysigs),
             StdDescr::TrMulti(d) => d.taproot_witness(cb, keysigs),
             StdDescr::TrSortedMulti(d) => d.taproot_witness(cb, keysigs),
@@ -522,15 +598,17 @@ where
         match self {
             StdDescr::Raw(d) => Display::fmt(d, f),
             StdDescr::Pkh(d) => Display::fmt(d, f),
-            StdDescr::Sh(d) => Display::fmt(d, f),
+            StdDescr::ShScript(d) => Display::fmt(d, f),
             StdDescr::ShMulti(d) => Display::fmt(d, f),
             StdDescr::ShSortedMulti(d) => Display::fmt(d, f),
             StdDescr::ShWpkh(d) => Display::fmt(d, f),
-            StdDescr::ShWsh(d) => Display::fmt(d, f),
             StdDescr::Wpkh(d) => Display::fmt(d, f),
-            StdDescr::Wsh(d) => Display::fmt(d, f),
+            StdDescr::WshScript(d) => Display::fmt(d, f),
             StdDescr::WshMulti(d) => Display::fmt(d, f),
             StdDescr::WshSortedMulti(d) => Display::fmt(d, f),
+            StdDescr::ShWshScript(d) => Display::fmt(d, f),
+            StdDescr::ShWshMulti(d) => Display::fmt(d, f),
+            StdDescr::ShWshSortedMulti(d) => Display::fmt(d, f),
             StdDescr::TrKey(d) => Display::fmt(d, f),
             StdDescr::TrMulti(d) => Display::fmt(d, f),
             StdDescr::TrSortedMulti(d) => Display::fmt(d, f),
