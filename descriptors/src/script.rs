@@ -29,14 +29,17 @@ use amplify::confinement::Collection;
 use amplify::hex::ToHex;
 use amplify::Wrapper;
 use derive::{
-    ControlBlock, Derive, DeriveCompr, DeriveLegacy, DeriveXOnly, DerivedScript, KeyOrigin,
-    Keychain, LeafScript, LegacyPk, NormalIndex, OpCode, RedeemScript, ScriptPubkey, SigScript,
-    TapCode, TapDerivation, TapScript, Terminal, Witness, WitnessScript, XOnlyPk, XkeyOrigin,
-    XpubAccount, XpubDerivable,
+    ControlBlock, Derive, DeriveCompr, DeriveLegacy, DeriveSet, DeriveXOnly, DerivedScript,
+    KeyOrigin, Keychain, LeafScript, LegacyPk, NormalIndex, OpCode, RedeemScript, ScriptPubkey,
+    SigScript, TapCode, TapDerivation, TapScript, Terminal, Witness, WitnessScript, XOnlyPk,
+    XkeyOrigin, XpubAccount, XpubDerivable,
 };
 use indexmap::IndexMap;
 
-use crate::{Descriptor, LegacyKeySig, SpkClass, TaprootKeySig};
+use crate::{
+    Descriptor, LegacyKeySig, ShMulti, ShSortedMulti, ShWpkh, ShWsh, SpkClass, TaprootKeySig,
+    WshMulti, WshSortedMulti,
+};
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -296,6 +299,221 @@ impl<K: DeriveLegacy> Descriptor<K> for Raw<K> {
 
 impl<K: DeriveLegacy> Display for Raw<K> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { write!(f, "raw({})", self.0) }
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug, From)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(
+        rename_all = "camelCase",
+        bound(
+            serialize = "S::Legacy: serde::Serialize, S::Compr: serde::Serialize",
+            deserialize = "S::Legacy: serde::Deserialize<'de>, S::Compr: serde::Deserialize<'de>"
+        )
+    )
+)]
+#[non_exhaustive]
+pub enum Sh<S: DeriveSet = XpubDerivable> {
+    #[from]
+    ShScript(ShScript<S::Legacy>),
+
+    #[from]
+    ShMulti(ShMulti<S::Legacy>),
+
+    #[from]
+    ShSortedMulti(ShSortedMulti<S::Legacy>),
+
+    #[from]
+    WshScript(WshScript<S::Compr>),
+
+    #[from]
+    WshMulti(WshMulti<S::Compr>),
+
+    #[from]
+    WshSortedMulti(WshSortedMulti<S::Compr>),
+
+    #[from]
+    ShWpkh(ShWpkh<S::Compr>),
+
+    #[from]
+    ShWsh(ShWsh<S::Compr>),
+}
+
+impl<S: DeriveSet> Derive<DerivedScript> for Sh<S> {
+    fn default_keychain(&self) -> Keychain {
+        match self {
+            Sh::ShScript(d) => d.default_keychain(),
+            Sh::ShMulti(d) => d.default_keychain(),
+            Sh::ShSortedMulti(d) => d.default_keychain(),
+            Sh::ShWpkh(d) => d.default_keychain(),
+            Sh::ShWsh(d) => d.default_keychain(),
+            Sh::WshScript(d) => d.default_keychain(),
+            Sh::WshMulti(d) => d.default_keychain(),
+            Sh::WshSortedMulti(d) => d.default_keychain(),
+        }
+    }
+
+    fn keychains(&self) -> BTreeSet<Keychain> {
+        match self {
+            Sh::ShScript(d) => d.keychains(),
+            Sh::ShMulti(d) => d.keychains(),
+            Sh::ShSortedMulti(d) => d.keychains(),
+            Sh::ShWpkh(d) => d.keychains(),
+            Sh::ShWsh(d) => d.keychains(),
+            Sh::WshScript(d) => d.keychains(),
+            Sh::WshMulti(d) => d.keychains(),
+            Sh::WshSortedMulti(d) => d.keychains(),
+        }
+    }
+
+    fn derive(
+        &self,
+        keychain: impl Into<Keychain>,
+        index: impl Into<NormalIndex>,
+    ) -> impl Iterator<Item = DerivedScript> {
+        match self {
+            Sh::ShScript(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
+            Sh::ShMulti(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
+            Sh::ShSortedMulti(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
+            Sh::ShWpkh(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
+            Sh::ShWsh(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
+            Sh::WshScript(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
+            Sh::WshMulti(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
+            Sh::WshSortedMulti(d) => d.derive(keychain, index).collect::<Vec<_>>().into_iter(),
+        }
+    }
+}
+
+impl<K: DeriveSet<Legacy = K, Compr = K> + DeriveLegacy + DeriveCompr> Descriptor<K> for Sh<K>
+where Self: Derive<DerivedScript>
+{
+    fn class(&self) -> SpkClass {
+        match self {
+            Sh::ShScript(d) => d.class(),
+            Sh::ShMulti(d) => d.class(),
+            Sh::ShSortedMulti(d) => d.class(),
+            Sh::ShWpkh(d) => d.class(),
+            Sh::ShWsh(d) => d.class(),
+            Sh::WshScript(d) => d.class(),
+            Sh::WshMulti(d) => d.class(),
+            Sh::WshSortedMulti(d) => d.class(),
+        }
+    }
+
+    fn keys<'a>(&'a self) -> impl Iterator<Item = &'a K>
+    where K: 'a {
+        match self {
+            Sh::ShScript(d) => d.keys().collect::<Vec<_>>(),
+            Sh::ShMulti(d) => d.keys().collect::<Vec<_>>(),
+            Sh::ShSortedMulti(d) => d.keys().collect::<Vec<_>>(),
+            Sh::ShWpkh(d) => d.keys().collect::<Vec<_>>(),
+            Sh::ShWsh(d) => d.keys().collect::<Vec<_>>(),
+            Sh::WshScript(d) => d.keys().collect::<Vec<_>>(),
+            Sh::WshMulti(d) => d.keys().collect::<Vec<_>>(),
+            Sh::WshSortedMulti(d) => d.keys().collect::<Vec<_>>(),
+        }
+        .into_iter()
+    }
+
+    fn vars<'a>(&'a self) -> impl Iterator<Item = &'a ()>
+    where (): 'a {
+        iter::empty()
+    }
+
+    fn xpubs(&self) -> impl Iterator<Item = &XpubAccount> {
+        match self {
+            Sh::ShScript(d) => d.xpubs().collect::<Vec<_>>(),
+            Sh::ShMulti(d) => d.xpubs().collect::<Vec<_>>(),
+            Sh::ShSortedMulti(d) => d.xpubs().collect::<Vec<_>>(),
+            Sh::ShWpkh(d) => d.xpubs().collect::<Vec<_>>(),
+            Sh::ShWsh(d) => d.xpubs().collect::<Vec<_>>(),
+            Sh::WshScript(d) => d.xpubs().collect::<Vec<_>>(),
+            Sh::WshMulti(d) => d.xpubs().collect::<Vec<_>>(),
+            Sh::WshSortedMulti(d) => d.xpubs().collect::<Vec<_>>(),
+        }
+        .into_iter()
+    }
+
+    fn legacy_keyset(&self, terminal: Terminal) -> IndexMap<LegacyPk, KeyOrigin> {
+        match self {
+            Sh::ShScript(d) => d.legacy_keyset(terminal),
+            Sh::ShMulti(d) => d.legacy_keyset(terminal),
+            Sh::ShSortedMulti(d) => d.legacy_keyset(terminal),
+            Sh::ShWpkh(d) => d.legacy_keyset(terminal),
+            Sh::ShWsh(d) => d.legacy_keyset(terminal),
+            Sh::WshScript(d) => d.legacy_keyset(terminal),
+            Sh::WshMulti(d) => d.legacy_keyset(terminal),
+            Sh::WshSortedMulti(d) => d.legacy_keyset(terminal),
+        }
+    }
+
+    fn xonly_keyset(&self, terminal: Terminal) -> IndexMap<XOnlyPk, TapDerivation> {
+        match self {
+            Sh::ShScript(d) => d.xonly_keyset(terminal),
+            Sh::ShMulti(d) => d.xonly_keyset(terminal),
+            Sh::ShSortedMulti(d) => d.xonly_keyset(terminal),
+            Sh::ShWpkh(d) => d.xonly_keyset(terminal),
+            Sh::ShWsh(d) => d.xonly_keyset(terminal),
+            Sh::WshScript(d) => d.xonly_keyset(terminal),
+            Sh::WshMulti(d) => d.xonly_keyset(terminal),
+            Sh::WshSortedMulti(d) => d.xonly_keyset(terminal),
+        }
+    }
+
+    fn legacy_witness(
+        &self,
+        keysigs: IndexMap<&KeyOrigin, LegacyKeySig>,
+        redeem_script: Option<RedeemScript>,
+        witness_script: Option<WitnessScript>,
+    ) -> Option<(SigScript, Option<Witness>)> {
+        match self {
+            Sh::ShScript(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
+            Sh::ShMulti(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
+            Sh::ShSortedMulti(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
+            Sh::ShWpkh(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
+            Sh::ShWsh(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
+            Sh::WshScript(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
+            Sh::WshMulti(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
+            Sh::WshSortedMulti(d) => d.legacy_witness(keysigs, redeem_script, witness_script),
+        }
+    }
+
+    fn taproot_witness(
+        &self,
+        cb: Option<&ControlBlock>,
+        keysigs: IndexMap<&KeyOrigin, TaprootKeySig>,
+    ) -> Option<Witness> {
+        match self {
+            Sh::ShScript(d) => d.taproot_witness(cb, keysigs),
+            Sh::ShMulti(d) => d.taproot_witness(cb, keysigs),
+            Sh::ShSortedMulti(d) => d.taproot_witness(cb, keysigs),
+            Sh::ShWpkh(d) => d.taproot_witness(cb, keysigs),
+            Sh::ShWsh(d) => d.taproot_witness(cb, keysigs),
+            Sh::WshScript(d) => d.taproot_witness(cb, keysigs),
+            Sh::WshMulti(d) => d.taproot_witness(cb, keysigs),
+            Sh::WshSortedMulti(d) => d.taproot_witness(cb, keysigs),
+        }
+    }
+}
+
+impl<S: DeriveSet> Display for Sh<S>
+where
+    S::Legacy: Display,
+    S::Compr: Display,
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Sh::ShScript(d) => Display::fmt(d, f),
+            Sh::ShMulti(d) => Display::fmt(d, f),
+            Sh::ShSortedMulti(d) => Display::fmt(d, f),
+            Sh::ShWpkh(d) => Display::fmt(d, f),
+            Sh::ShWsh(d) => Display::fmt(d, f),
+            Sh::WshScript(d) => Display::fmt(d, f),
+            Sh::WshMulti(d) => Display::fmt(d, f),
+            Sh::WshSortedMulti(d) => Display::fmt(d, f),
+        }
+    }
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

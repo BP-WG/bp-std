@@ -416,11 +416,13 @@ where
     type Err = DescrParseError<K::Err>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let prefix =
-            s.split_once("(").ok_or_else(|| DescrParseError::InvalidScriptExpr(s.to_owned()))?.0;
-        Ok(match prefix {
-            "pkh" => Self::Pkh(Pkh::from_str(s)?),
-            "wpkh" => Self::Wpkh(Wpkh::from_str(s)?),
+        Ok(match s {
+            s if s.starts_with("pkh") => Self::Pkh(Pkh::from_str(s)?),
+            s if s.starts_with("wpkh") => Self::Wpkh(Wpkh::from_str(s)?),
+
+            s if s.starts_with("sh(wsh") => ShWsh::from_str(s)?.into(),
+            s if s.starts_with("sh(wsh") => ShWsh::from_str(s)?.into(),
+
             _ => return Err(DescrParseError::InvalidScriptExpr(s.to_owned())),
         })
     }
