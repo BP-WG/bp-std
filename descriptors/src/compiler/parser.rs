@@ -54,6 +54,9 @@ pub enum DescrParseError<E: Error> {
     /// script expression '{0}' must have a name.
     NoName(String),
 
+    /// the descriptor must start with '{0}' script expression.
+    NoRequiredScript(&'static str),
+
     /// unexpected token '{token}' when {expected} is expected.
     UnexpectedToken {
         descr: String,
@@ -75,10 +78,10 @@ pub enum DescrParseError<E: Error> {
     /// invalid descriptor tree expression '{0}'.
     InvalidTreeExpr(String),
 
-    /// invalid key expression: {0}.
-    Key(E),
+    /// invalid {0} expression. {1}
+    Expr(&'static str, E),
 
-    /// invalid number literal: {0}.
+    /// invalid number literal. {0}
     #[from]
     Lit(ParseIntError),
 
@@ -100,6 +103,7 @@ impl<E1: Error> DescrParseError<E1> {
             DescrParseError::Empty => Self::Empty,
             DescrParseError::Lexer(err) => Self::Lexer(err),
             DescrParseError::NoName(s) => Self::NoName(s),
+            DescrParseError::NoRequiredScript(s) => Self::NoRequiredScript(s),
             DescrParseError::UnexpectedToken {
                 descr,
                 pos,
@@ -122,7 +126,7 @@ impl<E1: Error> DescrParseError<E1> {
             },
             DescrParseError::InvalidScriptExpr(s) => Self::InvalidScriptExpr(s),
             DescrParseError::InvalidTreeExpr(s) => Self::InvalidTreeExpr(s),
-            DescrParseError::Key(err) => Self::Key(err.into()),
+            DescrParseError::Expr(msg, err) => Self::Expr(msg, err.into()),
             DescrParseError::Lit(err) => Self::Lit(err),
             DescrParseError::Confinement(err) => Self::Confinement(err),
             DescrParseError::InvalidArgs(s) => Self::InvalidArgs(s),

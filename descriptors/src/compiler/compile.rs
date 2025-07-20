@@ -443,6 +443,10 @@ where K::Err: core::error::Error
 ////////////////////////////////////////
 // Combinators
 
+fn trim_start_expr<'s>(s: &'s str, expr: &'static str) -> Option<&'s str> {
+    s.trim_start().strip_prefix(expr).and_then(|rest| rest.trim_start().strip_prefix("("))
+}
+
 impl<K: DeriveSet + Display + FromStr> FromStr for Sh<K>
 where
     K::Err: core::error::Error,
@@ -452,11 +456,14 @@ where
     type Err = DescrParseError<K::Err>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.starts_with("sh(wsh(") {
+        let Some(rest) = trim_start_expr(s, "sh") else {
+            return Err(DescrParseError::NoRequiredScript("sh"));
+        };
+        if rest.starts_with("wsh") {
             Ok(ShWsh::from_str(s)?.into())
-        } else if s.starts_with("sh(sortedmulti(") {
+        } else if rest.starts_with("sortedmulti") {
             ShSortedMulti::from_str(s).map(Sh::ShSortedMulti)
-        } else if s.starts_with("sh(multi(") {
+        } else if rest.starts_with("multi") {
             ShMulti::from_str(s).map(Sh::ShMulti)
         } else {
             ShScript::from_str(s).map(Sh::ShScript)
@@ -470,9 +477,13 @@ where K::Err: core::error::Error
     type Err = DescrParseError<K::Err>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.starts_with("wsh(multi(") {
+        let Some(rest) = trim_start_expr(s, "wsh") else {
+            return Err(DescrParseError::NoRequiredScript("wsh"));
+        };
+        let rest = rest.trim_start();
+        if rest.starts_with("multi") {
             WshMulti::from_str(s).map(Wsh::Multi)
-        } else if s.starts_with("wsh(sortedmulti(") {
+        } else if rest.starts_with("sortedmulti") {
             WshSortedMulti::from_str(s).map(Wsh::SortedMulti)
         } else {
             WshScript::from_str(s).map(Wsh::Script)
@@ -486,14 +497,18 @@ where K::Err: core::error::Error
     type Err = DescrParseError<K::Err>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.starts_with("sh(wsh(multi(") {
+        let Some(rest) = trim_start_expr(s, "sh") else {
+            return Err(DescrParseError::NoRequiredScript("sh"));
+        };
+        let Some(rest) = trim_start_expr(rest, "wsh") else {
+            return Err(DescrParseError::NoRequiredScript("wsh"));
+        };
+        if rest.starts_with("multi") {
             ShWshMulti::from_str(s).map(ShWsh::Multi)
-        } else if s.starts_with("sh(wsh(sortedmulti(") {
+        } else if rest.starts_with("sortedmulti") {
             ShWshSortedMulti::from_str(s).map(ShWsh::SortedMulti)
-        } else if s.starts_with("sh(wsh(") {
-            ShWshScript::from_str(s).map(ShWsh::Script)
         } else {
-            Err(DescrParseError::InvalidScriptExpr(s.to_owned()))
+            ShWshScript::from_str(s).map(ShWsh::Script)
         }
     }
 }
@@ -526,7 +541,7 @@ where
     type Err = DescrParseError<K::Err>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(match s {
+        Ok(match s.trim_start() {
             s if s.starts_with("pkh") => Self::Pkh(Pkh::from_str(s)?),
             s if s.starts_with("wpkh") => Self::Wpkh(Wpkh::from_str(s)?),
 
