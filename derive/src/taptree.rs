@@ -170,8 +170,9 @@ impl TapTree {
         stack[0].1
     }
 
-    /// 返回第 `index` 号叶子的脚本路径（只含 sibling branch hashes）
+    /// Returns the script path of leaf `index` (only sibling branch hashes are included)
     pub fn merkle_path(&self, index: usize) -> TapMerklePath {
+        // Save (depth, node_hash, path_vec, is_target_leaf) on the stack
         let mut stack: Vec<(u7, TapNodeHash, Vec<TapBranchHash>, bool)> = Vec::new();
 
         for (i, leaf) in self.0.iter().enumerate() {
@@ -179,19 +180,21 @@ impl TapTree {
             let is_target = i == index;
             stack.push((leaf.depth, leaf_hash, Vec::new(), is_target));
 
-            while stack.len() >= 2 {
-                let len = stack.len();
-                let (d1, h1, _, _) = stack[len - 1].clone();
-                let (d2, h2, _, _) = stack[len - 2].clone();
-                if d1 != d2 { break; }
+            // As long as the top two items of the stack have the same depth, they are merged
+            // —— Here both length and depth are checked
+            while stack.len() >= 2
+                && stack[stack.len() - 1].0 == stack[stack.len() - 2].0
+            {
+                // Note the order of pop: right first, then left
+                let (_dr, hr, mut path_r, target_r) = stack.pop().unwrap();
+                let (_dl, hl, mut path_l, target_l) = stack.pop().unwrap();
 
-                let (_dr, _hr, mut path_r, target_r) = stack.pop().unwrap();
-                let (_dl, _hl, mut path_l, target_l) = stack.pop().unwrap();
-
-                let branch_hash = TapBranchHash::with_nodes(h2, h1);
+                // Use hl, hr to calculate branch and parent node hashes
+                let branch_hash = TapBranchHash::with_nodes(hl, hr);
                 let parent_hash: TapNodeHash = branch_hash.clone().into();
-                let parent_depth = d1 - u7::ONE;
+                let parent_depth = _dr - u7::ONE; // _dr == depth of children
 
+                // Push the branch hash onto the "path" that contains the target leaf
                 if target_l {
                     path_l.push(branch_hash.clone());
                 }
@@ -206,12 +209,12 @@ impl TapTree {
             }
         }
 
+        // At this point, only the root node remains on the top of the stack
         debug_assert!(stack.len() == 1, "unbalanced tap tree");
         let (_d, _h, path, _t) = stack.pop().unwrap();
-
-        TapMerklePath::try_from(path)
-            .expect("tap merkle path length must be within [0..128]")
+        TapMerklePath::try_from(path).expect("path length within [0..128]")
     }
+
 }
 
 impl<L> TapTree<L> {
@@ -273,7 +276,7 @@ mod taptree_tests {
     use std::convert::TryFrom;
     use bc::{TapBranchHash, TapLeafHash, TapNodeHash, TapMerklePath, TapScript, TapCode};
 
-    /// 构造一个 LeafInfo<LeafScript>：用 TapScript + TapCode
+    /// Construct a LeafInfo<LeafScript>: Use TapScript + TapCode
     fn make_leaf(depth: u7, ops: &[TapCode]) -> LeafInfo<LeafScript> {
         let mut ts = TapScript::new();
         for &op in ops {
@@ -284,7 +287,7 @@ mod taptree_tests {
 
     #[test]
     fn single_leaf_merkle() {
-                // 用 PushNum1 来测试
+                // Test with PushNum1
                 let leaf = make_leaf(u7::ZERO, &[TapCode::PushNum1]);
         let tree = TapTree(vec![leaf.clone()]);
 
@@ -298,7 +301,7 @@ mod taptree_tests {
     #[test]
     fn two_leaves_merkle_and_path() {
         let depth = u7::ONE;
-                // 第一个叶子用 PushNum1，第二个叶子用 PushNum2
+                // The first leaf uses PushNum1, the second leaf uses PushNum2
                 let l0 = make_leaf(depth, &[TapCode::PushNum1]);
                 let l1 = make_leaf(depth, &[TapCode::PushNum2]);
         let tree = TapTree(vec![l0.clone(), l1.clone()]);
@@ -310,14 +313,16 @@ mod taptree_tests {
         assert_eq!(tree.merkle_root(), expected_root);
 
                 let p0 = TapMerklePath::try_from(vec![branch.clone()]).unwrap();
+        // The sibling path of leaf 0
                 let p1 = TapMerklePath::try_from(vec![branch]).unwrap();
+        // The sibling path of leaf 1
         assert_eq!(tree.merkle_path(0), p0);
         assert_eq!(tree.merkle_path(1), p1);
     }
 
     #[test]
     fn unbalanced_tree_merkle_and_path() {
-        // 三叶不平衡：depth=[2,2,1]
+        // Three-leaf imbalance：depth=[2,2,1]
         let d2 = u7::try_from(2u8).unwrap();
         let d1 = u7::ONE;
                 // 前两叶都用 PushNum1，第三叶用 PushNum2
@@ -453,7 +458,7 @@ mod control_block_factory_tests {
     use crate::taptree::TapTree;
     use bc::{InternalPk, LeafVer, ScriptBytes, TapBranchHash, TapLeafHash, TapNodeHash};
 
-    /// 固定 X-only pubkey（32×0x02）
+    /// Fixed X-only pubkey (32×0x02)
     fn dummy_internal_pk() -> InternalPk {
         InternalPk::from_byte_array([0x02u8; 32]).unwrap()
     }
@@ -479,12 +484,12 @@ mod control_block_factory_tests {
         ];
         let clone_leaves = leaves.clone();
 
-        // 构造工厂并收集
+        // Constructing factory and collecting
         let items: Vec<_> =
             ControlBlockFactory::with(dummy_internal_pk(), TapTree(leaves)).collect();
         assert_eq!(items.len(), clone_leaves.len());
 
-        // 手算根哈希
+        // Hand-Calculated Root Hash
         let h0 = TapLeafHash::with_leaf_script(&clone_leaves[0].script).into();
         let h1 = TapLeafHash::with_leaf_script(&clone_leaves[1].script).into();
         let branch = TapBranchHash::with_nodes(h0, h1);
@@ -492,11 +497,59 @@ mod control_block_factory_tests {
         let tree = TapTree(clone_leaves.clone());
         assert_eq!(tree.merkle_root(), expected_root);
 
-        // 对比每个 ControlBlock 的脚本 & 路径
+        // Compare the scripts & paths of each ControlBlock
         for (idx, (cb, ls)) in items.into_iter().enumerate() {
             assert_eq!(ls.version, tree.0[idx].script.version);
             let expected_path = tree.merkle_path(idx);
             assert_eq!(cb.merkle_branch, expected_path);
         }
+    }
+}
+#[cfg(test)]
+mod negative_tests {
+    use super::*;
+    use amplify::num::u7;
+    use std::convert::TryFrom;
+    use bc::{LeafScript, LeafVer, ScriptBytes};
+
+    #[test]
+    #[should_panic(expected = "unbalanced tap tree")]
+    fn merkle_path_empty_tree_panics() {
+        // If the merkle path is called directly on an empty tree, it will panic "unbalanced tap tree" because there is no root node.
+        let empty: TapTree = TapTree(vec![]);
+        let _ = empty.merkle_path(0);
+    }
+
+    #[test]
+    fn tree_from_no_leaves_err() {
+        let err = TapTree::from_leaves(std::iter::empty::<LeafInfo<LeafScript>>());
+        assert!(matches!(err, Err(InvalidTree::Unfinalized(_))));
+    }
+
+    #[test]
+    fn leaf_depth_overflow_err() {
+        assert!(u7::try_from(128u8).is_err());
+    }
+
+    #[test]
+    fn duplicate_leaves_nonzero_depth_ok() {
+        // The same script has a depth of 1 and is repeated twice without underflow.
+        let depth = u7::ONE;
+        let script = LeafScript::new(
+            LeafVer::from_consensus_u8(0xc0).unwrap(),
+            ScriptBytes::try_from(vec![]).unwrap(),
+        );
+        let leaf = LeafInfo { depth, script };
+        let tree = TapTree(vec![leaf.clone(), leaf.clone()]);
+
+        // The root hash should be the result of merging two identical leaf hashes.
+        let h = TapLeafHash::with_leaf_script(&leaf.script).into();
+        let expected_root: TapNodeHash = TapBranchHash::with_nodes(h, h).into();
+        assert_eq!(tree.merkle_root(), expected_root);
+
+        // The corresponding two paths have only this one branch
+        let expected_path = TapMerklePath::try_from(vec![TapBranchHash::with_nodes(h, h)]).unwrap();
+        assert_eq!(tree.merkle_path(0), expected_path);
+        assert_eq!(tree.merkle_path(1), expected_path);
     }
 }
