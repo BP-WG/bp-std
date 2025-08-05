@@ -32,6 +32,7 @@ mod xkey;
 mod derive;
 pub mod taptree;
 mod sign;
+pub mod fra;
 
 pub use bc::*;
 pub use derive::{

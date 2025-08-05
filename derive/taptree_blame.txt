@@ -1,0 +1,546 @@
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  10) //
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  11) // Licensed under the Apache License, Version 2.0 (the "License");
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  12) // you may not use this file except in compliance with the License.
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  13) // You may obtain a copy of the License at
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  14) //
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  15) //     http://www.apache.org/licenses/LICENSE-2.0
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  16) //
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  17) // Unless required by applicable law or agreed to in writing, software
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  18) // distributed under the License is distributed on an "AS IS" BASIS,
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  19) // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  20) // See the License for the specific language governing permissions and
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  21) // limitations under the License.
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  22) 
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200  23) use std::fmt::{self, Display, Formatter, Write};
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  24) use std::ops::Deref;
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  25) use std::{slice, vec};
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  26) 
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  27) use amplify::num::u7;
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200  28) use bc::{
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800  29)     ControlBlock, InternalPk, LeafScript, OutputPk, Parity,
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800  30)     TapLeafHash, TapMerklePath, TapNodeHash, TapScript, TapBranchHash,
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200  31) };
+c14bae37 derive/src/taptree.rs (Dr Maxim Orlovsky 2023-12-17 16:04:47 +0100  32) use commit_verify::merkle::MerkleBuoy;
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  33) 
+37288799 derive/src/taptree.rs (Dr Maxim Orlovsky 2024-06-29 16:41:17 +0200  34) use crate::{KeyOrigin, Terminal, XkeyOrigin};
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200  35) 
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  36) #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display, Error, From)]
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  37) pub enum InvalidTree {
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  38)     #[from]
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  39)     #[display(doc_comments)]
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  40)     Unfinalized(UnfinalizedTree),
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  41) 
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  42)     #[from(FinalizedTree)]
+eb9ba13f derive/src/taptree.rs (Dr Maxim Orlovsky 2024-08-18 10:30:21 +0200  43)     #[display("tap tree contains too many script leaves which doesn't fit a single Merkle tree")]
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  44)     MountainRange,
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  45) }
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  46) 
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  47) #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display, Error)]
+eb9ba13f derive/src/taptree.rs (Dr Maxim Orlovsky 2024-08-18 10:30:21 +0200  48) #[display("can't add more leaves to an already finalized tap tree")]
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  49) pub struct FinalizedTree;
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  50) 
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  51) #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Display, Error)]
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  52) #[display(
+eb9ba13f derive/src/taptree.rs (Dr Maxim Orlovsky 2024-08-18 10:30:21 +0200  53)     "unfinalized tap tree containing leaves at level {0} which can't commit into a single Merkle \
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  54)      root"
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  55) )]
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  56) pub struct UnfinalizedTree(pub u7);
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  57) 
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  58) #[derive(Clone, Eq, PartialEq, Debug, Default)]
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200  59) pub struct TapTreeBuilder<L = LeafScript> {
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200  60)     leaves: Vec<LeafInfo<L>>,
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800  61)     buoy:   MerkleBuoy<u7>,
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  62)     finalized: bool,
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  63) }
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  64) 
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200  65) impl<L> TapTreeBuilder<L> {
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200  66)     pub fn new() -> Self {
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200  67)         Self {
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200  68)             leaves: none!(),
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800  69)             buoy:   default!(),
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200  70)             finalized: false,
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200  71)         }
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200  72)     }
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  73) 
+c14bae37 derive/src/taptree.rs (Dr Maxim Orlovsky 2023-12-17 16:04:47 +0100  74)     pub fn with_capacity(capacity: usize) -> Self {
+c14bae37 derive/src/taptree.rs (Dr Maxim Orlovsky 2023-12-17 16:04:47 +0100  75)         Self {
+eb9ba13f derive/src/taptree.rs (Dr Maxim Orlovsky 2024-08-18 10:30:21 +0200  76)             leaves: Vec::with_capacity(capacity),
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800  77)             buoy:   zero!(),
+c14bae37 derive/src/taptree.rs (Dr Maxim Orlovsky 2023-12-17 16:04:47 +0100  78)             finalized: false,
+c14bae37 derive/src/taptree.rs (Dr Maxim Orlovsky 2023-12-17 16:04:47 +0100  79)         }
+c14bae37 derive/src/taptree.rs (Dr Maxim Orlovsky 2023-12-17 16:04:47 +0100  80)     }
+c14bae37 derive/src/taptree.rs (Dr Maxim Orlovsky 2023-12-17 16:04:47 +0100  81) 
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  82)     pub fn is_finalized(&self) -> bool { self.finalized }
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  83) 
+29a3c8d1 derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-31 08:30:35 +0200  84)     pub fn with_leaf(mut self, leaf: LeafInfo<L>) -> Result<Self, FinalizedTree> {
+29a3c8d1 derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-31 08:30:35 +0200  85)         self.push_leaf(leaf)?;
+29a3c8d1 derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-31 08:30:35 +0200  86)         Ok(self)
+29a3c8d1 derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-31 08:30:35 +0200  87)     }
+29a3c8d1 derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-31 08:30:35 +0200  88) 
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200  89)     pub fn push_leaf(&mut self, leaf: LeafInfo<L>) -> Result<bool, FinalizedTree> {
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  90)         if self.finalized {
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  91)             return Err(FinalizedTree);
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  92)         }
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  93)         let depth = leaf.depth;
+eb9ba13f derive/src/taptree.rs (Dr Maxim Orlovsky 2024-08-18 10:30:21 +0200  94)         self.leaves.push(leaf);
+c31646bd std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 19:00:05 +0200  95)         self.buoy.push(depth);
+c31646bd std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 19:00:05 +0200  96)         if self.buoy.level() == u7::ZERO {
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  97)             self.finalized = true
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  98)         }
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200  99)         Ok(self.finalized)
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 100)     }
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 101) 
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 102)     pub fn finish(self) -> Result<TapTree<L>, UnfinalizedTree> {
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 103)         if !self.finalized {
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 104)             return Err(UnfinalizedTree(self.buoy.level()));
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 105)         }
+eb9ba13f derive/src/taptree.rs (Dr Maxim Orlovsky 2024-08-18 10:30:21 +0200 106)         Ok(TapTree(self.leaves))
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 107)     }
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 108) }
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 109) 
+1c363025 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-08 23:00:05 +0200 110) /// Non-empty taproot script tree.
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 111) #[derive(Clone, Eq, PartialEq, Hash, Debug, Default)]
+3596af55 derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-20 14:48:03 +0200 112) #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 113) pub struct TapTree<L = LeafScript>(Vec<LeafInfo<L>>);
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 114) 
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 115) impl<L> Deref for TapTree<L> {
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 116)     type Target = Vec<LeafInfo<L>>;
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 117)     fn deref(&self) -> &Self::Target { &self.0 }
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 118) }
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 119) 
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 120) impl<L> IntoIterator for TapTree<L> {
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 121)     type Item = LeafInfo<L>;
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 122)     type IntoIter = vec::IntoIter<LeafInfo<L>>;
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 123) 
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 124)     fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 125) }
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 126) 
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 127) impl<'a, L> IntoIterator for &'a TapTree<L> {
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 128)     type Item = &'a LeafInfo<L>;
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 129)     type IntoIter = slice::Iter<'a, LeafInfo<L>>;
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 130) 
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 131)     fn into_iter(self) -> Self::IntoIter { self.0.iter() }
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 132) }
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 133) 
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 134) impl TapTree {
+c14bae37 derive/src/taptree.rs (Dr Maxim Orlovsky 2023-12-17 16:04:47 +0100 135)     pub fn with_single_leaf(leaf: impl Into<LeafScript>) -> TapTree {
+c14bae37 derive/src/taptree.rs (Dr Maxim Orlovsky 2023-12-17 16:04:47 +0100 136)         Self(vec![LeafInfo {
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 137)             depth:  u7::ZERO,
+c14bae37 derive/src/taptree.rs (Dr Maxim Orlovsky 2023-12-17 16:04:47 +0100 138)             script: leaf.into(),
+c14bae37 derive/src/taptree.rs (Dr Maxim Orlovsky 2023-12-17 16:04:47 +0100 139)         }])
+c14bae37 derive/src/taptree.rs (Dr Maxim Orlovsky 2023-12-17 16:04:47 +0100 140)     }
+c14bae37 derive/src/taptree.rs (Dr Maxim Orlovsky 2023-12-17 16:04:47 +0100 141) 
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 142)     pub fn merkle_root(&self) -> TapNodeHash {
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 143)         let mut stack: Vec<(u7, TapNodeHash)> = Vec::new();
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 144) 
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 145)         for leaf in &self.0 {
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 146)             let leaf_hash: TapNodeHash =
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 147)                 TapLeafHash::with_leaf_script(&leaf.script).into();
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 148)             let depth = leaf.depth;
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 149)             stack.push((depth, leaf_hash));
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 150) 
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 151)             while stack.len() >= 2 {
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 152)                 let len = stack.len();
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 153)                 let (d1, _) = stack[len - 1];
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 154)                 let (d2, _) = stack[len - 2];
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 155)                 if d1 != d2 { break; }
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 156) 
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 157)                 let (_, right) = stack.pop().unwrap();
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 158)                 let (_, left ) = stack.pop().unwrap();
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 159)                 let parent_depth = d1 - u7::ONE;
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 160)                 let parent_hash: TapNodeHash =
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 161)                     TapBranchHash::with_nodes(left, right).into();
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 162)                 stack.push((parent_depth, parent_hash));
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 163)             }
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 164)         }
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 165) 
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 166)         debug_assert!(
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 167)             stack.len() == 1 && stack[0].0 == u7::ZERO,
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 168)             "invalid tap tree: unbalanced leaves"
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 169)         );
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 170)         stack[0].1
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 171)     }
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 172) 
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 173)     /// Returns the script path of leaf `index` (only sibling branch hashes are included)
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 174)     pub fn merkle_path(&self, index: usize) -> TapMerklePath {
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 175)         // Save (depth, node_hash, path_vec, is_target_leaf) on the stack
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 176)         let mut stack: Vec<(u7, TapNodeHash, Vec<TapBranchHash>, bool)> = Vec::new();
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 177) 
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 178)         for (i, leaf) in self.0.iter().enumerate() {
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 179)             let leaf_hash: TapNodeHash = TapLeafHash::with_leaf_script(&leaf.script).into();
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 180)             let is_target = i == index;
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 181)             stack.push((leaf.depth, leaf_hash, Vec::new(), is_target));
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 182) 
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 183)             // As long as the top two items of the stack have the same depth, they are merged
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 184)             // —— Here both length and depth are checked
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 185)             while stack.len() >= 2
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 186)                 && stack[stack.len() - 1].0 == stack[stack.len() - 2].0
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 187)             {
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 188)                 // Note the order of pop: right first, then left
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 189)                 let (_dr, hr, mut path_r, target_r) = stack.pop().unwrap();
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 190)                 let (_dl, hl, mut path_l, target_l) = stack.pop().unwrap();
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 191) 
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 192)                 // Use hl, hr to calculate branch and parent node hashes
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 193)                 let branch_hash = TapBranchHash::with_nodes(hl, hr);
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 194)                 let parent_hash: TapNodeHash = branch_hash.clone().into();
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 195)                 let parent_depth = _dr - u7::ONE; // _dr == depth of children
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 196) 
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 197)                 // Push the branch hash onto the "path" that contains the target leaf
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 198)                 if target_l {
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 199)                     path_l.push(branch_hash.clone());
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 200)                 }
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 201)                 if target_r {
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 202)                     path_r.push(branch_hash.clone());
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 203)                 }
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 204) 
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 205)                 let parent_target = target_l || target_r;
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 206)                 let parent_path = if target_l { path_l } else { path_r };
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 207) 
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 208)                 stack.push((parent_depth, parent_hash, parent_path, parent_target));
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 209)             }
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 210)         }
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 211) 
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 212)         // At this point, only the root node remains on the top of the stack
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 213)         debug_assert!(stack.len() == 1, "unbalanced tap tree");
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 214)         let (_d, _h, path, _t) = stack.pop().unwrap();
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 215)         TapMerklePath::try_from(path).expect("path length within [0..128]")
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 216)     }
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 217) 
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 218) }
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 219) 
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 220) impl<L> TapTree<L> {
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 221)     pub fn from_leaves(leaves: impl IntoIterator<Item = LeafInfo<L>>) -> Result<Self, InvalidTree> {
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 222)         let mut builder = TapTreeBuilder::<L>::new();
+eb9ba13f derive/src/taptree.rs (Dr Maxim Orlovsky 2024-08-18 10:30:21 +0200 223)         for leaf in leaves {
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 224)             builder.push_leaf(leaf)?;
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 225)         }
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 226)         builder.finish().map_err(InvalidTree::from)
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 227)     }
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 228) 
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 229)     pub fn from_builder(builder: TapTreeBuilder<L>) -> Result<Self, UnfinalizedTree> {
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 230)         builder.finish()
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 231)     }
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 232) 
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 233)     pub fn into_vec(self) -> Vec<LeafInfo<L>> { self.0 }
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 234) 
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 235)     pub fn map<M>(self, f: impl Fn(L) -> M) -> TapTree<M> {
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 236)         TapTree(
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 237)             self.into_iter()
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 238)                 .map(|leaf| LeafInfo {
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 239)                     depth:  leaf.depth,
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 240)                     script: f(leaf.script),
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 241)                 })
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 242)                 .collect(),
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 243)         )
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 244)     }
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 245) }
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 246) 
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 247) impl<L: Display> Display for TapTree<L> {
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 248)     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 249)         let mut buoy = MerkleBuoy::<u7>::default();
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 250)         let mut depth = u7::ZERO;
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 251) 
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 252)         for leaf in &self.0 {
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 253)             for _ in depth.into_u8()..leaf.depth.into_u8() {
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 254)                 f.write_char('{')?;
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 255)             }
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 256)             buoy.push(leaf.depth);
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 257)             if depth == leaf.depth {
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 258)                 f.write_char(',')?;
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 259)             }
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 260)             depth = leaf.depth;
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 261)             for _ in buoy.level().into_u8()..depth.into_u8() {
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 262)                 f.write_char('}')?;
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 263)             }
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 264)             debug_assert_ne!(buoy.level(), u7::ZERO);
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 265)         }
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 266) 
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 267)         debug_assert_eq!(buoy.level(), u7::ZERO);
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 268)         Ok(())
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 269)     }
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 270) }
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 271) 
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 272) #[cfg(test)]
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 273) mod taptree_tests {
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 274)     use super::*; // TapTree, merkle_root, merkle_path
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 275)     use amplify::num::u7;
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 276)     use std::convert::TryFrom;
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 277)     use bc::{TapBranchHash, TapLeafHash, TapNodeHash, TapMerklePath, TapScript, TapCode};
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 278) 
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 279)     /// Construct a LeafInfo<LeafScript>: Use TapScript + TapCode
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 280)     fn make_leaf(depth: u7, ops: &[TapCode]) -> LeafInfo<LeafScript> {
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 281)         let mut ts = TapScript::new();
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 282)         for &op in ops {
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 283)             ts.push_opcode(op);
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 284)         }
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 285)         LeafInfo::tap_script(depth, ts)
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 286)     }
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 287) 
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 288)     #[test]
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 289)     fn single_leaf_merkle() {
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 290)                 // Test with PushNum1
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 291)                 let leaf = make_leaf(u7::ZERO, &[TapCode::PushNum1]);
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 292)         let tree = TapTree(vec![leaf.clone()]);
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 293) 
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 294)         let expected = TapNodeHash::from(TapLeafHash::with_leaf_script(&leaf.script));
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 295)         assert_eq!(tree.merkle_root(), expected);
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 296) 
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 297)         let empty = TapMerklePath::try_from(vec![]).unwrap();
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 298)         assert_eq!(tree.merkle_path(0), empty);
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 299)     }
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 300) 
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 301)     #[test]
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 302)     fn two_leaves_merkle_and_path() {
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 303)         let depth = u7::ONE;
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 304)                 // The first leaf uses PushNum1, the second leaf uses PushNum2
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 305)                 let l0 = make_leaf(depth, &[TapCode::PushNum1]);
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 306)                 let l1 = make_leaf(depth, &[TapCode::PushNum2]);
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 307)         let tree = TapTree(vec![l0.clone(), l1.clone()]);
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 308) 
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 309)         let h0: TapNodeHash = TapLeafHash::with_leaf_script(&l0.script).into();
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 310)         let h1: TapNodeHash = TapLeafHash::with_leaf_script(&l1.script).into();
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 311)         let branch = TapBranchHash::with_nodes(h0, h1);
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 312)         let expected_root: TapNodeHash = branch.clone().into();
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 313)         assert_eq!(tree.merkle_root(), expected_root);
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 314) 
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 315)                 let p0 = TapMerklePath::try_from(vec![branch.clone()]).unwrap();
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 316)         // The sibling path of leaf 0
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 317)                 let p1 = TapMerklePath::try_from(vec![branch]).unwrap();
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 318)         // The sibling path of leaf 1
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 319)         assert_eq!(tree.merkle_path(0), p0);
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 320)         assert_eq!(tree.merkle_path(1), p1);
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 321)     }
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 322) 
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 323)     #[test]
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 324)     fn unbalanced_tree_merkle_and_path() {
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 325)         // Three-leaf imbalance：depth=[2,2,1]
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 326)         let d2 = u7::try_from(2u8).unwrap();
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 327)         let d1 = u7::ONE;
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 328)                 // 前两叶都用 PushNum1，第三叶用 PushNum2
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 329)                 let l0 = make_leaf(d2, &[TapCode::PushNum1]);
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 330)                 let l1 = make_leaf(d2, &[TapCode::PushNum1]);
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 331)                 let l2 = make_leaf(d1, &[TapCode::PushNum2]);
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 332)         let tree = TapTree(vec![l0.clone(), l1.clone(), l2.clone()]);
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 333) 
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 334)         let h0: TapNodeHash = TapLeafHash::with_leaf_script(&l0.script).into();
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 335)         let h1: TapNodeHash = TapLeafHash::with_leaf_script(&l1.script).into();
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 336)         let h2: TapNodeHash = TapLeafHash::with_leaf_script(&l2.script).into();
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 337)         let branch1 = TapBranchHash::with_nodes(h0, h1);
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 338)         let node1: TapNodeHash = branch1.clone().into();
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 339)         let branch2 = TapBranchHash::with_nodes(node1, h2);
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 340) 
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 341)         let expected_root: TapNodeHash = branch2.clone().into();
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 342)         assert_eq!(tree.merkle_root(), expected_root);
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 343) 
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 344)                 let p01 = TapMerklePath::try_from(vec![branch1.clone(), branch2.clone()]).unwrap();
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 345)                 let p2  = TapMerklePath::try_from(vec![branch2]).unwrap();
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 346) 
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 347)         assert_eq!(tree.merkle_path(0), p01);
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 348)         assert_eq!(tree.merkle_path(1), p01);
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 349)         assert_eq!(tree.merkle_path(2), p2);
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 350)     }
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 351) }
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 352) 
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 353) 
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 354) 
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 355) 
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 356) #[derive(Clone, Eq, PartialEq, Hash, Debug)]
+3596af55 derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-20 14:48:03 +0200 357) #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 358) pub struct LeafInfo<L = LeafScript> {
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 359)     pub depth: u7,
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 360)     pub script: L,
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 361) }
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 362) 
+dfa39d7c derive/src/taptree.rs (Dr Maxim Orlovsky 2025-05-30 20:18:22 +0200 363) impl LeafInfo<LeafScript> {
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 364)     pub fn tap_script(depth: u7, script: TapScript) -> Self {
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 365)         LeafInfo {
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 366)             depth,
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 367)             script: LeafScript::from_tap_script(script),
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 368)         }
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 369)     }
+f2ff7c93 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 13:48:50 +0200 370) }
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 371) 
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 372) #[derive(Getters, Clone, Eq, PartialEq, Debug)]
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 373) #[getter(as_copy)]
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 374) pub struct ControlBlockFactory {
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 375)     internal_pk: InternalPk,
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 376)     output_pk: OutputPk,
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 377)     parity: Parity,
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 378)     merkle_root: TapNodeHash,
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 379) 
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 380)     #[getter(skip)]
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 381)     merkle_paths:  Vec<TapMerklePath>,
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 382)     #[getter(skip)]
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 383)     remaining:     Vec<LeafInfo<LeafScript>>,
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 384) }
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 385) 
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 386) impl ControlBlockFactory {
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 387)     #[inline]
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 388)     pub fn with(internal_pk: InternalPk, tap_tree: TapTree<LeafScript>) -> Self {
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 389)         let merkle_root = tap_tree.merkle_root();
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 390)         let (output_pk, parity) = internal_pk.to_output_pk(Some(merkle_root));
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 391)         let remaining_leaves = tap_tree.clone().into_vec();
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 392)         let merkle_paths = (0 .. remaining_leaves.len())
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 393)             .map(|i| tap_tree.merkle_path(i))
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 394)             .collect();
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 395)         ControlBlockFactory {
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 396)             internal_pk,
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 397)             output_pk,
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 398)             parity,
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 399)             merkle_root,
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 400)             merkle_paths,
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 401)             remaining: remaining_leaves,
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 402)         }
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 403)     }
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 404) 
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 405)     #[inline]
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 406)     pub fn into_remaining_leaves(self) -> Vec<LeafInfo> { self.remaining }
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 407) }
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 408) 
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 409) impl Iterator for ControlBlockFactory {
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 410)     type Item = (ControlBlock, LeafScript);
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 411)     fn next(&mut self) -> Option<Self::Item> {
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 412)         // Pop leaf and its path together
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 413)         let leaf = self.remaining.pop()?;
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 414)         let path = self.merkle_paths.pop()?;
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 415)         let leaf_script = leaf.script;
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 416)         // Build control block with the correct path
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 417)         let control_block = ControlBlock::with(
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 418)             leaf_script.version,
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 419)             self.internal_pk,
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 420)             self.parity,
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 421)             path,
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 422)         );
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 423)         Some((control_block, leaf_script))
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 424)     }
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 425) }
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 426) 
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 427) /// A compact size unsigned integer representing the number of leaf hashes, followed by a list
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 428) /// of leaf hashes, followed by the 4 byte master key fingerprint concatenated with the
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 429) /// derivation path of the public key. The derivation path is represented as 32-bit little
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 430) /// endian unsigned integer indexes concatenated with each other. Public keys are those needed
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 431) /// to spend this output. The leaf hashes are of the leaves which involve this public key. The
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 432) /// internal key does not have leaf hashes, so can be indicated with a hashes len of 0.
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 433) /// Finalizers should remove this field after `PSBT_IN_FINAL_SCRIPTWITNESS` is constructed.
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 434) #[derive(Clone, Eq, PartialEq, Hash, Debug)]
+9a8056f9 derive/src/taptree.rs (Dr Maxim Orlovsky 2024-12-09 13:48:03 +0100 435) #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 436) pub struct TapDerivation {
+c31646bd std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 19:00:05 +0200 437)     pub leaf_hashes: Vec<TapLeafHash>,
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 438)     pub origin: KeyOrigin,
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 439) }
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 440) 
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 441) impl TapDerivation {
+37288799 derive/src/taptree.rs (Dr Maxim Orlovsky 2024-06-29 16:41:17 +0200 442)     pub fn with_internal_pk(xpub_origin: XkeyOrigin, terminal: Terminal) -> Self {
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 443)         let origin = KeyOrigin::with(xpub_origin, terminal);
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 444)         TapDerivation {
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 445)             leaf_hashes: empty!(),
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 446)             origin,
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 447)         }
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 448)     }
+178fb649 std/src/taptree.rs    (Dr Maxim Orlovsky 2023-10-06 17:40:14 +0200 449) }
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 450) 
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 451) 
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 452) 
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 453) #[cfg(test)]
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 454) mod control_block_factory_tests {
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 455)     use super::*; // ControlBlockFactory
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 456)     use amplify::num::u7;
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 457)     use std::convert::TryFrom;
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 458)     use crate::taptree::TapTree;
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 459)     use bc::{InternalPk, LeafVer, ScriptBytes, TapBranchHash, TapLeafHash, TapNodeHash};
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 460) 
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 461)     /// Fixed X-only pubkey (32×0x02)
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 462)     fn dummy_internal_pk() -> InternalPk {
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 463)         InternalPk::from_byte_array([0x02u8; 32]).unwrap()
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 464)     }
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 465) 
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 466)     #[test]
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 467)     fn factory_preserves_paths_and_versions() {
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 468)         let depth = u7::ONE;
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 469)         let leaves: Vec<LeafInfo<LeafScript>> = vec![
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 470)             LeafInfo {
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 471)                 script: LeafScript::new(
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 472)                     LeafVer::from_consensus_u8(0xc0).unwrap(),
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 473)                     ScriptBytes::try_from(vec![10]).unwrap(),
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 474)                 ),
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 475)                 depth,
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 476)             },
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 477)             LeafInfo {
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 478)                 script: LeafScript::new(
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 479)                     LeafVer::from_consensus_u8(0xc0).unwrap(),
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 480)                     ScriptBytes::try_from(vec![20]).unwrap(),
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 481)                 ),
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 482)                 depth,
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 483)             },
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 484)         ];
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 485)         let clone_leaves = leaves.clone();
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 486) 
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 487)         // Constructing factory and collecting
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 488)         let items: Vec<_> =
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 489)             ControlBlockFactory::with(dummy_internal_pk(), TapTree(leaves)).collect();
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 490)         assert_eq!(items.len(), clone_leaves.len());
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 491) 
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 492)         // Hand-Calculated Root Hash
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 493)         let h0 = TapLeafHash::with_leaf_script(&clone_leaves[0].script).into();
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 494)         let h1 = TapLeafHash::with_leaf_script(&clone_leaves[1].script).into();
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 495)         let branch = TapBranchHash::with_nodes(h0, h1);
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 496)         let expected_root: TapNodeHash = branch.clone().into();
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 497)         let tree = TapTree(clone_leaves.clone());
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 498)         assert_eq!(tree.merkle_root(), expected_root);
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 499) 
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 500)         // Compare the scripts & paths of each ControlBlock
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 501)         for (idx, (cb, ls)) in items.into_iter().enumerate() {
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 502)             assert_eq!(ls.version, tree.0[idx].script.version);
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 503)             let expected_path = tree.merkle_path(idx);
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 504)             assert_eq!(cb.merkle_branch, expected_path);
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 505)         }
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 506)     }
+d347558a derive/src/taptree.rs (Thomzin           2025-07-18 16:46:06 +0800 507) }
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 508) #[cfg(test)]
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 509) mod negative_tests {
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 510)     use super::*;
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 511)     use amplify::num::u7;
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 512)     use std::convert::TryFrom;
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 513)     use bc::{LeafScript, LeafVer, ScriptBytes};
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 514) 
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 515)     #[test]
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 516)     #[should_panic(expected = "unbalanced tap tree")]
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 517)     fn merkle_path_empty_tree_panics() {
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 518)         // If the merkle path is called directly on an empty tree, it will panic "unbalanced tap tree" because there is no root node.
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 519)         let empty: TapTree = TapTree(vec![]);
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 520)         let _ = empty.merkle_path(0);
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 521)     }
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 522) 
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 523)     #[test]
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 524)     fn tree_from_no_leaves_err() {
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 525)         let err = TapTree::from_leaves(std::iter::empty::<LeafInfo<LeafScript>>());
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 526)         assert!(matches!(err, Err(InvalidTree::Unfinalized(_))));
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 527)     }
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 528) 
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 529)     #[test]
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 530)     fn leaf_depth_overflow_err() {
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 531)         assert!(u7::try_from(128u8).is_err());
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 532)     }
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 533) 
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 534)     #[test]
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 535)     fn duplicate_leaves_nonzero_depth_ok() {
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 536)         // The same script has a depth of 1 and is repeated twice without underflow.
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 537)         let depth = u7::ONE;
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 538)         let script = LeafScript::new(
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 539)             LeafVer::from_consensus_u8(0xc0).unwrap(),
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 540)             ScriptBytes::try_from(vec![]).unwrap(),
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 541)         );
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 542)         let leaf = LeafInfo { depth, script };
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 543)         let tree = TapTree(vec![leaf.clone(), leaf.clone()]);
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 544) 
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 545)         // The root hash should be the result of merging two identical leaf hashes.
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 546)         let h = TapLeafHash::with_leaf_script(&leaf.script).into();
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 547)         let expected_root: TapNodeHash = TapBranchHash::with_nodes(h, h).into();
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 548)         assert_eq!(tree.merkle_root(), expected_root);
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 549) 
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 550)         // The corresponding two paths have only this one branch
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 551)         let expected_path = TapMerklePath::try_from(vec![TapBranchHash::with_nodes(h, h)]).unwrap();
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 552)         assert_eq!(tree.merkle_path(0), expected_path);
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 553)         assert_eq!(tree.merkle_path(1), expected_path);
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 554)     }
+b4cd07b9 derive/src/taptree.rs (Thomzin           2025-07-20 14:34:32 +0800 555) }

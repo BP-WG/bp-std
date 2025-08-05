@@ -1,0 +1,620 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index b019098..1e3e105 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -121,12 +121,29 @@ version = "0.9.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "d86b93f97252c47b41663388e6d155714a9d0c398b99f1005cbc5f978b29f445"
+ 
++[[package]]
++name = "bitcoin"
++version = "0.29.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "0694ea59225b0c5f3cb405ff3f670e4828358ed26aec49dc352f730f0cb1a8a3"
++dependencies = [
++ "bech32",
++ "bitcoin_hashes 0.11.0",
++ "secp256k1 0.24.3",
++]
++
+ [[package]]
+ name = "bitcoin-io"
+ version = "0.1.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "0b47c4ab7a93edb0c7198c5535ed9b52b63095f4e9b45279c6736cec4b856baf"
+ 
++[[package]]
++name = "bitcoin_hashes"
++version = "0.11.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "90064b8dee6815a6470d60bad07bbbaee885c0e12d04177138fa3291a01b7bc4"
++
+ [[package]]
+ name = "bitcoin_hashes"
+ version = "0.14.0"
+@@ -155,15 +172,14 @@ dependencies = [
+ [[package]]
+ name = "bp-consensus"
+ version = "0.12.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "22bbb56809c40565d6085b4211ee2d25a7b5e84848960678ff748e0a8707552f"
++source = "git+https://github.com/BP-WG/bp-core#34f958bedaa3ff245932492f936cfcb0bcbe14a6"
+ dependencies = [
+  "amplify",
+  "chrono",
+  "commit_verify",
+  "getrandom 0.2.16",
+  "getrandom 0.3.3",
+- "secp256k1",
++ "secp256k1 0.30.0",
+  "serde",
+  "strict_encoding",
+  "wasm-bindgen",
+@@ -172,8 +188,7 @@ dependencies = [
+ [[package]]
+ name = "bp-core"
+ version = "0.12.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "7a28cb4d675dd49dddd705a29d868d3e3b8f217639fd6f9cbfcbf435236eef77"
++source = "git+https://github.com/BP-WG/bp-core#34f958bedaa3ff245932492f936cfcb0bcbe14a6"
+ dependencies = [
+  "bp-consensus",
+  "bp-dbc",
+@@ -189,8 +204,7 @@ dependencies = [
+ [[package]]
+ name = "bp-dbc"
+ version = "0.12.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "8aa1f2d9e00a4f2b107d2df25e0d804cfb87a175a37ee503b982b5784e892a6d"
++source = "git+https://github.com/BP-WG/bp-core#34f958bedaa3ff245932492f936cfcb0bcbe14a6"
+ dependencies = [
+  "amplify",
+  "base85",
+@@ -198,7 +212,7 @@ dependencies = [
+  "commit_verify",
+  "getrandom 0.2.16",
+  "getrandom 0.3.3",
+- "secp256k1",
++ "secp256k1 0.30.0",
+  "serde",
+  "strict_encoding",
+  "wasm-bindgen",
+@@ -209,11 +223,13 @@ name = "bp-derive"
+ version = "0.12.0-rc.3"
+ dependencies = [
+  "amplify",
++ "bitcoin",
+  "bp-consensus",
+  "bp-invoice",
+  "commit_verify",
+  "hmac",
+  "indexmap",
++ "secp256k1 0.30.0",
+  "serde",
+  "sha2",
+ ]
+@@ -233,8 +249,7 @@ dependencies = [
+ [[package]]
+ name = "bp-seals"
+ version = "0.12.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "565ffa069d6425b01630c68dbf1088a88786bd4b794ebf1f37a1d6edbbc29817"
++source = "git+https://github.com/BP-WG/bp-core#34f958bedaa3ff245932492f936cfcb0bcbe14a6"
+ dependencies = [
+  "amplify",
+  "bp-consensus",
+@@ -262,7 +277,7 @@ dependencies = [
+  "getrandom 0.3.3",
+  "psbt",
+  "rand 0.9.1",
+- "secp256k1",
++ "secp256k1 0.30.0",
+  "serde",
+  "wasm-bindgen",
+  "wasm-bindgen-test",
+@@ -682,18 +697,37 @@ dependencies = [
+  "winapi-util",
+ ]
+ 
++[[package]]
++name = "secp256k1"
++version = "0.24.3"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "6b1629c9c557ef9b293568b338dddfc8208c98a18c59d722a9d53f859d9c9b62"
++dependencies = [
++ "bitcoin_hashes 0.11.0",
++ "secp256k1-sys 0.6.1",
++]
++
+ [[package]]
+ name = "secp256k1"
+ version = "0.30.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "b50c5943d326858130af85e049f2661ba3c78b26589b8ab98e65e80ae44a1252"
+ dependencies = [
+- "bitcoin_hashes",
++ "bitcoin_hashes 0.14.0",
+  "rand 0.8.5",
+- "secp256k1-sys",
++ "secp256k1-sys 0.10.1",
+  "serde",
+ ]
+ 
++[[package]]
++name = "secp256k1-sys"
++version = "0.6.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "83080e2c2fc1006e625be82e5d1eb6a43b7fd9578b617fcc55814daf286bba4b"
++dependencies = [
++ "cc",
++]
++
+ [[package]]
+ name = "secp256k1-sys"
+ version = "0.10.1"
+@@ -1184,13 +1218,3 @@ dependencies = [
+  "quote",
+  "syn 2.0.101",
+ ]
+-
+-[[patch.unused]]
+-name = "bp-consensus"
+-version = "0.12.0-rc.2"
+-source = "git+https://github.com/BP-WG/bp-core#43a25d025691626c01794a49b2a177db4fa5bceb"
+-
+-[[patch.unused]]
+-name = "bp-core"
+-version = "0.12.0-rc.2"
+-source = "git+https://github.com/BP-WG/bp-core#43a25d025691626c01794a49b2a177db4fa5bceb"
+diff --git a/Cargo.toml b/Cargo.toml
+index fe7b1d8..a03027a 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -16,7 +16,7 @@ license = "Apache-2.0"
+ [workspace.dependencies]
+ amplify = "4.9.0"
+ bech32 = "0.9.1"
+-secp256k1 = "0.30.0" # 0.31 breaks WASM
++secp256k1 = { version = "0.30.0" , features = ["rand"]} # 0.31 breaks WASM
+ strict_encoding = "2.9.1"
+ commit_verify = "0.12.0"
+ bp-consensus = "0.12.0"
+@@ -74,5 +74,5 @@ getrandom2 = { package = "getrandom", version = "0.2", features = ["js"] }
+ wasm-bindgen-test = "0.3"
+ 
+ [patch.crates-io]
+-bp-consensus = { git = "https://github.com/BP-WG/bp-core" }
+-bp-core = { git = "https://github.com/BP-WG/bp-core" }
++bp-consensus = { git = "https://github.com/BP-WG/bp-core", version = "0.12.0"}
++bp-core = { git = "https://github.com/BP-WG/bp-core", version = "0.12.0" }
+diff --git a/derive/Cargo.toml b/derive/Cargo.toml
+index ec00b5c..311a594 100644
+--- a/derive/Cargo.toml
++++ b/derive/Cargo.toml
+@@ -24,6 +24,8 @@ sha2 = "0.10.8"
+ hmac = "0.12.1"
+ indexmap = { workspace = true }
+ serde = { workspace = true, optional = true }
++secp256k1 = { version = "0.30.0", features = ["rand"] }
++bitcoin = "0.29"
+ 
+ [features]
+ default = []
+diff --git a/derive/src/taptree.rs b/derive/src/taptree.rs
+index d5c7880..81a20be 100644
+--- a/derive/src/taptree.rs
++++ b/derive/src/taptree.rs
+@@ -26,8 +26,8 @@ use std::{slice, vec};
+ 
+ use amplify::num::u7;
+ use bc::{
+-    ControlBlock, InternalPk, LeafScript, OutputPk, Parity, TapLeafHash, TapMerklePath,
+-    TapNodeHash, TapScript,
++    ControlBlock, InternalPk, LeafScript, OutputPk, Parity,
++    TapLeafHash, TapMerklePath, TapNodeHash, TapScript, TapBranchHash,
+ };
+ use commit_verify::merkle::MerkleBuoy;
+ 
+@@ -58,7 +58,7 @@ pub struct UnfinalizedTree(pub u7);
+ #[derive(Clone, Eq, PartialEq, Debug, Default)]
+ pub struct TapTreeBuilder<L = LeafScript> {
+     leaves: Vec<LeafInfo<L>>,
+-    buoy: MerkleBuoy<u7>,
++    buoy:   MerkleBuoy<u7>,
+     finalized: bool,
+ }
+ 
+@@ -66,7 +66,7 @@ impl<L> TapTreeBuilder<L> {
+     pub fn new() -> Self {
+         Self {
+             leaves: none!(),
+-            buoy: default!(),
++            buoy:   default!(),
+             finalized: false,
+         }
+     }
+@@ -74,7 +74,7 @@ impl<L> TapTreeBuilder<L> {
+     pub fn with_capacity(capacity: usize) -> Self {
+         Self {
+             leaves: Vec::with_capacity(capacity),
+-            buoy: zero!(),
++            buoy:   zero!(),
+             finalized: false,
+         }
+     }
+@@ -134,18 +134,87 @@ impl<'a, L> IntoIterator for &'a TapTree<L> {
+ impl TapTree {
+     pub fn with_single_leaf(leaf: impl Into<LeafScript>) -> TapTree {
+         Self(vec![LeafInfo {
+-            depth: u7::ZERO,
++            depth:  u7::ZERO,
+             script: leaf.into(),
+         }])
+     }
+ 
+     pub fn merkle_root(&self) -> TapNodeHash {
+-        if self.0.len() == 1 {
+-            TapLeafHash::with_leaf_script(&self.0[0].script).into()
+-        } else {
+-            todo!("#10 implement TapTree::merkle_root for trees with more than one leaf")
++        let mut stack: Vec<(u7, TapNodeHash)> = Vec::new();
++
++        for leaf in &self.0 {
++            let leaf_hash: TapNodeHash =
++                TapLeafHash::with_leaf_script(&leaf.script).into();
++            let depth = leaf.depth;
++            stack.push((depth, leaf_hash));
++
++            while stack.len() >= 2 {
++                let len = stack.len();
++                let (d1, _) = stack[len - 1];
++                let (d2, _) = stack[len - 2];
++                if d1 != d2 { break; }
++
++                let (_, right) = stack.pop().unwrap();
++                let (_, left ) = stack.pop().unwrap();
++                let parent_depth = d1 - u7::ONE;
++                let parent_hash: TapNodeHash =
++                    TapBranchHash::with_nodes(left, right).into();
++                stack.push((parent_depth, parent_hash));
++            }
++        }
++
++        debug_assert!(
++            stack.len() == 1 && stack[0].0 == u7::ZERO,
++            "invalid tap tree: unbalanced leaves"
++        );
++        stack[0].1
++    }
++
++    /// Returns the script path of leaf `index` (only sibling branch hashes are included)
++    pub fn merkle_path(&self, index: usize) -> TapMerklePath {
++        // Save (depth, node_hash, path_vec, is_target_leaf) on the stack
++        let mut stack: Vec<(u7, TapNodeHash, Vec<TapBranchHash>, bool)> = Vec::new();
++
++        for (i, leaf) in self.0.iter().enumerate() {
++            let leaf_hash: TapNodeHash = TapLeafHash::with_leaf_script(&leaf.script).into();
++            let is_target = i == index;
++            stack.push((leaf.depth, leaf_hash, Vec::new(), is_target));
++
++            // As long as the top two items of the stack have the same depth, they are merged
++            // —— Here both length and depth are checked
++            while stack.len() >= 2
++                && stack[stack.len() - 1].0 == stack[stack.len() - 2].0
++            {
++                // Note the order of pop: right first, then left
++                let (_dr, hr, mut path_r, target_r) = stack.pop().unwrap();
++                let (_dl, hl, mut path_l, target_l) = stack.pop().unwrap();
++
++                // Use hl, hr to calculate branch and parent node hashes
++                let branch_hash = TapBranchHash::with_nodes(hl, hr);
++                let parent_hash: TapNodeHash = branch_hash.clone().into();
++                let parent_depth = _dr - u7::ONE; // _dr == depth of children
++
++                // Push the branch hash onto the "path" that contains the target leaf
++                if target_l {
++                    path_l.push(branch_hash.clone());
++                }
++                if target_r {
++                    path_r.push(branch_hash.clone());
++                }
++
++                let parent_target = target_l || target_r;
++                let parent_path = if target_l { path_l } else { path_r };
++
++                stack.push((parent_depth, parent_hash, parent_path, parent_target));
++            }
+         }
++
++        // At this point, only the root node remains on the top of the stack
++        debug_assert!(stack.len() == 1, "unbalanced tap tree");
++        let (_d, _h, path, _t) = stack.pop().unwrap();
++        TapMerklePath::try_from(path).expect("path length within [0..128]")
+     }
++
+ }
+ 
+ impl<L> TapTree<L> {
+@@ -167,7 +236,7 @@ impl<L> TapTree<L> {
+         TapTree(
+             self.into_iter()
+                 .map(|leaf| LeafInfo {
+-                    depth: leaf.depth,
++                    depth:  leaf.depth,
+                     script: f(leaf.script),
+                 })
+                 .collect(),
+@@ -178,8 +247,8 @@ impl<L> TapTree<L> {
+ impl<L: Display> Display for TapTree<L> {
+     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+         let mut buoy = MerkleBuoy::<u7>::default();
+-
+         let mut depth = u7::ZERO;
++
+         for leaf in &self.0 {
+             for _ in depth.into_u8()..leaf.depth.into_u8() {
+                 f.write_char('{')?;
+@@ -194,11 +263,96 @@ impl<L: Display> Display for TapTree<L> {
+             }
+             debug_assert_ne!(buoy.level(), u7::ZERO);
+         }
++
+         debug_assert_eq!(buoy.level(), u7::ZERO);
+         Ok(())
+     }
+ }
+ 
++#[cfg(test)]
++mod taptree_tests {
++    use super::*; // TapTree, merkle_root, merkle_path
++    use amplify::num::u7;
++    use std::convert::TryFrom;
++    use bc::{TapBranchHash, TapLeafHash, TapNodeHash, TapMerklePath, TapScript, TapCode};
++
++    /// Construct a LeafInfo<LeafScript>: Use TapScript + TapCode
++    fn make_leaf(depth: u7, ops: &[TapCode]) -> LeafInfo<LeafScript> {
++        let mut ts = TapScript::new();
++        for &op in ops {
++            ts.push_opcode(op);
++        }
++        LeafInfo::tap_script(depth, ts)
++    }
++
++    #[test]
++    fn single_leaf_merkle() {
++                // Test with PushNum1
++                let leaf = make_leaf(u7::ZERO, &[TapCode::PushNum1]);
++        let tree = TapTree(vec![leaf.clone()]);
++
++        let expected = TapNodeHash::from(TapLeafHash::with_leaf_script(&leaf.script));
++        assert_eq!(tree.merkle_root(), expected);
++
++        let empty = TapMerklePath::try_from(vec![]).unwrap();
++        assert_eq!(tree.merkle_path(0), empty);
++    }
++
++    #[test]
++    fn two_leaves_merkle_and_path() {
++        let depth = u7::ONE;
++                // The first leaf uses PushNum1, the second leaf uses PushNum2
++                let l0 = make_leaf(depth, &[TapCode::PushNum1]);
++                let l1 = make_leaf(depth, &[TapCode::PushNum2]);
++        let tree = TapTree(vec![l0.clone(), l1.clone()]);
++
++        let h0: TapNodeHash = TapLeafHash::with_leaf_script(&l0.script).into();
++        let h1: TapNodeHash = TapLeafHash::with_leaf_script(&l1.script).into();
++        let branch = TapBranchHash::with_nodes(h0, h1);
++        let expected_root: TapNodeHash = branch.clone().into();
++        assert_eq!(tree.merkle_root(), expected_root);
++
++                let p0 = TapMerklePath::try_from(vec![branch.clone()]).unwrap();
++        // The sibling path of leaf 0
++                let p1 = TapMerklePath::try_from(vec![branch]).unwrap();
++        // The sibling path of leaf 1
++        assert_eq!(tree.merkle_path(0), p0);
++        assert_eq!(tree.merkle_path(1), p1);
++    }
++
++    #[test]
++    fn unbalanced_tree_merkle_and_path() {
++        // Three-leaf imbalance：depth=[2,2,1]
++        let d2 = u7::try_from(2u8).unwrap();
++        let d1 = u7::ONE;
++                // 前两叶都用 PushNum1，第三叶用 PushNum2
++                let l0 = make_leaf(d2, &[TapCode::PushNum1]);
++                let l1 = make_leaf(d2, &[TapCode::PushNum1]);
++                let l2 = make_leaf(d1, &[TapCode::PushNum2]);
++        let tree = TapTree(vec![l0.clone(), l1.clone(), l2.clone()]);
++
++        let h0: TapNodeHash = TapLeafHash::with_leaf_script(&l0.script).into();
++        let h1: TapNodeHash = TapLeafHash::with_leaf_script(&l1.script).into();
++        let h2: TapNodeHash = TapLeafHash::with_leaf_script(&l2.script).into();
++        let branch1 = TapBranchHash::with_nodes(h0, h1);
++        let node1: TapNodeHash = branch1.clone().into();
++        let branch2 = TapBranchHash::with_nodes(node1, h2);
++
++        let expected_root: TapNodeHash = branch2.clone().into();
++        assert_eq!(tree.merkle_root(), expected_root);
++
++                let p01 = TapMerklePath::try_from(vec![branch1.clone(), branch2.clone()]).unwrap();
++                let p2  = TapMerklePath::try_from(vec![branch2]).unwrap();
++
++        assert_eq!(tree.merkle_path(0), p01);
++        assert_eq!(tree.merkle_path(1), p01);
++        assert_eq!(tree.merkle_path(2), p2);
++    }
++}
++
++
++
++
+ #[derive(Clone, Eq, PartialEq, Hash, Debug)]
+ #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(rename_all = "camelCase"))]
+ pub struct LeafInfo<L = LeafScript> {
+@@ -224,41 +378,47 @@ pub struct ControlBlockFactory {
+     merkle_root: TapNodeHash,
+ 
+     #[getter(skip)]
+-    merkle_path: TapMerklePath,
++    merkle_paths:  Vec<TapMerklePath>,
+     #[getter(skip)]
+-    remaining_leaves: Vec<LeafInfo>,
++    remaining:     Vec<LeafInfo<LeafScript>>,
+ }
+ 
+ impl ControlBlockFactory {
+     #[inline]
+-    pub fn with(internal_pk: InternalPk, tap_tree: TapTree) -> Self {
++    pub fn with(internal_pk: InternalPk, tap_tree: TapTree<LeafScript>) -> Self {
+         let merkle_root = tap_tree.merkle_root();
+         let (output_pk, parity) = internal_pk.to_output_pk(Some(merkle_root));
++        let remaining_leaves = tap_tree.clone().into_vec();
++        let merkle_paths = (0 .. remaining_leaves.len())
++            .map(|i| tap_tree.merkle_path(i))
++            .collect();
+         ControlBlockFactory {
+             internal_pk,
+             output_pk,
+             parity,
+             merkle_root,
+-            merkle_path: empty!(),
+-            remaining_leaves: tap_tree.into_vec(),
++            merkle_paths,
++            remaining: remaining_leaves,
+         }
+     }
+ 
+     #[inline]
+-    pub fn into_remaining_leaves(self) -> Vec<LeafInfo> { self.remaining_leaves }
++    pub fn into_remaining_leaves(self) -> Vec<LeafInfo> { self.remaining }
+ }
+ 
+ impl Iterator for ControlBlockFactory {
+     type Item = (ControlBlock, LeafScript);
+-
+     fn next(&mut self) -> Option<Self::Item> {
+-        let leaf = self.remaining_leaves.pop()?;
++        // Pop leaf and its path together
++        let leaf = self.remaining.pop()?;
++        let path = self.merkle_paths.pop()?;
+         let leaf_script = leaf.script;
++        // Build control block with the correct path
+         let control_block = ControlBlock::with(
+             leaf_script.version,
+             self.internal_pk,
+             self.parity,
+-            self.merkle_path.clone(),
++            path,
+         );
+         Some((control_block, leaf_script))
+     }
+@@ -287,3 +447,109 @@ impl TapDerivation {
+         }
+     }
+ }
++
++
++
++#[cfg(test)]
++mod control_block_factory_tests {
++    use super::*; // ControlBlockFactory
++    use amplify::num::u7;
++    use std::convert::TryFrom;
++    use crate::taptree::TapTree;
++    use bc::{InternalPk, LeafVer, ScriptBytes, TapBranchHash, TapLeafHash, TapNodeHash};
++
++    /// Fixed X-only pubkey (32×0x02)
++    fn dummy_internal_pk() -> InternalPk {
++        InternalPk::from_byte_array([0x02u8; 32]).unwrap()
++    }
++
++    #[test]
++    fn factory_preserves_paths_and_versions() {
++        let depth = u7::ONE;
++        let leaves: Vec<LeafInfo<LeafScript>> = vec![
++            LeafInfo {
++                script: LeafScript::new(
++                    LeafVer::from_consensus_u8(0xc0).unwrap(),
++                    ScriptBytes::try_from(vec![10]).unwrap(),
++                ),
++                depth,
++            },
++            LeafInfo {
++                script: LeafScript::new(
++                    LeafVer::from_consensus_u8(0xc0).unwrap(),
++                    ScriptBytes::try_from(vec![20]).unwrap(),
++                ),
++                depth,
++            },
++        ];
++        let clone_leaves = leaves.clone();
++
++        // Constructing factory and collecting
++        let items: Vec<_> =
++            ControlBlockFactory::with(dummy_internal_pk(), TapTree(leaves)).collect();
++        assert_eq!(items.len(), clone_leaves.len());
++
++        // Hand-Calculated Root Hash
++        let h0 = TapLeafHash::with_leaf_script(&clone_leaves[0].script).into();
++        let h1 = TapLeafHash::with_leaf_script(&clone_leaves[1].script).into();
++        let branch = TapBranchHash::with_nodes(h0, h1);
++        let expected_root: TapNodeHash = branch.clone().into();
++        let tree = TapTree(clone_leaves.clone());
++        assert_eq!(tree.merkle_root(), expected_root);
++
++        // Compare the scripts & paths of each ControlBlock
++        for (idx, (cb, ls)) in items.into_iter().enumerate() {
++            assert_eq!(ls.version, tree.0[idx].script.version);
++            let expected_path = tree.merkle_path(idx);
++            assert_eq!(cb.merkle_branch, expected_path);
++        }
++    }
++}
++#[cfg(test)]
++mod negative_tests {
++    use super::*;
++    use amplify::num::u7;
++    use std::convert::TryFrom;
++    use bc::{LeafScript, LeafVer, ScriptBytes};
++
++    #[test]
++    #[should_panic(expected = "unbalanced tap tree")]
++    fn merkle_path_empty_tree_panics() {
++        // If the merkle path is called directly on an empty tree, it will panic "unbalanced tap tree" because there is no root node.
++        let empty: TapTree = TapTree(vec![]);
++        let _ = empty.merkle_path(0);
++    }
++
++    #[test]
++    fn tree_from_no_leaves_err() {
++        let err = TapTree::from_leaves(std::iter::empty::<LeafInfo<LeafScript>>());
++        assert!(matches!(err, Err(InvalidTree::Unfinalized(_))));
++    }
++
++    #[test]
++    fn leaf_depth_overflow_err() {
++        assert!(u7::try_from(128u8).is_err());
++    }
++
++    #[test]
++    fn duplicate_leaves_nonzero_depth_ok() {
++        // The same script has a depth of 1 and is repeated twice without underflow.
++        let depth = u7::ONE;
++        let script = LeafScript::new(
++            LeafVer::from_consensus_u8(0xc0).unwrap(),
++            ScriptBytes::try_from(vec![]).unwrap(),
++        );
++        let leaf = LeafInfo { depth, script };
++        let tree = TapTree(vec![leaf.clone(), leaf.clone()]);
++
++        // The root hash should be the result of merging two identical leaf hashes.
++        let h = TapLeafHash::with_leaf_script(&leaf.script).into();
++        let expected_root: TapNodeHash = TapBranchHash::with_nodes(h, h).into();
++        assert_eq!(tree.merkle_root(), expected_root);
++
++        // The corresponding two paths have only this one branch
++        let expected_path = TapMerklePath::try_from(vec![TapBranchHash::with_nodes(h, h)]).unwrap();
++        assert_eq!(tree.merkle_path(0), expected_path);
++        assert_eq!(tree.merkle_path(1), expected_path);
++    }
++}

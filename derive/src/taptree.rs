@@ -25,9 +25,11 @@ use std::ops::Deref;
 use std::{slice, vec};
 
 use amplify::num::u7;
+use crate::amplify::ByteArray;
+
 use bc::{
-    ControlBlock, InternalPk, LeafScript, OutputPk, Parity,
-    TapLeafHash, TapMerklePath, TapNodeHash, TapScript, TapBranchHash,
+    ControlBlock, InternalPk, LeafScript, OutputPk, Parity, TapBranchHash, TapLeafHash,
+    TapMerklePath, TapNodeHash, TapScript,
 };
 use commit_verify::merkle::MerkleBuoy;
 
@@ -58,7 +60,7 @@ pub struct UnfinalizedTree(pub u7);
 #[derive(Clone, Eq, PartialEq, Debug, Default)]
 pub struct TapTreeBuilder<L = LeafScript> {
     leaves: Vec<LeafInfo<L>>,
-    buoy:   MerkleBuoy<u7>,
+    buoy: MerkleBuoy<u7>,
     finalized: bool,
 }
 
@@ -66,7 +68,7 @@ impl<L> TapTreeBuilder<L> {
     pub fn new() -> Self {
         Self {
             leaves: none!(),
-            buoy:   default!(),
+            buoy: default!(),
             finalized: false,
         }
     }
@@ -74,7 +76,7 @@ impl<L> TapTreeBuilder<L> {
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             leaves: Vec::with_capacity(capacity),
-            buoy:   zero!(),
+            buoy: zero!(),
             finalized: false,
         }
     }
@@ -109,7 +111,11 @@ impl<L> TapTreeBuilder<L> {
 
 /// Non-empty taproot script tree.
 #[derive(Clone, Eq, PartialEq, Hash, Debug, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(transparent))]
+#[cfg_attr(
+    feature = "serde",
+    derive(Serialize, Deserialize),
+    serde(transparent)
+)]
 pub struct TapTree<L = LeafScript>(Vec<LeafInfo<L>>);
 
 impl<L> Deref for TapTree<L> {
@@ -134,7 +140,7 @@ impl<'a, L> IntoIterator for &'a TapTree<L> {
 impl TapTree {
     pub fn with_single_leaf(leaf: impl Into<LeafScript>) -> TapTree {
         Self(vec![LeafInfo {
-            depth:  u7::ZERO,
+            depth: u7::ZERO,
             script: leaf.into(),
         }])
     }
@@ -143,8 +149,7 @@ impl TapTree {
         let mut stack: Vec<(u7, TapNodeHash)> = Vec::new();
 
         for leaf in &self.0 {
-            let leaf_hash: TapNodeHash =
-                TapLeafHash::with_leaf_script(&leaf.script).into();
+            let leaf_hash: TapNodeHash = TapLeafHash::with_leaf_script(&leaf.script).into();
             let depth = leaf.depth;
             stack.push((depth, leaf_hash));
 
@@ -152,13 +157,19 @@ impl TapTree {
                 let len = stack.len();
                 let (d1, _) = stack[len - 1];
                 let (d2, _) = stack[len - 2];
-                if d1 != d2 { break; }
+                if d1 != d2 {
+                    break;
+                }
 
                 let (_, right) = stack.pop().unwrap();
-                let (_, left ) = stack.pop().unwrap();
+                let (_, left) = stack.pop().unwrap();
                 let parent_depth = d1 - u7::ONE;
-                let parent_hash: TapNodeHash =
-                    TapBranchHash::with_nodes(left, right).into();
+                let parent_hash = if left.to_byte_array() < right.to_byte_array() {
+                    TapBranchHash::with_nodes(left, right).into()
+                } else {
+                    TapBranchHash::with_nodes(right, left).into()
+                };
+
                 stack.push((parent_depth, parent_hash));
             }
         }
@@ -172,34 +183,27 @@ impl TapTree {
 
     /// Returns the script path of leaf `index` (only sibling branch hashes are included)
     pub fn merkle_path(&self, index: usize) -> TapMerklePath {
-        // Save (depth, node_hash, path_vec, is_target_leaf) on the stack
-        let mut stack: Vec<(u7, TapNodeHash, Vec<TapBranchHash>, bool)> = Vec::new();
+        // [BUG 修复] 栈中存储的路径向量类型从 Vec<TapBranchHash> 改为 Vec<TapNodeHash>
+        let mut stack: Vec<(u7, TapNodeHash, Vec<TapNodeHash>, bool)> = Vec::new();
 
         for (i, leaf) in self.0.iter().enumerate() {
             let leaf_hash: TapNodeHash = TapLeafHash::with_leaf_script(&leaf.script).into();
             let is_target = i == index;
             stack.push((leaf.depth, leaf_hash, Vec::new(), is_target));
 
-            // As long as the top two items of the stack have the same depth, they are merged
-            // —— Here both length and depth are checked
-            while stack.len() >= 2
-                && stack[stack.len() - 1].0 == stack[stack.len() - 2].0
-            {
-                // Note the order of pop: right first, then left
-                let (_dr, hr, mut path_r, target_r) = stack.pop().unwrap();
-                let (_dl, hl, mut path_l, target_l) = stack.pop().unwrap();
+            while stack.len() >= 2 && stack[stack.len() - 1].0 == stack[stack.len() - 2].0 {
+                let (depth, hr, mut path_r, target_r) = stack.pop().unwrap();
+                let (_, hl, mut path_l, target_l) = stack.pop().unwrap();
 
-                // Use hl, hr to calculate branch and parent node hashes
-                let branch_hash = TapBranchHash::with_nodes(hl, hr);
-                let parent_hash: TapNodeHash = branch_hash.clone().into();
-                let parent_depth = _dr - u7::ONE; // _dr == depth of children
+                let parent_hash: TapNodeHash = TapBranchHash::with_nodes(hl, hr).into();
+                let parent_depth = depth - u7::ONE;
 
-                // Push the branch hash onto the "path" that contains the target leaf
+                // [BUG 修复] 将兄弟节点的哈希 (TapNodeHash) 存入路径，而不是父节点的分支哈希
                 if target_l {
-                    path_l.push(branch_hash.clone());
+                    path_l.push(hr);
                 }
                 if target_r {
-                    path_r.push(branch_hash.clone());
+                    path_r.push(hl);
                 }
 
                 let parent_target = target_l || target_r;
@@ -209,12 +213,11 @@ impl TapTree {
             }
         }
 
-        // At this point, only the root node remains on the top of the stack
         debug_assert!(stack.len() == 1, "unbalanced tap tree");
         let (_d, _h, path, _t) = stack.pop().unwrap();
+        // 现在 path 是 Vec<TapNodeHash>，可以成功创建 TapMerklePath
         TapMerklePath::try_from(path).expect("path length within [0..128]")
     }
-
 }
 
 impl<L> TapTree<L> {

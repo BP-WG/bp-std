@@ -25,7 +25,10 @@ hmac = "0.12.1"
 indexmap = { workspace = true }
 serde = { workspace = true, optional = true }
 secp256k1 = { version = "0.30.0", features = ["rand"] }
-bitcoin = "0.29"
+bitcoin = "0.32"
+strict_encoding = { workspace = true}
+bitcoincore-rpc = "0.19"
+rand = "0.8.5"      # RPC 调用
 
 [features]
 default = []
