@@ -189,6 +189,7 @@ pub fn build_fra_script(action: FraAction) -> TapScript {
             push_bytes(&mut buf, &sender.to_byte_array());    // 压入发送方公钥
             buf.push(TapCode::Swap as u8);                   // 交换 -> [sig_sender], [sender_pk]
             buf.push(TapCode::CheckSig as u8);               // 验证
+
         }
         // —— 增发动作 ——
         FraAction::Mint { asset_id, amount, receiver, minter } => {

@@ -24,7 +24,7 @@ use bitcoincore_rpc::bitcoin::secp256k1 as bitcoin_secp;
 // ... (所有帮助函数保持不变) ...
 fn to_bc_outpoint(rpc_outpoint: OutPoint) -> bc::Outpoint {
     bc::Outpoint::new(
-        bc::Txid::from_byte_array(rpc_outpoint.txid.to_byte_array()),
+        bc::Txid::from_byte_array(Hash::hash(&rpc_outpoint.txid[..]).to_byte_array()),
         bc::Vout::from_u32(rpc_outpoint.vout)
     )
 }

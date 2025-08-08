@@ -29,7 +29,7 @@ bitcoin = "0.32"
 strict_encoding = { workspace = true}
 bitcoincore-rpc = "0.19"
 rand = "0.8.5"      # RPC 调用
-
+bitcoin_hashes = "0.14"
 [features]
 default = []
 all = []

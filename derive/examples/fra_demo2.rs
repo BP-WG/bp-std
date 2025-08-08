@@ -1,7 +1,6 @@
 // derive/examples/fra_demo.rs
 
 use std::{thread::sleep, time::Duration};
-
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use bitcoincore_rpc::bitcoin::{
     Address, Amount, Network,
@@ -23,6 +22,7 @@ use bitcoincore_rpc::bitcoin::{
 use bitcoincore_rpc::json::AddressType;
 
 use derive::fra::{FraAction, build_fra_control_blocks};
+use derive::base58::encode;
 use bc::{InternalPk, OutputPk, XOnlyPk};
 use secp256k1::{
     Secp256k1 as DeriveSecp,
@@ -47,7 +47,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // (Optional) 挖 101 块，生成成熟 UTXO
     println!(">> Generating 101 blocks for coinbase maturity...");
     let coinbase_addr = rpc.get_new_address(None, Some(AddressType::Legacy))?.require_network(Network::Regtest)?;
-    rpc.generate_to_address(101, &coinbase_addr)?;
+    rpc.generate_to_address(210, &coinbase_addr)?;
     sleep(Duration::from_secs(3));
     println!("   Done. Funds are now available.");
 
@@ -113,10 +113,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 取出 leaf 脚本字节
     let sb = ScriptBuf::from(AsRef::<[u8]>::as_ref(&leaf_script.script).to_vec()); // 不再手动添加 OP_DROP
 
-    let tap_info: TaprootSpendInfo = TaprootBuilder::new()
-        .add_leaf(depth.into(), sb.clone())?
+
+    let tap_info = TaprootBuilder::new()
+        // 若出错，直接 panic 并打印 e 的 Debug 信息
+        .add_leaf(depth.into(), sb.clone())
+        .expect("TaprootBuilder::add_leaf 失败")
         .finalize(&bitcoin_secp, bitcoin_ix)
-        .expect("Taproot finalize failed");
+        .expect("TaprootBuilder::finalize 失败");
     let fra_addr = Address::p2tr(
         &bitcoin_secp,
         bitcoin_ix,
@@ -230,6 +233,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("  Witness[{}] (len {}): {:?}", i, elem.len(), elem);
     }
     let raw_spend = serialize(&final_tx);
+    println!("Raw Spend Tx: {:?}", encode(&raw_spend));
     let sid = rpc.send_raw_transaction(&raw_spend[..])?;
     println!("Spend txid = {}", sid);
 
