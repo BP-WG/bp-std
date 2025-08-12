@@ -11,12 +11,14 @@ use bitcoincore_rpc::bitcoin::{
 };
 use bitcoincore_rpc::json::AddressType;
 use bitcoin_hashes::Hash;
+use amplify::hex::ToHex;
 
 // bp-std / bp-core 相关类型（保持主导地位）
 use derive::{
     fra::{FraAction, build_fra_control_blocks},
     XOnlyPk,
 };
+use bitcoin::consensus::encode;
 use bc::{
     self,
     ConsensusEncode,
@@ -120,7 +122,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 7) 计算 leaf hash (bp-core TapLeafHash)
     let leaf_hash = leaf_script.tap_leaf_hash(); // bp-core 类型
-
+    println!("Leaf Hash: {:?}", leaf_hash.to_byte_array().to_hex());
     // ---------------------------
     // 【关键：Method A 的单一转换点】
     // 在此把 bp-core 的 TapLeafHash（bytes） -> bitcoin::TapNodeHash（rust-bitcoin）
@@ -184,26 +186,42 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 11) 计算 sighash（仍然用 bp-core 的 SighashCache）
     let prevout_bc = to_bc_txout(found_vout.clone());
     let mut cache = SighashCache::new(&mut spend_tx, vec![prevout_bc])?;
-    let sighash = cache.tap_sighash_script(0, leaf_hash, None)?; // bp-core TapSighash
-    let sighash_bytes: [u8; 32] = sighash.into(); // 转成 32 字节数组
+
+    // 直接调用我们刚刚修复的函数
+    let sighash = cache.tap_sighash_script(0, leaf_hash, None)?;
+    let sighash_bytes: [u8; 32] = sighash.into();
+
+    println!("Sighash: {}", sighash_bytes.to_hex());
+
     let msg = Message::from_digest_slice(&sighash_bytes).expect("32 bytes");
 
 
     // 12) signer：双方用 schnorr 签名（message + keypair）
     let sig_sender = secp.sign_schnorr(&msg, &sender_kp);
     let sig_receiver = secp.sign_schnorr(&msg, &recv_kp);
+    println!("sig_sender length: {}", sig_sender.as_ref().len());
+    println!("sig_receiver length: {}", sig_receiver.as_ref().len());
 
-    // 13) 组装 witness（遵循脚本：接收方签名在前 -> 发送方签名 -> script -> control_block）
+    // 13) 组装 witness (必须严格遵循脚本的预期顺序！)
+    // 脚本逻辑 (来自 fra.rs):
+    //   <receiver_pk> OP_SWAP OP_CHECKSIGVERIFY <sender_pk> OP_SWAP OP_CHECKSIG
+    //
+    // 预期的 Witness (从栈顶 -> 栈底):
+    //   - sender_sig
+    //   - receiver_sig
     spend_tx.inputs[0].witness = Witness::from_consensus_stack(vec![
-        sig_receiver.as_ref().to_vec(),
-        sig_sender.as_ref().to_vec(),
+        sig_sender.as_ref().to_vec(),   // 对应 <sender_pk> OP_CHECKSIG
+        sig_receiver.as_ref().to_vec(), // 对应 <receiver_pk> OP_CHECKSIGVERIFY
         leaf_script.script.as_inner().to_vec(),
         control_block.consensus_serialize(),
     ]);
 
     // 14) 广播（raw）
-    let raw = spend_tx.consensus_serialize();
-    let sid = rpc.send_raw_transaction(&raw)?;
+    let raw_bytes = spend_tx.consensus_serialize();
+    // 将字节转换为十六进制字符串
+    let raw_hex = raw_bytes.to_hex();
+    println!("RAW_TX_HEX: {}", raw_hex);
+    let sid = rpc.send_raw_transaction(&*raw_hex)?;
     println!("🎉 Spend TXID = {}", sid);
 
     Ok(())
