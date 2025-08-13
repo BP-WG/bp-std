@@ -1,8 +1,7 @@
-// 文件: derive/examples/simple_test.rs
 
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use bitcoincore_rpc::bitcoin::{
-    self, blockdata::opcodes, Address, Amount, Network, OutPoint, ScriptBuf,
+    blockdata::opcodes, Address, Amount, Network, OutPoint, ScriptBuf,
     Sequence, Transaction, TxIn, TxOut, Witness, absolute::LockTime,
 
     transaction::Version,
@@ -12,7 +11,6 @@ use bitcoincore_rpc::bitcoin::{
 };
 use bitcoincore_rpc::json::AddressType;
 use std::str::FromStr;
-use amplify::hex; // 使用 amplify 的 hex
 use derive::base58::encode;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
